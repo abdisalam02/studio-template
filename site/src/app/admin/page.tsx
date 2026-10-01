@@ -1089,62 +1089,51 @@ function AdminPageContent() {
                   </button>
                 </div>
 
-                {/* Horizontal 7-Day Strip with Architectural Active Tab Bridge */}
-                <div className="flex items-end justify-between gap-1 sm:gap-2 pt-2 px-1 sm:px-2 overflow-x-auto no-scrollbar">
+                {/* Horizontal 7-Day Strip with Active Day Capsule */}
+                <div className="flex items-center justify-between gap-1 sm:gap-2 pt-1 pb-2 overflow-x-auto no-scrollbar">
                   {timelineDaysInStrip.map((d) => {
                     const isSelected = timelineDate === d.dateStr;
                     return (
-                      <div key={d.dateStr} className="relative flex justify-center shrink-0">
-                        {isSelected && (
-                          <>
-                            {/* Left inverted fillet joining seamless dark container */}
-                            <span
-                              className="absolute -left-4 bottom-0 w-4 h-4 pointer-events-none z-10"
-                              style={{
-                                background:
-                                  "radial-gradient(circle at 0 0, transparent 16px, #0D0D0D 16.5px)",
-                              }}
-                            />
-                            {/* Right inverted fillet joining seamless dark container */}
-                            <span
-                              className="absolute -right-4 bottom-0 w-4 h-4 pointer-events-none z-10"
-                              style={{
-                                background:
-                                  "radial-gradient(circle at 100% 0, transparent 16px, #0D0D0D 16.5px)",
-                              }}
-                            />
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setTimelineDate(d.dateStr)}
-                          className={`relative z-10 transition-all flex flex-col items-center justify-center cursor-pointer ${
-                            isSelected
-                              ? "bg-[#0D0D0D] text-white w-12 sm:w-14 pt-3.5 pb-3 rounded-t-[9999px] rounded-b-none shadow-none"
-                              : "hover:bg-neutral-100 rounded-full w-10 sm:w-11 py-2.5 mb-1.5 text-[#0D0D0D]"
-                          }`}
-                        >
-                          <span
-                            className={`text-[10px] uppercase font-bold tracking-wider ${
-                              isSelected ? "text-neutral-400" : "opacity-70"
-                            }`}
-                          >
-                            {d.weekdayInitial}
-                          </span>
-                          <span className="text-sm font-extrabold mt-1">
-                            {d.dayNum}
-                          </span>
-                        </button>
-                      </div>
+                      <button
+                        key={d.dateStr}
+                        type="button"
+                        onClick={() => setTimelineDate(d.dateStr)}
+                        className={`transition-all flex flex-col items-center justify-center cursor-pointer shrink-0 ${
+                          isSelected
+                            ? "bg-[#0D0D0D] text-white rounded-full w-11 py-3.5 shadow-lg scale-105"
+                            : "hover:bg-neutral-100 rounded-full w-10 py-2.5 text-[#0D0D0D]"
+                        }`}
+                      >
+                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-70">
+                          {d.weekdayInitial}
+                        </span>
+                        <span className="text-sm font-extrabold mt-1">
+                          {d.dayNum}
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* LOWER AGENDA CONTAINER (DEEP OBSIDIAN #0D0D0D WITH 28px TOP CORNERS) */}
+              {/* ASYMMETRICAL WAVE S-CURVE TRANSITION */}
+              <div className="w-full overflow-hidden leading-none select-none pointer-events-none">
+                <svg
+                  viewBox="0 0 1000 120"
+                  preserveAspectRatio="none"
+                  className="w-full h-8 sm:h-12 block"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M0,50 C180,-10 380,110 580,40 C780,-30 880,80 1000,35 L1000,120 L0,120 Z"
+                    fill="#0D0D0D"
+                  />
+                </svg>
+              </div>
+
+              {/* LOWER AGENDA CONTAINER (DEEP OBSIDIAN #0D0D0D) */}
               <div
-                className="bg-[#0D0D0D] text-white p-6 sm:p-8 space-y-6"
-                style={{ borderRadius: "28px 28px 0 0" }}
+                className="bg-[#0D0D0D] text-white p-6 sm:p-8 space-y-6 -mt-1 relative z-10"
               >
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
