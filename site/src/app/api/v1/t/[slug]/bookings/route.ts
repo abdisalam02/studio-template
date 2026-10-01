@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
   generateBookingRef,
@@ -401,12 +401,27 @@ export async function POST(
       notes: formattedNotes || null,
     };
 
-    Promise.allSettled([
+    // Parallelize email delivery with Promise.allSettled and next/server after()
+    const emailPromise = Promise.allSettled([
       sendOwnerAlert(tenant, bookingDetails, actionUrl),
       sendCustomerReceipt(tenant, bookingDetails, manageUrl),
-    ]).catch((err) => {
-      console.error("Error sending booking notification emails:", err);
+    ]).then((results) => {
+      results.forEach((res, i) => {
+        if (res.status === "rejected") {
+          console.error(`Booking email ${i === 0 ? "owner" : "customer"} dispatch error:`, res.reason);
+        }
+      });
     });
+
+    if (typeof after === "function") {
+      try {
+        after(async () => {
+          await emailPromise;
+        });
+      } catch {
+        // Fallback: promise already running in background
+      }
+    }
 
     // Fetch newly created booking row to get actual id
     const { data: createdBooking } = await supabaseAdmin

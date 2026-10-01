@@ -138,8 +138,19 @@ export async function POST(req: NextRequest) {
         // Also sync to operating_hours if table exists (graceful non-blocking)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const anyAdmin = supabaseAdmin as any;
-        await anyAdmin.from("operating_hours").delete().eq("tenant_id", targetTenantId).catch(() => {});
-        await anyAdmin.from("operating_hours").insert(rows).catch(() => {});
+        const { error: syncDelErr } = await anyAdmin
+          .from("operating_hours")
+          .delete()
+          .eq("tenant_id", targetTenantId);
+
+        if (!syncDelErr) {
+          const { error: syncInsErr } = await anyAdmin
+            .from("operating_hours")
+            .insert(rows);
+          if (syncInsErr) {
+            console.warn("Operating hours sync insert note:", syncInsErr.message);
+          }
+        }
       }
     }
 
