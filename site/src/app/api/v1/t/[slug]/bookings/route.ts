@@ -6,6 +6,7 @@ import {
   hashToken,
 } from "@/lib/tokens";
 import { sendOwnerAlert, sendCustomerReceipt } from "@/lib/email";
+import { getEngineBaseUrl } from "@/lib/url";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -320,12 +321,10 @@ export async function POST(
     }
 
     // Dispatch emails asynchronously
-    const origin =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      req.nextUrl.origin ||
-      "http://localhost:3000";
+    const origin = getEngineBaseUrl(req);
 
-    const actionUrl = `${origin}/admin?ref=${encodeURIComponent(ref)}`;
+    // Direct tokenized action URL for owner review/approval (no login barrier)
+    const actionUrl = `${origin}/a/${ref}.${actionToken}`;
     const manageUrl = `${origin}/m/${ref}.${manageToken}`;
 
     const bookingDetails = {

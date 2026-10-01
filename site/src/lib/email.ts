@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import type { Database } from "@/types/database";
+import { getEngineBaseUrl } from "@/lib/url";
 
 export type Tenant = Database["public"]["Tables"]["tenants"]["Row"];
 
@@ -80,10 +81,7 @@ export async function sendOwnerAlert(
 
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Ny timebestilling: ${booking.customer_name} - ${booking.service_name}`;
-  const adminBaseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "http://localhost:3000";
+  const adminBaseUrl = getEngineBaseUrl();
   const reviewUrl = actionUrl || `${adminBaseUrl}/admin?ref=${encodeURIComponent(booking.ref)}`;
 
   const html = `

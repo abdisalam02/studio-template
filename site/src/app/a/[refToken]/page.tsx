@@ -25,7 +25,17 @@ export default async function OwnerReviewPage({ params }: PageProps) {
   const parsed = parseRefToken(refToken);
 
   if (!parsed || !supabaseAdmin) {
-    notFound();
+    return (
+      <main className="min-h-dvh bg-background text-foreground flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center space-y-4 font-mono text-xs">
+          <h1 className="text-base font-bold text-red-500">Ugyldig lenke</h1>
+          <p className="text-muted">Denne vurderingslenken er ufullstendig eller feilformatert.</p>
+          <a href="/admin" className="inline-block bg-foreground text-background px-4 py-2 rounded-lg font-semibold">
+            Gå til kontrollpanel
+          </a>
+        </div>
+      </main>
+    );
   }
 
   const { ref, token } = parsed;
@@ -37,12 +47,32 @@ export default async function OwnerReviewPage({ params }: PageProps) {
     .single();
 
   if (error || !booking) {
-    notFound();
+    return (
+      <main className="min-h-dvh bg-background text-foreground flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center space-y-4 font-mono text-xs">
+          <h1 className="text-base font-bold text-red-500">Bestilling ikke funnet</h1>
+          <p className="text-muted">Fant ingen bestilling med referanse {ref}.</p>
+          <a href="/admin" className="inline-block bg-foreground text-background px-4 py-2 rounded-lg font-semibold">
+            Gå til kontrollpanel
+          </a>
+        </div>
+      </main>
+    );
   }
 
   const isValid = verifyToken(token, booking.action_token_hash);
   if (!isValid) {
-    notFound();
+    return (
+      <main className="min-h-dvh bg-background text-foreground flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center space-y-4 font-mono text-xs">
+          <h1 className="text-base font-bold text-amber-500">Sikkerhetslenke utløpt</h1>
+          <p className="text-muted">Sikkerhetskoden for direkte vurdering er ugyldig eller allerede brukt.</p>
+          <a href={`/admin?ref=${encodeURIComponent(ref)}`} className="inline-block bg-foreground text-background px-4 py-2 rounded-lg font-semibold">
+            Logg inn for å vurdere i kontrollpanelet
+          </a>
+        </div>
+      </main>
+    );
   }
 
   const tenant = booking.tenants as unknown as {
