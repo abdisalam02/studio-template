@@ -45,3 +45,4 @@ Updated: 2026-10-01
 - Hardened admin API routes by gating dev_bypass strictly behind NODE_ENV === 'development'
 - Verified .gitignore rules, secured environment secrets, and validated clean Next.js production build
 - Confirmed CORS on public availability and bookings endpoints; cleaned tenant assets from site/public
+- Initialized git repository, verified ignore rules (.env.local excluded), and created initial commit on main
