@@ -1,0 +1,1432 @@
+[
+  {
+    "id": "weekly-availability-ticker",
+    "title": "Weekly Availability Marquee Ticker",
+    "file": "704461566760527104_sp0_b0.jpg",
+    "niche": "general",
+    "componentType": "booking-availability",
+    "aesthetic": "retro-newspaper",
+    "palette": [
+      "#F5F0E4",
+      "#111111",
+      "#CCCCCC",
+      "#E8E3D6",
+      "#666666"
+    ],
+    "layoutNotes": "Weekly booking availability ticker with marquee tape and status pills (2 Places Remaining / Last Place / Closed). Clean black-on-cream, large bold type.",
+    "uxFeatures": [
+      "marquee ticker",
+      "status pills",
+      "bold typography",
+      "weekly availability grid"
+    ],
+    "suggestedPrompt": "Retro newspaper weekly booking availability board with marquee ticker tape, bold condensed status pills, and cream paper background"
+  },
+  {
+    "id": "editorial-grid-booking",
+    "title": "Editorial Date & Slot Booking Grid",
+    "file": "704461566760527113_sp0_b0.jpg",
+    "niche": "brows-lashes",
+    "componentType": "booking-availability",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#F5EDE3",
+      "#3D2E24",
+      "#B8A393",
+      "#FFFFFF",
+      "#C4A67D"
+    ],
+    "layoutNotes": "Luxury editorial booking page with hairline grid, serif typography, date/time slot picker, and 'Book an appointment' CTA. Warm cream/brown palette.",
+    "uxFeatures": [
+      "hairline grid",
+      "calendar slots",
+      "serif typography",
+      "warm CTA button"
+    ],
+    "suggestedPrompt": "Luxury editorial beauty booking page with warm cream palette, hairline grid dividers, serif headings, and clean date-time slot selection"
+  },
+  {
+    "id": "reverie-brow-room-bio",
+    "title": "Reverie Brow Room Artist Dossier",
+    "file": "704461566760527119.jpg",
+    "niche": "brows-lashes",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#F5F3EE",
+      "#2B2B2B",
+      "#C9A87C",
+      "#E8E4DD",
+      "#FFFFFF"
+    ],
+    "layoutNotes": "Acuity booking template — 'Brow Room' with artist bio, 4-service photo grid (Brows, Lash Lifts, Extensions, Waxing), business hours, location card.",
+    "uxFeatures": [
+      "artist bio card",
+      "photo service pills",
+      "business hours grid",
+      "location card",
+      "contact footer strip"
+    ],
+    "suggestedPrompt": "Scandinavian clean brow studio full-page template with artist bio section, 4-service photo grid, business hours, and location card"
+  },
+  {
+    "id": "newspaper-policy-grid",
+    "title": "Retro Newspaper Studio Policies",
+    "file": "704461566760527122_sp0_b0.jpg",
+    "niche": "hair",
+    "componentType": "full-page",
+    "aesthetic": "retro-newspaper",
+    "palette": [
+      "#F5C6D0",
+      "#111111",
+      "#FFFFFF",
+      "#E8A4B4",
+      "#333333"
+    ],
+    "layoutNotes": "Newspaper/retro-pop hair salon full page — pink, black, white. Bold grunge typography, 'Meet Your Hair Stylist' bio, business hours grid, 4-column booking policies.",
+    "uxFeatures": [
+      "4-column policy grid",
+      "grunge typography",
+      "bio section",
+      "business hours",
+      "pink accent bands"
+    ],
+    "suggestedPrompt": "Retro newspaper pink hair salon full page with bold grunge type, artist bio, business hours grid, and 4-column booking policies"
+  },
+  {
+    "id": "patisserie-delight-cakes",
+    "title": "Maison Patisserie Trio Showcase",
+    "file": "704461566760527162_sp0_b0.jpg",
+    "niche": "cakes",
+    "componentType": "full-page",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#F5DDE0",
+      "#FFFFFF",
+      "#D4A0A0",
+      "#C9946E",
+      "#1A1A1A"
+    ],
+    "layoutNotes": "Pastel patisserie full-page layout with hero banner of cake stands, signature 3-column product carousel (Custom Cakes, Macarons, Cupcake Collections), and holiday promo band.",
+    "uxFeatures": [
+      "hero banner",
+      "3-column product carousel",
+      "promo banner with CTA",
+      "social footer strip"
+    ],
+    "suggestedPrompt": "Soft feminine patisserie landing page with blush pink hero, 3-column signature cake carousel, and gold holiday promotion band"
+  },
+  {
+    "id": "sweet-moments-bakery",
+    "title": "Sweet Moments Artisanal Bakery",
+    "file": "704461566760527166_sp0_b0.jpg",
+    "niche": "cakes",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#C9A88A",
+      "#F5EDE3",
+      "#3D2E24",
+      "#FFFFFF",
+      "#8B7355"
+    ],
+    "layoutNotes": "Warm artisanal bakery landing with large serif hero, half-and-half photo-text about section, 3 flavor feature cards, and a 3-column product grid with 'Order' badges.",
+    "uxFeatures": [
+      "split about section",
+      "feature cards trio",
+      "product grid with order badges",
+      "serif hero"
+    ],
+    "suggestedPrompt": "Warm organic artisanal patisserie website with mocha-cream palette, split content sections, and elegant serif headings over cupcake photography"
+  },
+  {
+    "id": "luffy-donuts-customizer",
+    "title": "Luffy Donuts Pop & Customizer",
+    "file": "704461566760527176.jpg",
+    "niche": "cakes",
+    "componentType": "full-page",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#F9C6D0",
+      "#FFFFFF",
+      "#FDE9A6",
+      "#1A1A1A",
+      "#E8A4B4"
+    ],
+    "layoutNotes": "Donut shop full-page with bold uppercase type, hot pink hero, 4-column product grid with pricing, and interactive donut customizer (size/filling/glaze/dressing dropdowns).",
+    "uxFeatures": [
+      "product grid with pricing",
+      "interactive customizer dropdowns",
+      "bold uppercase hero",
+      "add-to-cart buttons"
+    ],
+    "suggestedPrompt": "Playful Y2K pop donut shop website with pink hero, 4-column product grid, and interactive donut size/filling/glaze customizer"
+  },
+  {
+    "id": "reverie-nail-spa-template",
+    "title": "Reverie Nail Spa Studio Sheet",
+    "file": "704461566760527201_sp0_b0.jpg",
+    "niche": "nails",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#EFEBE4",
+      "#3D2E24",
+      "#FFFFFF",
+      "#C9A87C",
+      "#8B7766"
+    ],
+    "layoutNotes": "Acuity nail spa template — Reverie Nail Spa with hero photo, meet your artist bio, 4-service photo grid (Gels, Nail Art, Acrylic, Russian), business hours/location cards, booking policies.",
+    "uxFeatures": [
+      "artist bio card",
+      "4-service photo grid",
+      "business hours",
+      "location card",
+      "booking policies"
+    ],
+    "suggestedPrompt": "Scandinavian clean nail spa template with artist bio, four-service photo grid, hours and location cards, and booking policy section"
+  },
+  {
+    "id": "anastasia-nail-master-noir",
+    "title": "Anastasia Nail Master Noir",
+    "file": "704461566760527210_sp0_b0.jpg",
+    "niche": "nails",
+    "componentType": "full-page",
+    "aesthetic": "dark-luxury",
+    "palette": [
+      "#1A1A1A",
+      "#F5F0E4",
+      "#8B7355",
+      "#3D2E24",
+      "#C9A87C"
+    ],
+    "layoutNotes": "Dark luxury nail master full page with dual mobile views — left column has about/portfolio, right has numbered service list with prices. Russian text, strong serif headlines.",
+    "uxFeatures": [
+      "numbered service list",
+      "portfolio grid",
+      "dual mobile views",
+      "contact links (telegram/whatsapp)"
+    ],
+    "suggestedPrompt": "Dark luxury nail master portfolio with numbered price list, portfolio masonry grid, and mocha-brown accent typography"
+  },
+  {
+    "id": "monotone-nail-studio",
+    "title": "Monotone Brutalist Nail Studio",
+    "file": "704461566760527214_sp0_b0.jpg",
+    "niche": "nails",
+    "componentType": "full-page",
+    "aesthetic": "minimal-mono",
+    "palette": [
+      "#FFFFFF",
+      "#111111",
+      "#CCCCCC",
+      "#F5F0E4",
+      "#666666"
+    ],
+    "layoutNotes": "Monotone nail studio showcase — black and white hero with massive NAIL STUDIO headline, 5-category manicure grid, 2-item pedicure grid, about section with rotated ABOUT text, contacts.",
+    "uxFeatures": [
+      "massive display headline",
+      "service category grid",
+      "rotated vertical text",
+      "about section with photo",
+      "desktop + mobile side-by-side"
+    ],
+    "suggestedPrompt": "Minimal monochrome nail studio multi-page showcase with massive headline, categorized service grids, and clean contact sections"
+  },
+  {
+    "id": "luna-nail-studio-editorial",
+    "title": "Luna Nail Studio Editorial Flow",
+    "file": "704461566760527226_sp0_b0.jpg",
+    "niche": "nails",
+    "componentType": "full-page",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#F5EDE3",
+      "#D4A0A0",
+      "#FFFFFF",
+      "#3D2E24",
+      "#C9A87C"
+    ],
+    "layoutNotes": "Luna Nail Studio full-page showcase with blush pink accents, service cards with pricing (Manicure, Pedicure, Strengthening, Design), 4-step process flow, portfolio grid, and contact form.",
+    "uxFeatures": [
+      "service cards with pricing",
+      "4-step process flow",
+      "stat counters",
+      "contact form",
+      "portfolio grid"
+    ],
+    "suggestedPrompt": "Soft feminine nail studio full page with rose-pink accents, service price cards, numbered process steps, portfolio gallery, and booking form"
+  },
+  {
+    "id": "hot-core-pilates-studio",
+    "title": "Hot Core Pilates Burgundy Studio",
+    "file": "704461566760527218.jpg",
+    "niche": "fitness",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#6B1F3A",
+      "#F5C6D0",
+      "#F5EDE3",
+      "#FFFFFF",
+      "#8B4A5E"
+    ],
+    "layoutNotes": "Hot Core Pilates multi-page showcase — burgundy/pink palette, classes page, class descriptions with difficulty tags, testimonial cards, membership tiers, and hero banner.",
+    "uxFeatures": [
+      "class cards with difficulty badges",
+      "testimonial carousel",
+      "membership pricing tiers",
+      "marquee text banner",
+      "star ratings"
+    ],
+    "suggestedPrompt": "Warm organic Pilates studio multi-page website in burgundy and pink with class breakdowns, testimonial cards, and 3-tier membership pricing"
+  },
+  {
+    "id": "pastel-blob-nail-menu",
+    "title": "Pastel Blob Manicure Price Menu",
+    "file": "704461566760527258.jpg",
+    "niche": "nails",
+    "componentType": "price-list",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#FFFFFF",
+      "#F9D5DB",
+      "#1C1C1C",
+      "#F48B9E",
+      "#D59A8D"
+    ],
+    "layoutNotes": "Clean vertical price list separated by thin divider lines above organic fluid blob mask cutouts showcasing manicure photography. Minimalist typography paired with playful pastel flower accents creates an airy, elegant feel.",
+    "uxFeatures": [
+      "fluid image cutouts",
+      "divided list",
+      "right-aligned pricing",
+      "accent script typography",
+      "decorative floral icons"
+    ],
+    "suggestedPrompt": "Soft feminine nail salon price list layout with delicate serif typography, horizontal dividers, pink flower accents, and organic fluid blob photo frames showing manicured hands."
+  },
+  {
+    "id": "y2k-pink-nail-cards",
+    "title": "Y2K Pop Nail Stories Grid",
+    "file": "704461566760527272.jpg",
+    "niche": "nails",
+    "componentType": "lookbook-grid",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#E55B7D",
+      "#F6A8B8",
+      "#B56B82",
+      "#FFF0F3",
+      "#2B161B"
+    ],
+    "layoutNotes": "Tilted isometric grid displaying a suite of cohesive mobile story cards with rounded corners. Mix of retro bubbly branding, starburst sparkles, high-contrast typography, and photo cards.",
+    "uxFeatures": [
+      "card grid",
+      "weekly slot table",
+      "testimonial cards",
+      "price list card",
+      "camera UI overlay"
+    ],
+    "suggestedPrompt": "Tilted isometric showcase of Y2K pop nail studio mobile cards with bubble lettering, starbursts, hot pink gradients, appointment schedule, and lookbook photos."
+  },
+  {
+    "id": "scandi-spa-contact-faq",
+    "title": "Scandinavian Clean Spa & FAQ",
+    "file": "704461566760527303_sp0_b0.jpg",
+    "niche": "skincare-clinic",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#F4EFEA",
+      "#4A3B32",
+      "#E2DCD5",
+      "#FFFFFF",
+      "#8C7B70"
+    ],
+    "layoutNotes": "Grid-based minimalist editorial layout with fine border dividers separating the contact form, social links, photo, and FAQ accordion. Features generous negative space, neutral sand tones, and a bold circular 'Book Now' CTA.",
+    "uxFeatures": [
+      "accordion FAQ",
+      "contact form",
+      "grid borders",
+      "circular CTA button",
+      "newsletter signup footer"
+    ],
+    "suggestedPrompt": "Scandinavian clean aesthetic spa and wellness clinic contact page with fine beige grid lines, FAQ accordion, fluted marble reception photo, and elegant serif typography."
+  },
+  {
+    "id": "terracotta-floral-trifold",
+    "title": "Terracotta Floral Studio Trifold",
+    "file": "704461566760527314_sp0_b0.jpg",
+    "niche": "creative-studio",
+    "componentType": "services-menu",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#F9ECE6",
+      "#994738",
+      "#DFCFCA",
+      "#FFFFFF",
+      "#526B4E"
+    ],
+    "layoutNotes": "Three-column trifold brochure layout balancing pastel peach solid color blocks against soft floral photography. Crisp serif headlines paired with delicate, high-tracking body typography.",
+    "uxFeatures": [
+      "three-column layout",
+      "color-blocked panels",
+      "editorial floral photography",
+      "contact details block"
+    ],
+    "suggestedPrompt": "Luxury editorial trifold brochure for an artisan floral studio featuring muted terracotta and blush color blocks, delicate serif typography, and elegant botanical imagery."
+  },
+  {
+    "id": "botanical-cutout-ecommerce",
+    "title": "Botanical Cutout Rose E-Commerce",
+    "file": "704461566760527330_sp0_b0.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#FCEEED",
+      "#4A4747",
+      "#FE7FA9",
+      "#E8A3B2",
+      "#7E906F"
+    ],
+    "layoutNotes": "Full-page floral e-commerce layout featuring layered typography behind cut-out rose stems in the hero, followed by 4-column product showcases. Soft blush monochromatic backdrop with high-contrast charcoal typography and vibrant pink CTA buttons.",
+    "uxFeatures": [
+      "layered typography hero",
+      "product cards",
+      "category pills",
+      "arrow CTA button",
+      "sticky nav bar with e-commerce icons"
+    ],
+    "suggestedPrompt": "Soft feminine e-commerce homepage for a flower boutique with large typography behind isolated pink rose stems, minimalist 4-column product cards, and blush pink background."
+  },
+  {
+    "id": "soft-line-art-flower-shop",
+    "title": "Soft Line-Art Flower Atelier",
+    "file": "704461566760527338.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#FFFFFF",
+      "#FDEEEF",
+      "#F7C7CE",
+      "#222222",
+      "#E89CA8"
+    ],
+    "layoutNotes": "Editorial floral shop webpage featuring asymmetric hero photo with rounded corners and hand-drawn botanical line art. Followed by alternating text-photo sections, an 8-item product price grid with price tags, and 3 icon feature cards.",
+    "uxFeatures": [
+      "rounded hero image",
+      "botanical line illustrations",
+      "product grid with price tags",
+      "feature badge cards",
+      "text link CTAs with arrows"
+    ],
+    "suggestedPrompt": "Charming soft feminine floral shop website with botanical line sketches, rounded corner photography, blush pink accent sections, and a clean product grid with pricing."
+  },
+  {
+    "id": "luxury-specimen-lookbook",
+    "title": "Luxury Botanical Specimen Lookbook",
+    "file": "704461566760527347_sp0_b0.jpg",
+    "niche": "creative-studio",
+    "componentType": "lookbook-grid",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#FFFFFF",
+      "#1E1E1E",
+      "#E6632B",
+      "#E4A723",
+      "#8D9A4C"
+    ],
+    "layoutNotes": "High-fashion luxury editorial botanical website featuring interlocking typography and botanical illustration in the hero. An asymmetrical, magazine-style lookbook grid displays curated exotic flower specimens with minimalist sans labels.",
+    "uxFeatures": [
+      "interlocking typography and image",
+      "asymmetrical lookbook grid",
+      "clean minimalist navigation",
+      "specimen captions"
+    ],
+    "suggestedPrompt": "Luxury editorial botanical studio website with stark white background, high-contrast typography interweaving with hyper-detailed flower stems, and an asymmetrical collection grid."
+  },
+  {
+    "id": "lake-como-arch-rsvp",
+    "title": "Lake Como Architectural Arch RSVP",
+    "file": "704461566760527369_sp0_b0.jpg",
+    "niche": "general",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#F8F4EE",
+      "#323E32",
+      "#666B51",
+      "#E6B8BE",
+      "#3B4239"
+    ],
+    "layoutNotes": "Romantic arched layout framed by lush botanical orchid illustrations on a warm textured cream canvas. Features an architectural arch window image, three-column icon details section, and an oval RSVP callout badge.",
+    "uxFeatures": [
+      "arched photo mask",
+      "botanical border framing",
+      "icon detail columns",
+      "oval CTA card",
+      "pill RSVP button"
+    ],
+    "suggestedPrompt": "Luxury destination wedding landing page with arched scenic photo, vintage cream background, romantic botanical orchid framing, and sage green pill RSVP button."
+  },
+  {
+    "id": "torn-paper-wedding-timeline",
+    "title": "Torn Paper Mobile Event Timeline",
+    "file": "704461566760527370_sp0_b0.jpg",
+    "niche": "general",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#ECE5DD",
+      "#9E8C78",
+      "#332F2C",
+      "#C5B29F",
+      "#A09285"
+    ],
+    "layoutNotes": "Dual-column presentation of a mobile wedding invitation featuring torn paper section transitions and elegant calligraphic script headings. Incorporates an hourly schedule timeline, dress code color swatches, countdown timer, and interactive RSVP questionnaire.",
+    "uxFeatures": [
+      "torn paper edge dividers",
+      "event timeline schedule",
+      "dress code color swatches",
+      "countdown timer",
+      "RSVP form with radio buttons"
+    ],
+    "suggestedPrompt": "Warm organic wedding mobile website design featuring torn paper edges, script typography, hourly day timeline, palette swatch bar, countdown timer, and RSVP questionnaire."
+  },
+  {
+    "id": "scandi-bathhouse-booking",
+    "title": "Scandinavian Bathhouse Booking",
+    "file": "704461566760527373_sp0_b0.jpg",
+    "niche": "fitness",
+    "componentType": "booking-availability",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#F4EFEA",
+      "#1F1F1F",
+      "#A38B67",
+      "#E5DFD7",
+      "#FFFFFF"
+    ],
+    "layoutNotes": "Clean mobile booking interface with a week/month toggle, horizontal date carousel, and multi-tier filter pills. Features an event session card with thumbnail, practitioner metadata, pricing, and a prominent 'Book now' action.",
+    "uxFeatures": [
+      "horizontal date picker carousel",
+      "pill filter chips",
+      "week/month view toggle",
+      "event card with thumbnail",
+      "book now CTA"
+    ],
+    "suggestedPrompt": "Scandinavian clean wellness booking interface with horizontal calendar date picker, pill filter tags, and event booking card with olive brown accents."
+  },
+  {
+    "id": "vertical-rotated-schedule",
+    "title": "Vertical Rotated Serif Schedule",
+    "file": "704461566760527375.jpg",
+    "niche": "creative-studio",
+    "componentType": "booking-availability",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#EBE4D8",
+      "#382E2B",
+      "#6E5E58",
+      "#FFFFFF",
+      "#9C8C84"
+    ],
+    "layoutNotes": "Structured editorial schedule layout anchored by a prominent vertical rotated serif title on the left. The right side features a top square photo followed by a clean horizontal rule-divided date list and footer contact bar.",
+    "uxFeatures": [
+      "vertical rotated typography",
+      "divided event schedule list",
+      "square photo header",
+      "footer contact bar"
+    ],
+    "suggestedPrompt": "Warm minimalist pop-up schedule layout with vertical rotated serif title, clean divided date rows, neutral oatmeal background, and apparel photo."
+  },
+  {
+    "id": "perforated-ticket-calendar",
+    "title": "Perforated Event Ticket Stubs",
+    "file": "704461566760527376.jpg",
+    "niche": "creative-studio",
+    "componentType": "booking-availability",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#DFDDD6",
+      "#FFFFFF",
+      "#242E28",
+      "#8F9088",
+      "#596159"
+    ],
+    "layoutNotes": "Vertical stack of ticket-shaped event cards set against an oatmeal backdrop with abstract organic contour lines. Each card features a thumbnail photo, event details, and a perforated coupon stub displaying the date in bold serif.",
+    "uxFeatures": [
+      "ticket stub cards",
+      "perforated divider lines",
+      "date stubs",
+      "event thumbnail images",
+      "organic contour background lines"
+    ],
+    "suggestedPrompt": "Warm organic upcoming events schedule featuring ticket-stub cards with perforated divider lines, date badges, event thumbnails, and delicate contour line accents."
+  },
+  {
+    "id": "desert-sand-arch-atelier",
+    "title": "Desert Sand Arch Studio & Shop",
+    "file": "704461566760527382.png",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#EAD8C8",
+      "#D2B29D",
+      "#3B2E2A",
+      "#FDFBF7",
+      "#C4977E"
+    ],
+    "layoutNotes": "Full e-commerce homepage organized around architectural arch motifs and warm desert-sand tones. Features arched service cards, circular photo framing, an Instagram-style product grid, and an arched contact callout.",
+    "uxFeatures": [
+      "arch photo cards",
+      "circular image crop",
+      "social engagement stats",
+      "newsletter signup footer",
+      "pill buttons"
+    ],
+    "suggestedPrompt": "Warm organic floral studio e-commerce page with warm sand tones, architectural arch framing, pampas grass photography, and elegant serif headings."
+  },
+  {
+    "id": "pixel-art-digital-roster",
+    "title": "Monospace Pixel Art Festival Roster",
+    "file": "704461566760527387.png",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "minimal-mono",
+    "palette": [
+      "#DCD7C9",
+      "#E63920",
+      "#1E1E1E",
+      "#91382A",
+      "#FFFFFF"
+    ],
+    "layoutNotes": "Brutalist editorial layout pairing monospace typography and page numbers with vibrant red pixel art motifs. Combines a horizontal pixelated banner with vertical Japanese text and a two-column artist roster.",
+    "uxFeatures": [
+      "monospace typography",
+      "arrow external links",
+      "pixel art illustrations",
+      "vertical Asian text",
+      "page number index marks"
+    ],
+    "suggestedPrompt": "Minimal mono digital art festival website with monospace typography, vibrant red pixel art koi fish, Japanese vertical text, and a clean two-column artist index."
+  },
+  {
+    "id": "folded-paper-brow-dossier",
+    "title": "Folded Paper Brow Atelier Guide",
+    "file": "704461566760527389.png",
+    "niche": "brows-lashes",
+    "componentType": "full-page",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#E5DDD5",
+      "#2C221E",
+      "#4E5848",
+      "#CBBFB4",
+      "#9E6D58"
+    ],
+    "layoutNotes": "High-end editorial beauty salon landing page with folded paper texture and layered collage elements. Features magazine-style Didot headlines, tilted paper note cards, numbered service highlight cards, and an accordion procedure guide.",
+    "uxFeatures": [
+      "accordion FAQ",
+      "folded paper texture",
+      "offset layered photo collage",
+      "circular CTA badge",
+      "floating sticky-note cards",
+      "numbered service spotlight"
+    ],
+    "suggestedPrompt": "Luxury editorial brow studio landing page with folded paper texture, high-contrast Didot typography, beauty model collage, floating paper cards, and an interactive procedure accordion."
+  },
+  {
+    "id": "ceramic-home-zig-zag",
+    "title": "Ceramic Home Zig-Zag Essentials",
+    "file": "704461566760527393_sp0_b0.jpg",
+    "niche": "general",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#F5F2EB",
+      "#E8E2D5",
+      "#2C2A29",
+      "#8B8275",
+      "#B88E6D"
+    ],
+    "layoutNotes": "Full-page lifestyle e-commerce layout with airy hero, alternating zig-zag numbered feature blocks, and a clean card-based product showcase. Generous negative space and subtle warm-neutral tones.",
+    "uxFeatures": [
+      "pill button",
+      "numbered feature list",
+      "alternating layout",
+      "product card grid",
+      "minimal footer"
+    ],
+    "suggestedPrompt": "Scandinavian minimalist e-commerce landing page for ceramic and artisanal home essentials, warm off-white background, elegant sans-serif typography, numbered feature blocks, clean product grid"
+  },
+  {
+    "id": "sage-holistic-wellness-blog",
+    "title": "Sage Holistic Wellness Editorial",
+    "file": "704461566760527402.jpg",
+    "niche": "skincare-clinic",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#E8EBE4",
+      "#4A6B5D",
+      "#23332B",
+      "#FFFFFF",
+      "#8C9D8E"
+    ],
+    "layoutNotes": "Balanced editorial wellness landing page with responsive desktop and mobile views shown side-by-side. Features centered serif headings, a three-column blog article card grid, and an asymmetric about split-section.",
+    "uxFeatures": [
+      "card grid",
+      "newsletter subscription box",
+      "mobile responsive mockup",
+      "split about section",
+      "tagline divider"
+    ],
+    "suggestedPrompt": "Clean Scandinavian holistic health and wellness blog website, muted sage green and warm mist tones, editorial serif typography, botanical photography, responsive desktop and mobile view"
+  },
+  {
+    "id": "neoclassical-arch-portfolio",
+    "title": "Neoclassical Architecture Portfolio",
+    "file": "704461566760527406.png",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#FDF3EE",
+      "#EAA57C",
+      "#31302E",
+      "#DF9775",
+      "#73806B"
+    ],
+    "layoutNotes": "Luxury architectural editorial layout with browser mockup frame, prominent metrics counter row, and classical arch-shaped image masks. Refined serif typography and pale terracotta accents.",
+    "uxFeatures": [
+      "browser frame mockup",
+      "video play overlay",
+      "stat counter metrics",
+      "arch image masks",
+      "hover circle callout"
+    ],
+    "suggestedPrompt": "Luxury Neoclassical architecture portfolio homepage, soft blush and terracotta palette, arch-shaped image masks, video hero banner, stat counters, high-end editorial typography"
+  },
+  {
+    "id": "cobalt-streetwear-ecommerce",
+    "title": "Cobalt Streetwear Dark Drop",
+    "file": "704461566760527407.jpg",
+    "niche": "fitness",
+    "componentType": "full-page",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#FFFFFF",
+      "#3D52F7",
+      "#111111",
+      "#8C8C8C",
+      "#E3E3E3"
+    ],
+    "layoutNotes": "High-contrast streetwear e-commerce layout with stark white space, dark footer, and bold cobalt blue accents. Features circular hero cropping, dynamic typography overlays, and a single highlighted product card.",
+    "uxFeatures": [
+      "circular image crop",
+      "bold typography overlay",
+      "centered product highlight",
+      "editorial photo grid",
+      "dark high-contrast footer"
+    ],
+    "suggestedPrompt": "Edgy Y2K-inspired streetwear brand e-commerce website, monochrome base with vibrant electric blue typography, circular hero mask, editorial collage grid, dark footer"
+  },
+  {
+    "id": "retro-cherry-pancake-brand",
+    "title": "Cherry Pop 70s Pancake Brand",
+    "file": "704461566760527411.png",
+    "niche": "cakes",
+    "componentType": "full-page",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#821E1E",
+      "#FDF5DE",
+      "#C93838",
+      "#331612",
+      "#E88D67"
+    ],
+    "layoutNotes": "Vibrant retro-pop food brand landing page with chunky bubble typography, repeating marquee ticker strips, and playful floating sticker badges. Product details with quantity selectors and 3-step recipe process.",
+    "uxFeatures": [
+      "marquee ticker",
+      "quantity selector stepper",
+      "badge stickers",
+      "3-step process cards",
+      "chunky retro typography banner"
+    ],
+    "suggestedPrompt": "Retro Y2K pop pancake mix brand landing page, deep cherry red and warm cream palette, chunky 70s bubble typography, marquee banner, sticker badges, 3-step recipe cards"
+  },
+  {
+    "id": "omakase-dining-editorial",
+    "title": "Omakase Japanese Editorial Dining",
+    "file": "704461566760527414.png",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#FFFFFF",
+      "#E07B7F",
+      "#F2C4C6",
+      "#252424",
+      "#886B5A"
+    ],
+    "layoutNotes": "Sophisticated luxury editorial dining page using Japanese aesthetic principles with asymmetrical white space, vertical typography accents, and soft circular gradient glows. Collage-style photo arrangements.",
+    "uxFeatures": [
+      "asymmetrical grid",
+      "gradient sun orb backdrop",
+      "kanji typography accent",
+      "fine line dividers",
+      "photo collage"
+    ],
+    "suggestedPrompt": "High-end luxury Japanese omakase restaurant website, cherry blossom pink and crisp white palette, delicate editorial serif type, glowing orb graphic, Japanese kanji accents, collage gallery"
+  },
+  {
+    "id": "heirloom-botanical-skincare",
+    "title": "Heirloom Botanical Soap & Salve",
+    "file": "704461566760527427.png",
+    "niche": "skincare-clinic",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#EFECE1",
+      "#BBCAD6",
+      "#323832",
+      "#E8DFC5",
+      "#8E9E82"
+    ],
+    "layoutNotes": "Artisanal heritage skincare landing page built on textured parchment backgrounds with vintage botanical sketches, serif editorial typography, and highlighter brush-mark accents.",
+    "uxFeatures": [
+      "highlighter text accent",
+      "ticker date divider",
+      "vintage badge stamp",
+      "split color content block",
+      "handwritten script notes"
+    ],
+    "suggestedPrompt": "Heirloom handcrafted soap and botanical skincare e-commerce website, textured linen paper background, slate blue and oatmeal tones, vintage botanical engravings, brush highlight effects"
+  },
+  {
+    "id": "designer-lamp-customizer",
+    "title": "Playful Designer Lamp Showcase",
+    "file": "704461566760527428.webp",
+    "niche": "general",
+    "componentType": "product-showcase",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#FAF0E6",
+      "#D94E34",
+      "#F4C455",
+      "#8AC4D0",
+      "#F8B7CD"
+    ],
+    "layoutNotes": "Playful e-commerce product detail page in both desktop and mobile viewports. Rounded corner containers, collapsible accordion panels, color picker swatches, and a horizontal recommendation carousel.",
+    "uxFeatures": [
+      "color swatch selector",
+      "accordion collapse panels",
+      "quantity stepper",
+      "gift card promo banner",
+      "product recommendation carousel",
+      "mobile responsive view"
+    ],
+    "suggestedPrompt": "Playful modern designer lamp product detail page, soft buttermilk yellow and warm coral red palette, rounded container cards, color swatches, accordion details, responsive mobile layout"
+  },
+  {
+    "id": "mediterranean-roaster-coffee",
+    "title": "Mediterranean Coffee Roaster",
+    "file": "704461566760527435.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#B8531A",
+      "#1D3B2B",
+      "#F4EBD9",
+      "#DDA143",
+      "#0E1F16"
+    ],
+    "layoutNotes": "Warm artisanal coffee brand landing page with organic curved section dividers, Mediterranean vector silhouettes, and centered product package cards. Desktop and dual mobile screen mockups.",
+    "uxFeatures": [
+      "organic wave section transitions",
+      "vector silhouette illustrations",
+      "product card with packaging mockups",
+      "minimal inline contact form",
+      "device mockups"
+    ],
+    "suggestedPrompt": "Warm Mediterranean specialty coffee roaster landing page, terracotta, forest green and mustard ochre palette, arched vector illustrations, organic wavy sections, product showcase"
+  },
+  {
+    "id": "tennis-club-graph-paper",
+    "title": "Tennis Club Technical Graph Grid",
+    "file": "704461566760527438_sp0_b0.jpg",
+    "niche": "fitness",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#F9F9F9",
+      "#111111",
+      "#B4F042",
+      "#E2E2E2",
+      "#666666"
+    ],
+    "layoutNotes": "High-energy sports club landing page on a light technical graph paper grid with dynamic cutout action photos breaking grid boundaries. Interactive accordion training program list with neon lime hover highlight.",
+    "uxFeatures": [
+      "graph paper grid background",
+      "cutout player photography",
+      "interactive program list with photo peek",
+      "large typographic stat counters",
+      "directional arrow buttons"
+    ],
+    "suggestedPrompt": "Contemporary tennis academy landing page, subtle graph paper grid backdrop, monochrome typography with electric tennis-ball lime green accent, cutout action photography, bold stat counters"
+  },
+  {
+    "id": "pebble-mask-photographer",
+    "title": "Pebble Mask Photographer Portfolio",
+    "file": "704461566760527441.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#EFE9D9",
+      "#DB5D36",
+      "#232321",
+      "#C77B52",
+      "#F6F2EA"
+    ],
+    "layoutNotes": "Warm editorial photographer portfolio with rounded pebble-shaped containers, organic masking shapes, and a staggered photo lookbook grid. Four-quadrant feature card block and numbered step-by-step workflow timeline.",
+    "uxFeatures": [
+      "custom organic photo masks",
+      "quadrant feature grid",
+      "asymmetric masonry lookbook",
+      "numbered process timeline with embedded photo",
+      "pill action button"
+    ],
+    "suggestedPrompt": "Warm organic photographer portfolio website, beige and terracotta palette, pebble-shaped image masks, rounded quad cards, numbered process list, masonry photo gallery"
+  },
+  {
+    "id": "tactile-photo-album-pink",
+    "title": "Tactile Pink High-Fashion Album",
+    "file": "704461566760527457_sp0_b0.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#F5B7D0",
+      "#141414",
+      "#FFFFFF",
+      "#C991A5",
+      "#8C6A78"
+    ],
+    "layoutNotes": "Avant-garde editorial portfolio layout within a rounded viewport frame, pairing baby pink backdrops with massive high-impact display typography. Asymmetric modular image blocks and dramatic text-over-photo layering.",
+    "uxFeatures": [
+      "rounded container frame",
+      "oversized typography overlay",
+      "modular asymmetric grid",
+      "micro-copy callouts",
+      "fashion photo cards"
+    ],
+    "suggestedPrompt": "Editorial tactile photo album brand landing page, pastel pink and deep black palette, massive overlapping typography, high-fashion portrait photography, rounded browser frame"
+  },
+  {
+    "id": "retro-condensed-spa-menu",
+    "title": "Retro Condensed Spa Price Sheet",
+    "file": "704461566760527465.jpg",
+    "niche": "skincare-clinic",
+    "componentType": "price-list",
+    "aesthetic": "retro-newspaper",
+    "palette": [
+      "#ECECE0",
+      "#212121",
+      "#96968E",
+      "#D5D5C8",
+      "#61615C"
+    ],
+    "layoutNotes": "Structured two-column beauty salon price list card with fine horizontal hairline rules separating treatment categories. Bold retro-editorial header combining heavy grotesque type with a flowing calligraphic glyph over a faded grayscale portrait.",
+    "uxFeatures": [
+      "two-column price table",
+      "hairline section dividers",
+      "calligraphic headline flourish",
+      "clean price alignment",
+      "contact info footer strip"
+    ],
+    "suggestedPrompt": "Elegant vintage editorial spa price list menu, warm parchment paper background, bold condensed retro typography with script initial flourish, two-column tabulated layout with hairline borders"
+  },
+  {
+    "id": "japanese-watercolor-pastry",
+    "title": "Japanese Watercolor Pastry Recipe",
+    "file": "704461566760527469.png",
+    "niche": "cakes",
+    "componentType": "about-section",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#FFFFFF",
+      "#E5192D",
+      "#C8784B",
+      "#768D4C",
+      "#F8E490"
+    ],
+    "layoutNotes": "Minimalist Japanese pastry ingredient breakdown framed within a refined red outline border. Staggered watercolor food illustrations alternate alongside bilingual Japanese-English typography and numbered circular tags.",
+    "uxFeatures": [
+      "outlined feature container",
+      "numbered step badge",
+      "alternating watercolor illustration layout",
+      "bilingual headline pairing",
+      "highlighted key phrases"
+    ],
+    "suggestedPrompt": "Japanese artisanal bakery ingredient story section, crisp white canvas with vibrant crimson border and typography, delicate watercolor apple pie illustrations, clean structured layout"
+  },
+  {
+    "id": "yin-yang-wave-schedule",
+    "title": "Yin-Yang Fluid Monochrome Calendar",
+    "file": "704461566760527480.png",
+    "niche": "general",
+    "componentType": "booking-availability",
+    "aesthetic": "minimal-mono",
+    "palette": [
+      "#FFFFFF",
+      "#000000",
+      "#1E1E1E",
+      "#7A7A7A",
+      "#EFEFEF"
+    ],
+    "layoutNotes": "Dual mobile UI screen layout with dynamic fluid yin-yang contrast curve dividing dark and light zones. Calendar day selector with hourly appointment timeline alongside a clean event creation form.",
+    "uxFeatures": [
+      "organic wave container split",
+      "horizontal date picker strip",
+      "pill segmented control",
+      "vertical agenda timeline",
+      "toggle switch component"
+    ],
+    "suggestedPrompt": "Sleek monochrome mobile booking and calendar schedule interface, fluid wave black-and-white dual tone split, pill button tabs, horizontal date picker, clean timeline appointment cards"
+  },
+  {
+    "id": "alpine-fog-agency-grid",
+    "title": "Alpine Monochrome Agency Grid",
+    "file": "704461566760527507.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "minimal-mono",
+    "palette": [
+      "#FFFFFF",
+      "#0D0D0D",
+      "#7D8285",
+      "#ECECEC"
+    ],
+    "layoutNotes": "Full-page agency landing page with hero banner over foggy mountain landscape, a categorized masonry photo gallery with filter pills, and a stark black contrast footer.",
+    "uxFeatures": [
+      "filter pills",
+      "masonry grid",
+      "sticky header",
+      "pill CTA buttons",
+      "contrast footer"
+    ],
+    "suggestedPrompt": "Minimal monochrome creative digital agency website featuring full-bleed mountain hero, filterable photo grid, and clean brutalist typography"
+  },
+  {
+    "id": "desert-ochre-tile-lookbook",
+    "title": "Desert Ochre Rounded Lookbook",
+    "file": "704461566760527510.jpg",
+    "niche": "creative-studio",
+    "componentType": "lookbook-grid",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#F5F5F3",
+      "#DD6B20",
+      "#C2541A",
+      "#1A1A1A"
+    ],
+    "layoutNotes": "Modern editorial gallery layout with rounded image tiles arranged in an asymmetric grid beneath bold headline typography and discreet metadata tags.",
+    "uxFeatures": [
+      "rounded image cards",
+      "asymmetric grid",
+      "tag badge",
+      "hamburger menu",
+      "header navigation"
+    ],
+    "suggestedPrompt": "Warm organic photo gallery showcase with rounded image tiles, desert warm hues, elegant sans-serif typography, and clean white background"
+  },
+  {
+    "id": "lilac-alpine-resort",
+    "title": "Lilac Alpine Luxury Sanctuary",
+    "file": "704461566760527516_sp0_b0.jpg",
+    "niche": "general",
+    "componentType": "full-page",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#F7EFF3",
+      "#6C6EA4",
+      "#260E18",
+      "#C8C4DE"
+    ],
+    "layoutNotes": "Multi-section resort page featuring frosted overlays on snowy mountain photography and pastel rounded content cards with alternating CTA buttons.",
+    "uxFeatures": [
+      "search pill bar",
+      "segmented controls",
+      "rounded content blocks",
+      "pill buttons"
+    ],
+    "suggestedPrompt": "Soft lilac and alpine luxury landing page with frosted card over mountain backdrop, rounded content sections, and elegant micro-interactions"
+  },
+  {
+    "id": "brutalist-outline-price-sheet",
+    "title": "Brutalist Monochrome Service Sheet",
+    "file": "704461566760527656.jpg",
+    "niche": "creative-studio",
+    "componentType": "price-list",
+    "aesthetic": "minimal-mono",
+    "palette": [
+      "#000000",
+      "#E6E6E6",
+      "#FFFFFF",
+      "#555555"
+    ],
+    "layoutNotes": "Monochrome price sheet with bordered outline cards containing embedded section headers and aligned two-column service line items with pricing.",
+    "uxFeatures": [
+      "bordered outline cards",
+      "embedded card headers",
+      "two-column price alignment",
+      "footer contact bar"
+    ],
+    "suggestedPrompt": "Minimalist black and white service price list menu featuring framed rectangular containers with embedded subheaders and structured line items"
+  },
+  {
+    "id": "sage-earth-organic-store",
+    "title": "Sage & Linen Organic Home",
+    "file": "704461566760528719_sp0_b0.jpg",
+    "niche": "skincare-clinic",
+    "componentType": "full-page",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#FAF7F0",
+      "#ABB392",
+      "#5C503D",
+      "#242721"
+    ],
+    "layoutNotes": "Full e-commerce homepage with earth-toned section color blocks, horizontal product carousel, rounded image cards, and refined editorial serif typography.",
+    "uxFeatures": [
+      "announcement banner",
+      "horizontal product carousel",
+      "category card grid",
+      "editorial serif headings",
+      "pill CTA buttons"
+    ],
+    "suggestedPrompt": "Warm organic sustainable lifestyle e-commerce homepage in sage green and cream tones with serif typography, product carousel, and rounded cards"
+  },
+  {
+    "id": "geometric-shard-editorial",
+    "title": "Geometric Shard High-Fashion Poster",
+    "file": "704461566760528722.jpg",
+    "niche": "creative-studio",
+    "componentType": "hero",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#E1DED7",
+      "#1A1614",
+      "#8B2520",
+      "#5C3C35"
+    ],
+    "layoutNotes": "Avant-garde editorial layout with diagonal geometric photo masks revealing fragmented close-up imagery surrounded by generous whitespace and delicate serif credits.",
+    "uxFeatures": [
+      "geometric photo masks",
+      "split imagery",
+      "editorial typography",
+      "asymmetrical composition"
+    ],
+    "suggestedPrompt": "High-fashion luxury editorial poster with diagonal shard photo cutouts, vintage paper background, and refined serif typography"
+  },
+  {
+    "id": "pastel-linen-swatch-cards",
+    "title": "Pastel Linen Color Swatch Cards",
+    "file": "704461566760528724.png",
+    "niche": "creative-studio",
+    "componentType": "product-showcase",
+    "aesthetic": "soft-feminine",
+    "palette": [
+      "#F9F6F4",
+      "#EACFD9",
+      "#F2CECD",
+      "#CE8F9E",
+      "#818455"
+    ],
+    "layoutNotes": "Stacked horizontal color swatch cards with typography and hex codes floating over a textured photographic background with a bottom pill button.",
+    "uxFeatures": [
+      "color swatch cards",
+      "hex color values",
+      "background photo underlay",
+      "pill button"
+    ],
+    "suggestedPrompt": "Soft feminine color palette showcase cards with pastel pink and sage swatches overlaid on elegant patterned fabric"
+  },
+  {
+    "id": "type-specimen-slider-table",
+    "title": "Blush Typography Specimen Sliders",
+    "file": "704461566760528727.jpg",
+    "niche": "creative-studio",
+    "componentType": "services-menu",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#F9E8E6",
+      "#000000",
+      "#E0CFCD",
+      "#FFFFFF"
+    ],
+    "layoutNotes": "Type specimen catalog presented as a clean vertical table with interactive sliders, licensing dropdown selectors, and direct purchase action buttons per row.",
+    "uxFeatures": [
+      "type sample rows",
+      "slider controls",
+      "dropdown select",
+      "inline purchase buttons",
+      "table grid lines"
+    ],
+    "suggestedPrompt": "Editorial typography specimen price list on pale blush pink background with structured hairline dividers and interactive font preview sliders"
+  },
+  {
+    "id": "parchment-green-font-index",
+    "title": "Parchment Serif Type Directory",
+    "file": "704461566760528731.jpg",
+    "niche": "creative-studio",
+    "componentType": "services-menu",
+    "aesthetic": "retro-newspaper",
+    "palette": [
+      "#FEEFC9",
+      "#00472E",
+      "#2C3B2D",
+      "#B5A37E"
+    ],
+    "layoutNotes": "Two-column editorial typeface directory with bracketed indexing, specimen displays on the left, and metadata details with pricing and links on the right.",
+    "uxFeatures": [
+      "bracketed index numbers",
+      "two-column list",
+      "horizontal hair-line rules",
+      "outbound link indicators"
+    ],
+    "suggestedPrompt": "Retro newspaper style curated font directory on warm parchment background with dark green serif specimens and bracketed metadata index"
+  },
+  {
+    "id": "solar-curved-portfolio",
+    "title": "Solar Curved Designer Portfolio",
+    "file": "704461566760528733.png",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#FCFBFA",
+      "#F5DF4D",
+      "#1C1B1B",
+      "#8E8D8A"
+    ],
+    "layoutNotes": "Comprehensive personal portfolio with curved path text in hero, numbered process steps, skill meters, project cards, accordion pricing, and a minimal footer.",
+    "uxFeatures": [
+      "curved text path",
+      "numbered list",
+      "skill meter bars",
+      "accordion pricing list",
+      "back-to-top button"
+    ],
+    "suggestedPrompt": "Scandinavian clean designer portfolio landing page with curved typography over yellow gradient glow, numbered process breakdown, and collapsible pricing rows"
+  },
+  {
+    "id": "chunky-y2k-bubble-alphabet",
+    "title": "Chunky Y2K Bubble Alphabet Specimen",
+    "file": "704461566760528736.jpg",
+    "niche": "creative-studio",
+    "componentType": "product-showcase",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#E5E4DE",
+      "#1F2220",
+      "#90928A",
+      "#C9C7C0"
+    ],
+    "layoutNotes": "Alphabet specimen grid with pill header badge displaying chunky organic lowercase letterforms over an off-white background with technical footer credits.",
+    "uxFeatures": [
+      "pill badge header",
+      "alphabet glyph grid",
+      "technical metadata footer",
+      "vertical edge credit"
+    ],
+    "suggestedPrompt": "Playful y2k type specimen showcase displaying chunky organic lowercase bubble font in a uniform grid on a neutral beige background"
+  },
+  {
+    "id": "matcha-pop-brand-board",
+    "title": "Matcha Pop Cafe Brand Guidelines",
+    "file": "704461566760528742.jpg",
+    "niche": "cakes",
+    "componentType": "product-showcase",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#C8D69B",
+      "#F6E6A5",
+      "#3971B8",
+      "#FBFCEE",
+      "#343B1B"
+    ],
+    "layoutNotes": "Structured brand guidelines sheet with trio of logo variations, circular color swatch tokens, dual typography specimens, and physical merchandising mockups.",
+    "uxFeatures": [
+      "color swatch circles",
+      "brandmark grid",
+      "typography specimen pairing",
+      "merchandise mockup tiles"
+    ],
+    "suggestedPrompt": "Playful y2k pop matcha cafe branding identity sheet with pastel green and cobalt blue swatches, bubbly typography, and cute mascot"
+  },
+  {
+    "id": "terracotta-70s-serif-poster",
+    "title": "70s Terracotta Serif Font Poster",
+    "file": "704461566760528745.jpg",
+    "niche": "creative-studio",
+    "componentType": "product-showcase",
+    "aesthetic": "retro-newspaper",
+    "palette": [
+      "#BC3620",
+      "#334C67",
+      "#FAD53E",
+      "#F5EEE3"
+    ],
+    "layoutNotes": "Multi-tiered retro font showcase poster with vintage photography, outline typography overlay, style badges, and an alternates glyph display.",
+    "uxFeatures": [
+      "decorative badges",
+      "outline typography",
+      "glyph showcase grid",
+      "retro photo underlay",
+      "callout arrows"
+    ],
+    "suggestedPrompt": "70s retro serif font showcase poster with warm terracotta red and denim blue palette, vintage grainy texture, and ligature glyphs"
+  },
+  {
+    "id": "swiss-sidebar-agency-ledger",
+    "title": "Swiss Sidebar Architecture Ledger",
+    "file": "704461566760528747.png",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "scandinavian-clean",
+    "palette": [
+      "#F2F1ED",
+      "#0A0A0A",
+      "#8C8B87",
+      "#FFFFFF"
+    ],
+    "layoutNotes": "Split-column portfolio layout with fixed left sidebar navigation, prominent bold typography, client logo bar, thumbnail project list, and achievement table.",
+    "uxFeatures": [
+      "fixed vertical sidebar",
+      "circular availability stamp",
+      "expandable project list",
+      "awards data table",
+      "thumbnail previews"
+    ],
+    "suggestedPrompt": "Scandinavian clean portfolio website with vertical sidebar navigation, bold grotesque typography, client logo strip, and interactive project rows"
+  },
+  {
+    "id": "terracotta-pilates-timetable",
+    "title": "Terracotta Weekly Class Timetable",
+    "file": "704461566760528748.jpg",
+    "niche": "fitness",
+    "componentType": "booking-availability",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#F5EFE6",
+      "#8A5839",
+      "#BE9B7B",
+      "#4A3525"
+    ],
+    "layoutNotes": "Vertical weekly timetable with rounded pill containers for each weekday flanked by rotated vertical headline typography in warm earth tones.",
+    "uxFeatures": [
+      "vertical schedule cards",
+      "rotated sideways typography",
+      "day-by-day pill blocks",
+      "two-column day layout"
+    ],
+    "suggestedPrompt": "Warm organic pilates and yoga class schedule timetable with rounded day pill cards, terracotta brown text, and vertical title typography"
+  },
+  {
+    "id": "sage-doodle-event-calendar",
+    "title": "Sage Minimal Line-Doodle Calendar",
+    "file": "704461566760528749.jpg",
+    "niche": "fitness",
+    "componentType": "booking-availability",
+    "aesthetic": "warm-organic",
+    "palette": [
+      "#FFFFFF",
+      "#89987F",
+      "#111111",
+      "#E3E7DF"
+    ],
+    "layoutNotes": "Calendar grid layout highlighting a scheduled event cell in muted sage green with playful hand-drawn arrows, doodle illustrations, and collaborator co-branding.",
+    "uxFeatures": [
+      "calendar grid",
+      "highlighted date card",
+      "hand-drawn doodle callouts",
+      "co-branding header",
+      "line illustrations"
+    ],
+    "suggestedPrompt": "Warm organic yoga and wellness calendar event announcement with sage green highlighted date square and minimalist line art doodles"
+  },
+  {
+    "id": "forest-noir-haircare-board",
+    "title": "Forest & Maroon Haircare Board",
+    "file": "704461566760528751.jpg",
+    "niche": "hair",
+    "componentType": "product-showcase",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#004800",
+      "#800000",
+      "#F7E7AF",
+      "#FFFFFF"
+    ],
+    "layoutNotes": "Comprehensive hair care brand board showcasing 3D packaging renders, custom logotype with floral glyph, brandmark symbol, color tokens, and dual typography pairings.",
+    "uxFeatures": [
+      "packaging mockup showcase",
+      "color swatch circles with hex codes",
+      "dual font pairings",
+      "split-color logo block"
+    ],
+    "suggestedPrompt": "Luxury retro haircare brand identity board with bottle mockups, deep maroon and forest green color palette, and serif typography"
+  },
+  {
+    "id": "crimson-bento-fashion-agency",
+    "title": "Crimson Bento Fashion Agency",
+    "file": "704461566760528753_sp0_b0.jpg",
+    "niche": "creative-studio",
+    "componentType": "full-page",
+    "aesthetic": "luxury-editorial",
+    "palette": [
+      "#BA301D",
+      "#F3EDE3",
+      "#121212",
+      "#5E150C"
+    ],
+    "layoutNotes": "Edgy fashion-forward agency landing page using asymmetric bento grid blocks, high-contrast crimson and beige panels, oversized serif typography, and overlapping lookbook photos.",
+    "uxFeatures": [
+      "asymmetric bento grid",
+      "curved scroll arrow",
+      "overlapping photo layers",
+      "callout badges",
+      "pill CTA buttons"
+    ],
+    "suggestedPrompt": "High-contrast luxury editorial creative agency website in bold crimson red and cream with fashion photography, asymmetrical grid, and serif headings"
+  },
+  {
+    "id": "orange-pop-stationery-identity",
+    "title": "Orange Pop Stationery Brand Identity",
+    "file": "704461566760528754.jpg",
+    "niche": "creative-studio",
+    "componentType": "product-showcase",
+    "aesthetic": "y2k-pop",
+    "palette": [
+      "#9A1E22",
+      "#FF7901",
+      "#FFE6D2",
+      "#FFF2EA"
+    ],
+    "layoutNotes": "Brand identity system in structured quadrants with primary and secondary bubble logos, circular color swatches, stationery collateral, and tabletop display mockups.",
+    "uxFeatures": [
+      "circular color swatches",
+      "signage mockup",
+      "stationery collateral grid",
+      "multilingual brand narrative"
+    ],
+    "suggestedPrompt": "Vibrant y2k pop branding guidelines sheet in crimson red and warm orange featuring puffy bubble typography, circular color tokens, and stationery mockups"
+  }
+]

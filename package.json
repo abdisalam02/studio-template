@@ -1,0 +1,16 @@
+{
+  "name": "studio-template",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix site run dev",
+    "build": "npm --prefix site run build",
+    "check:legal": "node scripts/check-legal.mjs",
+    "check:design": "node scripts/check-design.mjs",
+    "arch": "node scripts/gen-arch.mjs",
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}

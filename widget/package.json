@@ -1,0 +1,20 @@
+{
+  "name": "studio-booking-widget",
+  "version": "1.0.0",
+  "description": "Embeddable 1-tap booking modal widget for studio websites",
+  "main": "dist/widget.js",
+  "scripts": {
+    "build": "tsup src/index.tsx --format iife,esm --global-name StudioBookingWidget --minify"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19",
+    "tsup": "^8.3.6",
+    "typescript": "^5.0.0"
+  }
+}
