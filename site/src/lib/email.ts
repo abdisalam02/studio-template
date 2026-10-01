@@ -18,15 +18,15 @@ export interface BookingDetails {
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const DEFAULT_FROM = process.env.EMAIL_FROM || "Gangina Beauty Studio <booking@agure.space>";
-const DEFAULT_REPLY_TO = process.env.EMAIL_REPLY_TO || "ganginabeauty@gmail.com";
+// Fallbacks from environment:
+const defaultFromName = process.env.EMAIL_FROM_NAME || "Agure Booking";
+const defaultReplyTo = process.env.EMAIL_REPLY_TO || "support@agure.space";
 
 function getSenderInfo(tenant?: Tenant | null) {
-  const rawTenantName = tenant?.name;
-  const senderName = rawTenantName ? rawTenantName.replace(/["<>]/g, "").trim() : "Gangina Beauty Studio";
-  const from = `${senderName || "Gangina Beauty Studio"} <booking@agure.space>`;
-  const replyTo = tenant?.owner_email || DEFAULT_REPLY_TO;
-  return { from, replyTo };
+  const displayName = tenant?.name ? tenant.name.replace(/["<>]/g, "").trim() : defaultFromName;
+  const replyToAddress = tenant?.owner_email || defaultReplyTo;
+  const from = `${displayName || defaultFromName} <booking@agure.space>`;
+  return { from, replyTo: replyToAddress };
 }
 
 async function sendEmailSafely(payload: Parameters<NonNullable<typeof resend>["emails"]["send"]>[0]) {
@@ -88,7 +88,7 @@ export async function sendOwnerAlert(
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5; padding: 24px 16px;">
-      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">GANGINA BEAUTY STUDIO</h1><!-- design-ok -->
+      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">${escapeHtml(tenant.name || defaultFromName).toUpperCase()}</h1><!-- design-ok -->
       <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 16px; text-align: center;">Ny timebestilling mottatt</h2>
       <p style="margin-bottom: 24px; color: #525252; text-align: center;">En ny reservasjon venter på vurdering for <strong>${escapeHtml(tenant.name)}</strong>.</p>
       
@@ -165,7 +165,7 @@ export async function sendCustomerReceipt(
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5; padding: 24px 16px;">
-      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">GANGINA BEAUTY STUDIO</h1><!-- design-ok -->
+      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">${escapeHtml(tenant.name || defaultFromName).toUpperCase()}</h1><!-- design-ok -->
       <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Takk for din forespørsel</h2>
       <p style="margin-bottom: 24px; color: #525252;">Vi har mottatt din timeforespørsel hos <strong>${escapeHtml(tenant.name)}</strong>. Forespørselen vurderes nå av studioet, og du mottar en bekreftelse så snart timen er godkjent.</p>
       
@@ -227,7 +227,7 @@ export async function sendCustomerConfirmation(
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5; padding: 24px 16px;">
-      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">GANGINA BEAUTY STUDIO</h1><!-- design-ok -->
+      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">${escapeHtml(tenant.name || defaultFromName).toUpperCase()}</h1><!-- design-ok -->
       <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #15803d;">Din time er bekreftet</h2>
       <p style="margin-bottom: 24px; color: #525252;">Din time er bekreftet! Vi gleder oss til å se deg hos <strong>${escapeHtml(tenant.name)}</strong>.</p>
       

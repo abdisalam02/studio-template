@@ -46,3 +46,5 @@ Updated: 2026-10-01
 - Verified .gitignore rules, secured environment secrets, and validated clean Next.js production build
 - Confirmed CORS on public availability and bookings endpoints; cleaned tenant assets from site/public
 - Initialized git repository, verified ignore rules (.env.local excluded), and created initial commit on main
+- Pushed clean multi-tenant engine template to origin (https://github.com/abdisalam02/studio-template)
+- Made email sender, reply-to, and email headers fully dynamic per tenant with agnostic fallbacks
