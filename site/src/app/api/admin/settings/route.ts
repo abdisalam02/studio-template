@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    const auth = await verifyAdminRequest(authHeader, allowBypass);
+    const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }

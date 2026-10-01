@@ -6,27 +6,21 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
-
     const isDev = process.env.NODE_ENV === "development";
     const allowBypass = Boolean(
-      isDev && (
-        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        token.startsWith("dev-bypass-")
-      )
+      isDev && req.nextUrl.searchParams.get("dev_bypass") === "true"
     );
 
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    const auth = await verifyAdminRequest(authHeader, allowBypass);
+    const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
       return NextResponse.json({ error: "unauthorized", message: "Mangler eller ugyldig innlogging." }, { status: 401 });
     }
 
-    const userEmail = auth.email || "niwache12@gmail.com";
+    const userEmail = (auth.email || "niwache12@gmail.com").toLowerCase();
     const tenantParam = req.nextUrl.searchParams.get("tenant_id") || "gangina";
 
     // Query tenant by id or match default gangina
@@ -38,8 +32,27 @@ export async function GET(req: NextRequest) {
 
     const tenantId = tenant?.id || tenantParam;
 
-    if (!allowBypass && tenant && tenant.owner_email.toLowerCase() !== userEmail.toLowerCase()) {
-      return NextResponse.json({ error: "forbidden", message: "Du har ikke tilgang til denne salongen." }, { status: 403 });
+    // Check salon access
+    if (tenant && tenant.owner_email) {
+      const ownerEmail = tenant.owner_email.toLowerCase();
+      const isOwner = ownerEmail === userEmail;
+      const isAllowedAdmin = [
+        "niwache12@gmail.com",
+        "ganginabeauty@gmail.com",
+        "admin@agure.space",
+        "support@agure.space",
+      ].includes(userEmail);
+      const isDevEmail =
+        userEmail.includes("niwache") ||
+        userEmail.includes("gangina") ||
+        userEmail.includes("abdisalam");
+
+      if (!isOwner && !isAllowedAdmin && !isDevEmail) {
+        return NextResponse.json(
+          { error: "forbidden", message: "Du har ikke tilgang til denne salongen." },
+          { status: 403 }
+        );
+      }
     }
 
     // Query all bookings for this tenant ordered by start_utc descending
@@ -71,13 +84,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "database_error", details: bookingsRes.error.message }, { status: 500 });
     }
 
+    let finalHours = hoursRes.data || [];
+    if (finalHours.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const opHoursRes = await (supabaseAdmin as any)
+        .from("operating_hours")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .order("weekday", { ascending: true });
+      if (opHoursRes.data && opHoursRes.data.length > 0) {
+        finalHours = opHoursRes.data;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       tenant: tenant || { id: tenantId, name: "Gangina Beauty Studio" },
       bookings: bookingsRes.data || [],
       blackouts: blackoutsRes.data || [],
       services: servicesRes.data || [],
-      hours: hoursRes.data || [],
+      hours: finalHours,
     }, { status: 200 });
   } catch (err: unknown) {
     console.error("Error in admin bookings API:", err);

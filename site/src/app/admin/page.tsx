@@ -215,13 +215,20 @@ function AdminPageContent() {
 
       const tenantId = "gangina";
 
+      const tokenToUse =
+        token ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("dev_admin_token") || localStorage.getItem("admin_token") || ""
+          : "");
+
       // 1. Try server-side admin API endpoint with Bearer token (bypasses RLS for owner & dev bypass)
       try {
         const apiRes = await fetch(`/api/admin/bookings?tenant_id=gangina`, {
           cache: "no-store",
           credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${tokenToUse}`,
+            "x-admin-token": tokenToUse,
           },
         });
         if (apiRes.ok) {
@@ -231,7 +238,7 @@ function AdminPageContent() {
             bookingsData = (apiJson.bookings as AdminBooking[]) || [];
             blackoutsData = (apiJson.blackouts as BlackoutRow[]) || [];
             servicesData = (apiJson.services as ServiceRow[]) || [];
-            if (Array.isArray(apiJson.hours)) {
+            if (Array.isArray(apiJson.hours) && apiJson.hours.length > 0) {
               hoursData = apiJson.hours as HourRow[];
               hoursLoadedFromApi = true;
             }
@@ -239,6 +246,31 @@ function AdminPageContent() {
         }
       } catch (fetchErr) {
         console.warn("Could not load from /api/admin/bookings, attempting client fallback:", fetchErr);
+      }
+
+      // Also ensure operating hours are directly fetched from /api/admin/hours with force-dynamic
+      if (!hoursLoadedFromApi || hoursData.length === 0) {
+        try {
+          const hRes = await fetch(`/api/admin/hours?tenant_id=gangina`, {
+            cache: "no-store",
+            credentials: "include",
+            headers: tokenToUse
+              ? {
+                  Authorization: `Bearer ${tokenToUse}`,
+                  "x-admin-token": tokenToUse,
+                }
+              : {},
+          });
+          if (hRes.ok) {
+            const hJson = await hRes.json();
+            if (Array.isArray(hJson.hours) && hJson.hours.length > 0) {
+              hoursData = hJson.hours as HourRow[];
+              hoursLoadedFromApi = true;
+            }
+          }
+        } catch (hErr) {
+          console.warn("Could not load directly from /api/admin/hours:", hErr);
+        }
       }
 
       // 2. Client-side fallback if API didn't return data
@@ -374,25 +406,35 @@ function AdminPageContent() {
       setSlotStepMin(tenantData.slot_step_min || 15);
 
       // Populate saved weekly opening hours from database
-      if (hoursLoadedFromApi) {
-        setWeeklyHours((prev) =>
-          prev.map((item) => {
-            const match = hoursData.find((h) => h.weekday === item.weekday);
-            if (match) {
-              const oH = String(Math.floor(match.open_min / 60)).padStart(2, "0");
-              const oM = String(match.open_min % 60).padStart(2, "0");
-              const cH = String(Math.floor(match.close_min / 60)).padStart(2, "0");
-              const cM = String(match.close_min % 60).padStart(2, "0");
-              return {
-                ...item,
-                enabled: true,
-                open: `${oH}:${oM}`,
-                close: `${cH}:${cM}`,
-              };
-            }
-            return { ...item, enabled: false };
-          })
-        );
+      if (hoursLoadedFromApi && hoursData.length > 0) {
+        const weekdays = [0, 1, 2, 3, 4, 5, 6];
+        const newWeeklyHours = weekdays.map((weekdayIndex) => {
+          const match = hoursData.find((h) => h.weekday === weekdayIndex);
+          if (
+            match &&
+            typeof match.open_min === "number" &&
+            typeof match.close_min === "number" &&
+            match.open_min < match.close_min
+          ) {
+            const oH = String(Math.floor(match.open_min / 60)).padStart(2, "0");
+            const oM = String(match.open_min % 60).padStart(2, "0");
+            const cH = String(Math.floor(match.close_min / 60)).padStart(2, "0");
+            const cM = String(match.close_min % 60).padStart(2, "0");
+            return {
+              weekday: weekdayIndex,
+              enabled: true,
+              open: `${oH}:${oM}`,
+              close: `${cH}:${cM}`,
+            };
+          }
+          return {
+            weekday: weekdayIndex,
+            enabled: false,
+            open: "10:00",
+            close: "18:00",
+          };
+        });
+        setWeeklyHours(newWeeklyHours);
       }
 
       // Auto-open booking drawer if ?ref= param matches
@@ -462,7 +504,11 @@ function AdminPageContent() {
   // Security Lock (Sign Out)
   const handleLockSignOut = async () => {
     localStorage.removeItem("dev_admin_token");
+    localStorage.removeItem("admin_token");
     localStorage.removeItem("dev_admin_email");
+    if (typeof document !== "undefined") {
+      document.cookie = "admin_token=; path=/; max-age=0";
+    }
     if (supabase) {
       await supabase.auth.signOut();
     }
@@ -637,7 +683,16 @@ function AdminPageContent() {
 
   // Save Schedule & Hours
   const handleSaveSchedule = async () => {
-    if (!sessionToken) return;
+    const tokenToUse =
+      sessionToken ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("dev_admin_token") || localStorage.getItem("admin_token") || ""
+        : "");
+
+    if (!tokenToUse) {
+      alert("Du må være innlogget for å lagre åpningstider.");
+      return;
+    }
     setSavingHours(true);
 
     try {
@@ -653,11 +708,12 @@ function AdminPageContent() {
           };
         });
 
-      await fetch("/api/admin/hours", {
+      const res = await fetch("/api/admin/hours", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${tokenToUse}`,
+          "x-admin-token": tokenToUse,
         },
         credentials: "include",
         body: JSON.stringify({
@@ -667,12 +723,35 @@ function AdminPageContent() {
         }),
       });
 
-      alert("Åpningstider lagret.");
-      if (sessionToken && userEmail) {
-        await loadData(sessionToken, userEmail);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || "Kunne ikke lagre åpningstider.");
       }
-    } catch {
-      alert("Kunne ikke lagre åpningstider.");
+
+      const resJson = await res.json().catch(() => ({}));
+      if (Array.isArray(resJson.hours)) {
+        const savedHours: HourRow[] = resJson.hours;
+        const updated = [0, 1, 2, 3, 4, 5, 6].map((w) => {
+          const m = savedHours.find((h) => h.weekday === w);
+          if (m && typeof m.open_min === "number" && typeof m.close_min === "number" && m.open_min < m.close_min) {
+            const oH = String(Math.floor(m.open_min / 60)).padStart(2, "0");
+            const oM = String(m.open_min % 60).padStart(2, "0");
+            const cH = String(Math.floor(m.close_min / 60)).padStart(2, "0");
+            const cM = String(m.close_min % 60).padStart(2, "0");
+            return { weekday: w, enabled: true, open: `${oH}:${oM}`, close: `${cH}:${cM}` };
+          }
+          return { weekday: w, enabled: false, open: "10:00", close: "18:00" };
+        });
+        setWeeklyHours(updated);
+      }
+
+      alert("Åpningstider lagret.");
+      if (tokenToUse && userEmail) {
+        await loadData(tokenToUse, userEmail);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke lagre åpningstider.";
+      alert(msg);
     } finally {
       setSavingHours(false);
     }
@@ -680,7 +759,16 @@ function AdminPageContent() {
 
   // Save Studio Settings
   const handleSaveSettings = async () => {
-    if (!sessionToken) return;
+    const tokenToUse =
+      sessionToken ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("dev_admin_token") || localStorage.getItem("admin_token") || ""
+        : "");
+
+    if (!tokenToUse) {
+      setSettingsNotice("Du må være innlogget for å lagre innstillinger.");
+      return;
+    }
     setSavingSettings(true);
     setSettingsNotice(null);
 
@@ -689,7 +777,8 @@ function AdminPageContent() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${tokenToUse}`,
+          "x-admin-token": tokenToUse,
         },
         credentials: "include",
         body: JSON.stringify({
@@ -701,6 +790,10 @@ function AdminPageContent() {
 
       if (res.ok) {
         setSettingsNotice("Innstillinger ble lagret.");
+        if (tokenToUse && userEmail) loadData(tokenToUse, userEmail);
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setSettingsNotice(errJson.message || "Feil ved lagring av innstillinger.");
       }
     } catch {
       setSettingsNotice("Feil ved lagring av innstillinger.");
@@ -711,7 +804,13 @@ function AdminPageContent() {
 
   // Send Test Notification Email
   const handleSendTestEmail = async () => {
-    if (!sessionToken || !contactEmail) return;
+    const tokenToUse =
+      sessionToken ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("dev_admin_token") || localStorage.getItem("admin_token") || ""
+        : "");
+
+    if (!tokenToUse || !contactEmail) return;
     setTestingEmail(true);
     setSettingsNotice(null);
 
@@ -720,8 +819,10 @@ function AdminPageContent() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${tokenToUse}`,
+          "x-admin-token": tokenToUse,
         },
+        credentials: "include",
         body: JSON.stringify({
           tenant_id: activePreset.id,
           email: contactEmail,

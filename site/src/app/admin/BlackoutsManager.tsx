@@ -53,7 +53,9 @@ export function BlackoutsManager({ blackouts, token, onRefresh }: BlackoutsManag
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "x-admin-token": token,
         },
+        credentials: "include",
         body: JSON.stringify({
           start_utc: startUtc,
           end_utc: endUtc,
@@ -85,7 +87,9 @@ export function BlackoutsManager({ blackouts, token, onRefresh }: BlackoutsManag
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
+          "x-admin-token": token,
         },
+        credentials: "include",
       });
 
       if (!res.ok) {

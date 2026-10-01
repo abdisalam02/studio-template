@@ -136,8 +136,11 @@ export default function AdminLoginPage() {
         });
 
         if (!supaErr && supaData?.session) {
-          localStorage.setItem("dev_admin_token", supaData.session.access_token);
+          const tok = supaData.session.access_token;
+          localStorage.setItem("dev_admin_token", tok);
+          localStorage.setItem("admin_token", tok);
           localStorage.setItem("dev_admin_email", email);
+          document.cookie = `admin_token=${encodeURIComponent(tok)}; path=/; max-age=2592000; SameSite=Lax`;
           verifiedSession = true;
           router.push("/admin");
           return;
@@ -156,8 +159,11 @@ export default function AdminLoginPage() {
         throw new Error(data.message || "Ugyldig verifiseringskode.");
       }
 
-      localStorage.setItem("dev_admin_token", data.token);
+      const verifiedTok = data.token;
+      localStorage.setItem("dev_admin_token", verifiedTok);
+      localStorage.setItem("admin_token", verifiedTok);
       localStorage.setItem("dev_admin_email", email);
+      document.cookie = `admin_token=${encodeURIComponent(verifiedTok)}; path=/; max-age=2592000; SameSite=Lax`;
       router.push("/admin");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Kunne ikke verifisere koden.";
@@ -184,8 +190,11 @@ export default function AdminLoginPage() {
         throw new Error(data.message || "Dev login feilet.");
       }
 
-      localStorage.setItem("dev_admin_token", data.token);
+      const bypassTok = data.token;
+      localStorage.setItem("dev_admin_token", bypassTok);
+      localStorage.setItem("admin_token", bypassTok);
       localStorage.setItem("dev_admin_email", data.email);
+      document.cookie = `admin_token=${encodeURIComponent(bypassTok)}; path=/; max-age=2592000; SameSite=Lax`;
 
       router.push("/admin");
     } catch (err: unknown) {

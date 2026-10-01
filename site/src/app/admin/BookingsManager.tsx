@@ -43,7 +43,9 @@ export function BookingsManager({ bookings, token, onRefresh }: BookingsManagerP
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "x-admin-token": token,
         },
+        credentials: "include",
         body: JSON.stringify({ booking_id: bookingId, status }),
       });
       if (res.ok) {

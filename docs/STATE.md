@@ -51,3 +51,4 @@ Updated: 2026-10-01
 - Normalized email action URLs, added fallback review routes (/review, /vurder, /manage), and pushed to main
 - Fixed admin schedule reload sync, availability slot ghosting filter, approval email dispatch, and admin bookings list
 - Resolved Admin 401 with signed session tokens & added strict server-side schedule validation on booking POST
+- Fixed admin 401 token & cookie extraction, added /api/admin/schedule, and enabled real-time schedule persistence

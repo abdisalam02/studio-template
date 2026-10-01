@@ -4,12 +4,11 @@ import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    const auth = await verifyAdminRequest(authHeader);
+    const auth = await verifyAdminRequest(req);
     if (!auth.authenticated || !auth.email) {
       return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
     }
@@ -60,16 +59,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
-    }
-
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    const auth = await verifyAdminRequest(authHeader);
+    const auth = await verifyAdminRequest(req);
     if (!auth.authenticated || !auth.email) {
       return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
     }
