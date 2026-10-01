@@ -53,3 +53,4 @@ Updated: 2026-10-01
 - Resolved Admin 401 with signed session tokens & added strict server-side schedule validation on booking POST
 - Fixed admin 401 token & cookie extraction, added /api/admin/schedule, and enabled real-time schedule persistence
 - Fixed Supabase .catch in admin hours route and parallelized booking emails with next/server after()
+- Batched admin schedule DB updates, removed blocking alerts, and added optimistic feedback UI

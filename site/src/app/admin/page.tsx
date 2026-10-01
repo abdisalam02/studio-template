@@ -186,6 +186,8 @@ function AdminPageContent() {
   ]);
   const [slotStepMin, setSlotStepMin] = useState(15);
   const [savingHours, setSavingHours] = useState(false);
+  const [saveScheduleStatus, setSaveScheduleStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveScheduleMessage, setSaveScheduleMessage] = useState<string>("");
 
   // Blackouts form
   const [showBlackoutModal, setShowBlackoutModal] = useState(false);
@@ -690,10 +692,15 @@ function AdminPageContent() {
         : "");
 
     if (!tokenToUse) {
-      alert("Du må være innlogget for å lagre åpningstider.");
+      setSaveScheduleStatus("error");
+      setSaveScheduleMessage("Du må være innlogget for å lagre åpningstider.");
       return;
     }
+
+    const previousHours = [...weeklyHours];
     setSavingHours(true);
+    setSaveScheduleStatus("saving");
+    setSaveScheduleMessage("");
 
     try {
       const formatted = weeklyHours
@@ -745,13 +752,25 @@ function AdminPageContent() {
         setWeeklyHours(updated);
       }
 
-      alert("Åpningstider lagret.");
+      setSaveScheduleStatus("saved");
+      setSaveScheduleMessage("Åpningstider lagret!");
+      setTimeout(() => {
+        setSaveScheduleStatus((curr) => (curr === "saved" ? "idle" : curr));
+        setSaveScheduleMessage("");
+      }, 3000);
+
       if (tokenToUse && userEmail) {
-        await loadData(tokenToUse, userEmail);
+        loadData(tokenToUse, userEmail).catch(() => {});
       }
     } catch (err: unknown) {
+      setWeeklyHours(previousHours);
+      setSaveScheduleStatus("error");
       const msg = err instanceof Error ? err.message : "Kunne ikke lagre åpningstider.";
-      alert(msg);
+      setSaveScheduleMessage(msg);
+      setTimeout(() => {
+        setSaveScheduleStatus((curr) => (curr === "error" ? "idle" : curr));
+        setSaveScheduleMessage("");
+      }, 5000);
     } finally {
       setSavingHours(false);
     }
@@ -1522,14 +1541,37 @@ function AdminPageContent() {
                 ))}
               </div>
 
-              <button
-                type="button"
-                disabled={savingHours}
-                onClick={handleSaveSchedule}
-                className="w-full py-3 px-4 rounded-2xl bg-[#111113] text-white text-xs font-semibold uppercase tracking-wider hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
-              >
-                {savingHours ? "Lagrer..." : "Lagre åpningstider"}
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={savingHours}
+                  onClick={handleSaveSchedule}
+                  className="w-full sm:w-auto py-3 px-6 rounded-2xl bg-[#111113] text-white text-xs font-semibold uppercase tracking-wider hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {savingHours && (
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                  )}
+                  {savingHours ? "Lagrer..." : "Lagre åpningstider"}
+                </button>
+
+                {saveScheduleStatus === "saved" && (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl animate-in fade-in duration-200">
+                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{saveScheduleMessage || "Lagret!"}</span>
+                  </div>
+                )}
+
+                {saveScheduleStatus === "error" && (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl animate-in fade-in duration-200">
+                    <svg className="w-3.5 h-3.5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span>{saveScheduleMessage || "Feil under lagring"}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Active Blackouts List */}

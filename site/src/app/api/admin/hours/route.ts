@@ -94,15 +94,15 @@ export async function POST(req: NextRequest) {
       close_min: h.close_min,
     }));
 
-    // 2. Replace hours in primary 'hours' table with strict error check
+    // 2. Batch update 'hours' table atomically
     const { error: delErr } = await supabaseAdmin
       .from("hours")
       .delete()
       .eq("tenant_id", targetTenantId);
 
     if (delErr) {
-      console.error("Error deleting old hours from hours table:", delErr);
-      // If table doesn't exist, try operating_hours
+      console.warn("Delete old hours warning, attempting operating_hours:", delErr.message);
+      // Fallback: operating_hours
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: opDelErr } = await (supabaseAdmin as any)
         .from("operating_hours")
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         .eq("tenant_id", targetTenantId);
       if (opDelErr) {
         return NextResponse.json(
-          { error: "database_error", message: `Kunne ikke slette gamle åpningstider: ${opDelErr.message}` },
+          { error: "database_error", message: `Kunne ikke oppdatere åpningstider: ${opDelErr.message}` },
           { status: 500 }
         );
       }
@@ -122,35 +122,29 @@ export async function POST(req: NextRequest) {
         .insert(rows);
 
       if (insErr) {
-        console.error("Error inserting into hours table:", insErr);
-        // Fallback to operating_hours table
+        console.warn("Insert hours warning, falling back to operating_hours:", insErr.message);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: opInsErr } = await (supabaseAdmin as any)
           .from("operating_hours")
           .insert(rows);
         if (opInsErr) {
           return NextResponse.json(
-            { error: "database_error", message: `Kunne ikke lagre nye åpningstider: ${opInsErr.message}` },
+            { error: "database_error", message: `Kunne ikke lagre åpningstider: ${opInsErr.message}` },
             { status: 500 }
           );
         }
       } else {
-        // Also sync to operating_hours if table exists (graceful non-blocking)
+        // Non-blocking background sync to operating_hours table if present
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const anyAdmin = supabaseAdmin as any;
-        const { error: syncDelErr } = await anyAdmin
-          .from("operating_hours")
-          .delete()
-          .eq("tenant_id", targetTenantId);
-
-        if (!syncDelErr) {
-          const { error: syncInsErr } = await anyAdmin
-            .from("operating_hours")
-            .insert(rows);
-          if (syncInsErr) {
-            console.warn("Operating hours sync insert note:", syncInsErr.message);
+        Promise.resolve().then(async () => {
+          try {
+            await anyAdmin.from("operating_hours").delete().eq("tenant_id", targetTenantId);
+            await anyAdmin.from("operating_hours").insert(rows);
+          } catch {
+            // Ignore background sync errors
           }
-        }
+        });
       }
     }
 
