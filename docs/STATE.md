@@ -54,3 +54,4 @@ Updated: 2026-10-01
 - Fixed admin 401 token & cookie extraction, added /api/admin/schedule, and enabled real-time schedule persistence
 - Fixed Supabase .catch in admin hours route and parallelized booking emails with next/server after()
 - Batched admin schedule DB updates, removed blocking alerts, and added optimistic feedback UI
+- Refactored Admin Agenda calendar to architectural tab bridge with fillets and pure white editorial cards

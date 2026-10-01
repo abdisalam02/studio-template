@@ -8,7 +8,6 @@ import { getTenantConfig } from "@/config/tenants";
 import { ClientDrawer, type AdminBooking } from "@/components/admin/ClientDrawer";
 import { RescheduleModal } from "@/components/admin/RescheduleModal";
 import { ManualBookingModal } from "@/components/admin/ManualBookingModal";
-import { YinYangWave } from "@/components/ui/YinYangWave";
 
 type TenantRow = Database["public"]["Tables"]["tenants"]["Row"];
 type BlackoutRow = Database["public"]["Tables"]["blackouts"]["Row"];
@@ -1039,10 +1038,10 @@ function AdminPageContent() {
         {/* TAB 1: APPOINTMENTS PANEL */}
         {activeTab === "appointments" && (
           <section id="panel-appointments" className="space-y-6">
-            {/* YIN-YANG DAGSAGENDA VISUAL TIMELINE */}
+            {/* EDITORIAL ARCHITECTURAL DAGSAGENDA VISUAL TIMELINE */}
             <div className="w-full rounded-[32px] overflow-hidden border border-[#EAE6E1] bg-white shadow-xs font-sans">
               {/* TOP WHITE CANVAS: MONTH CAROUSEL & 7-DAY STRIP */}
-              <div className="p-5 sm:p-7 space-y-6 bg-white text-[#0D0D0D]">
+              <div className="p-5 sm:p-7 pb-0 space-y-6 bg-white text-[#0D0D0D]">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-[#8a8a8a]">
                     Visuell Dagsagenda
@@ -1090,38 +1089,63 @@ function AdminPageContent() {
                   </button>
                 </div>
 
-                {/* Horizontal 7-Day Strip with Active Day Capsule */}
-                <div className="flex items-center justify-between gap-1 sm:gap-2 pt-1 overflow-x-auto pb-1 no-scrollbar">
+                {/* Horizontal 7-Day Strip with Architectural Active Tab Bridge */}
+                <div className="flex items-end justify-between gap-1 sm:gap-2 pt-2 px-1 sm:px-2 overflow-x-auto no-scrollbar">
                   {timelineDaysInStrip.map((d) => {
                     const isSelected = timelineDate === d.dateStr;
                     return (
-                      <button
-                        key={d.dateStr}
-                        type="button"
-                        onClick={() => setTimelineDate(d.dateStr)}
-                        className={`transition-all flex flex-col items-center justify-center cursor-pointer shrink-0 ${
-                          isSelected
-                            ? "bg-[#0D0D0D] text-white rounded-full w-11 py-3.5 shadow-lg scale-105"
-                            : "hover:bg-neutral-100 rounded-full w-10 py-2.5 text-[#0D0D0D]"
-                        }`}
-                      >
-                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-70">
-                          {d.weekdayInitial}
-                        </span>
-                        <span className="text-sm font-extrabold mt-1">
-                          {d.dayNum}
-                        </span>
-                      </button>
+                      <div key={d.dateStr} className="relative flex justify-center shrink-0">
+                        {isSelected && (
+                          <>
+                            {/* Left inverted fillet joining seamless dark container */}
+                            <span
+                              className="absolute -left-4 bottom-0 w-4 h-4 pointer-events-none z-10"
+                              style={{
+                                background:
+                                  "radial-gradient(circle at 0 0, transparent 16px, #0D0D0D 16.5px)",
+                              }}
+                            />
+                            {/* Right inverted fillet joining seamless dark container */}
+                            <span
+                              className="absolute -right-4 bottom-0 w-4 h-4 pointer-events-none z-10"
+                              style={{
+                                background:
+                                  "radial-gradient(circle at 100% 0, transparent 16px, #0D0D0D 16.5px)",
+                              }}
+                            />
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setTimelineDate(d.dateStr)}
+                          className={`relative z-10 transition-all flex flex-col items-center justify-center cursor-pointer ${
+                            isSelected
+                              ? "bg-[#0D0D0D] text-white w-12 sm:w-14 pt-3.5 pb-3 rounded-t-[9999px] rounded-b-none shadow-none"
+                              : "hover:bg-neutral-100 rounded-full w-10 sm:w-11 py-2.5 mb-1.5 text-[#0D0D0D]"
+                          }`}
+                        >
+                          <span
+                            className={`text-[10px] uppercase font-bold tracking-wider ${
+                              isSelected ? "text-neutral-400" : "opacity-70"
+                            }`}
+                          >
+                            {d.weekdayInitial}
+                          </span>
+                          <span className="text-sm font-extrabold mt-1">
+                            {d.dayNum}
+                          </span>
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* ASYMMETRICAL WAVE S-CURVE TRANSITION */}
-              <YinYangWave fill="#0D0D0D" direction="down" />
-
-              {/* BOTTOM BLACK CANVAS: TIMELINE & INVERTED ACTIVE CARDS */}
-              <div className="bg-[#0D0D0D] text-white p-6 sm:p-8 space-y-6 -mt-1">
+              {/* LOWER AGENDA CONTAINER (DEEP OBSIDIAN #0D0D0D WITH 28px TOP CORNERS) */}
+              <div
+                className="bg-[#0D0D0D] text-white p-6 sm:p-8 space-y-6"
+                style={{ borderRadius: "28px 28px 0 0" }}
+              >
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <div>
@@ -1132,7 +1156,7 @@ function AdminPageContent() {
                       {selectedDateTitle}
                     </p>
                   </div>
-                  <span className="text-[11px] font-mono text-[#C5A880]">
+                  <span className="text-[11px] font-mono text-[#C4A482]">
                     {timelineBookings.length} {timelineBookings.length === 1 ? "avtale" : "avtaler"}
                   </span>
                 </div>
@@ -1160,29 +1184,30 @@ function AdminPageContent() {
                       const serviceName = b.service_summary || b.services?.name || `Behandling #${b.service_id}`;
                       const isPending = b.status === "pending";
                       const isConfirmed = b.status === "confirmed";
+                      const isDeclinedOrCancelled = b.status === "cancelled" || b.status === "declined";
 
                       return (
                         <div key={b.id} className="relative group">
                           {/* Node bullet */}
-                          <span className="absolute -left-[29px] sm:-left-[37px] top-4 w-3.5 h-3.5 rounded-full bg-[#C5A880] ring-4 ring-[#0D0D0D] block" />
+                          <span className="absolute -left-[29px] sm:-left-[37px] top-4 w-3.5 h-3.5 rounded-full bg-[#C4A482] ring-4 ring-[#0D0D0D] block" />
 
                           {/* Timestamp */}
                           <div className="text-[11px] font-mono text-neutral-400 mb-1.5 flex items-center gap-2">
-                            <span>{startTimeStr} – {endTimeStr}</span>
-                            <span className="text-neutral-500">({durationMin} min)</span>
+                            <span className="text-[#C4A482] font-semibold">{startTimeStr} – {endTimeStr}</span>
+                            <span className="text-[#6B7280]">({durationMin} min)</span>
                           </div>
 
-                          {/* Inverted Active Card */}
+                          {/* Modernized Pure White Card */}
                           <div
                             onClick={() => setSelectedBooking(b)}
-                            className="bg-white text-[#0D0D0D] rounded-2xl p-4 sm:p-5 shadow-xl border-l-4 border-[#C5A880] hover:scale-[1.01] transition-all cursor-pointer space-y-2"
+                            className="bg-[#FFFFFF] text-[#171717] rounded-[16px] p-4 sm:p-5 shadow-xl border-l-4 border-[#C4A482] hover:scale-[1.01] transition-all cursor-pointer space-y-2"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <h5 className="font-bold text-sm sm:text-base text-[#0D0D0D] group-hover:underline">
+                                <h5 className="font-bold text-base text-[#171717] group-hover:underline">
                                   {b.customer_name}
                                 </h5>
-                                <p className="text-xs text-neutral-500 mt-0.5">
+                                <p className="text-[13px] text-[#6B7280] mt-0.5">
                                   {serviceName}
                                 </p>
                               </div>
@@ -1190,15 +1215,25 @@ function AdminPageContent() {
                                 <span
                                   className={`inline-block text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full ${
                                     isConfirmed
-                                      ? "bg-emerald-100 text-emerald-800"
+                                      ? "bg-[#E3F8E8] text-[#15803D]"
+                                      : isDeclinedOrCancelled
+                                      ? "bg-[#F3F4F6] text-[#6B7280]"
                                       : isPending
                                       ? "bg-amber-100 text-amber-800"
-                                      : "bg-neutral-100 text-neutral-600"
+                                      : "bg-[#F3F4F6] text-[#6B7280]"
                                   }`}
                                 >
-                                  {b.status}
+                                  {b.status === "confirmed"
+                                    ? "Bekreftet"
+                                    : b.status === "pending"
+                                    ? "Venter"
+                                    : b.status === "cancelled"
+                                    ? "Kansellert"
+                                    : b.status === "declined"
+                                    ? "Avslått"
+                                    : b.status}
                                 </span>
-                                <span className="block text-xs font-bold text-[#0D0D0D] mt-1">
+                                <span className="block text-xs font-bold text-[#171717] mt-1">
                                   {b.price_nok > 0 ? `${b.price_nok} ${activePreset.currency}` : "Gratis"}
                                 </span>
                               </div>
@@ -1206,18 +1241,18 @@ function AdminPageContent() {
 
                             {/* Intake fields preview if present */}
                             {b.custom_fields && typeof b.custom_fields === "object" && Object.keys(b.custom_fields).length > 0 && (
-                              <div className="pt-2 border-t border-neutral-100 flex flex-wrap gap-1 text-[11px] text-neutral-600">
+                              <div className="pt-2 border-t border-neutral-100 flex flex-wrap gap-1 text-[11px] text-[#6B7280]">
                                 {Object.entries(b.custom_fields).map(([k, v]) => (
-                                  <span key={k} className="bg-neutral-100 px-2 py-0.5 rounded-md">
-                                    <strong className="capitalize">{k.replace(/_/g, " ")}:</strong> {String(v)}
+                                  <span key={k} className="bg-[#F3F4F6] px-2 py-0.5 rounded-md">
+                                    <strong className="capitalize text-[#171717]">{k.replace(/_/g, " ")}:</strong> {String(v)}
                                   </span>
                                 ))}
                               </div>
                             )}
 
-                            <div className="pt-1 flex items-center justify-between text-[11px] text-neutral-400">
+                            <div className="pt-1 flex items-center justify-between text-[11px] text-[#6B7280]">
                               <span>Ref: {b.ref}</span>
-                              <span className="font-semibold text-[#0D0D0D] group-hover:translate-x-0.5 transition-all">
+                              <span className="font-semibold text-[#171717] group-hover:translate-x-0.5 transition-all">
                                 Administrer avtale →
                               </span>
                             </div>
