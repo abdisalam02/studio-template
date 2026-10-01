@@ -217,7 +217,7 @@ function AdminPageContent() {
 
       // 1. Try server-side admin API endpoint with Bearer token (bypasses RLS for owner & dev bypass)
       try {
-        const apiRes = await fetch(`/api/admin/bookings?tenant_id=gangina&dev_bypass=true`, {
+        const apiRes = await fetch(`/api/admin/bookings?tenant_id=gangina`, {
           cache: "no-store",
           credentials: "include",
           headers: {
@@ -653,7 +653,7 @@ function AdminPageContent() {
           };
         });
 
-      await fetch("/api/admin/hours?dev_bypass=true", {
+      await fetch("/api/admin/hours", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -664,7 +664,6 @@ function AdminPageContent() {
           tenant_id: "gangina",
           hours: formatted,
           slot_step_min: slotStepMin,
-          dev_bypass: true,
         }),
       });
 
@@ -686,7 +685,7 @@ function AdminPageContent() {
     setSettingsNotice(null);
 
     try {
-      const res = await fetch("/api/admin/settings?dev_bypass=true", {
+      const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -697,7 +696,6 @@ function AdminPageContent() {
           tenant_id: "gangina",
           name: studioName,
           owner_email: contactEmail,
-          dev_bypass: true,
         }),
       });
 

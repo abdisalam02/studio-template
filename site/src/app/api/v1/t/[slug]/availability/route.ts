@@ -200,16 +200,29 @@ export async function GET(
       end_utc: k.end_utc,
     }));
 
-    // 5. Query range & Weekday calculation
+    // 5. Query range & Weekday calculation in tenant timezone
+    const tenantTz = tenant.timezone || "Europe/Oslo";
+    const [yStr, mStr, dStr] = fromParam.split("-");
+    const targetDateObj = new Date(Date.UTC(Number(yStr), Number(mStr) - 1, Number(dStr), 12, 0, 0));
+    
+    // Format weekday in tenant's timezone
+    const dayFmt = new Intl.DateTimeFormat("en-US", { timeZone: tenantTz, weekday: "short" });
+    const dayName = dayFmt.format(targetDateObj);
+    const dayMap: Record<string, number> = {
+      Mon: 0,
+      Tue: 1,
+      Wed: 2,
+      Thu: 3,
+      Fri: 4,
+      Sat: 5,
+      Sun: 6,
+    };
+    const europeanWeekday = dayMap[dayName] ?? 0;
+
     const queryRange = {
       fromUtc: Math.floor(fromDateMs / 1000),
       toUtc: toUtcEpoch,
     };
-
-    // Convert JS getDay() (Sun=0, Mon=1...Sat=6) to European index (Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6)
-    const targetDateObj = new Date(`${fromParam}T12:00:00Z`);
-    const jsDay = targetDateObj.getDay();
-    const europeanWeekday = jsDay === 0 ? 6 : jsDay - 1;
 
     // Check if tenant has any configured hours records in database
     const dbHours = hoursRes.data || [];

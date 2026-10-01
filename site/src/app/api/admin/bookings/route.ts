@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,40 +10,23 @@ export async function GET(req: NextRequest) {
     const token = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
 
     const isDev = process.env.NODE_ENV === "development";
-    const allowBypass = isDev && (
-      req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-      token.startsWith("dev-bypass-")
+    const allowBypass = Boolean(
+      isDev && (
+        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
+        token.startsWith("dev-bypass-")
+      )
     );
 
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    let userEmail: string | undefined;
-
-    if (allowBypass) {
-      userEmail = "niwache12@gmail.com";
-    } else {
-      if (!token) {
-        return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
-      }
-
-      if (token.startsWith("dev-bypass-")) {
-        try {
-          const b64 = token.replace("dev-bypass-", "");
-          userEmail = Buffer.from(b64, "base64").toString("utf-8");
-        } catch {
-          userEmail = "niwache12@gmail.com";
-        }
-      } else {
-        const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
-        if (authError || !userData.user?.email) {
-          return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
-        }
-        userEmail = userData.user.email;
-      }
+    const auth = await verifyAdminRequest(authHeader, allowBypass);
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: "unauthorized", message: "Mangler eller ugyldig innlogging." }, { status: 401 });
     }
 
+    const userEmail = auth.email || "niwache12@gmail.com";
     const tenantParam = req.nextUrl.searchParams.get("tenant_id") || "gangina";
 
     // Query tenant by id or match default gangina

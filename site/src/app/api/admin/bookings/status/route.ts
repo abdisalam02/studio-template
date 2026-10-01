@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import { sendCustomerConfirmation, sendCustomerDeclined, type Tenant } from "@/lib/email";
+import { verifyAdminRequest } from "@/lib/adminAuth";
 import type { BookingStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -20,26 +21,19 @@ export async function POST(req: NextRequest) {
     const { status } = body;
 
     const isDev = process.env.NODE_ENV === "development";
-    const allowBypass = isDev && (
-      body?.dev_bypass === true ||
-      req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-      (token && token.startsWith("dev-bypass-"))
+    const allowBypass = Boolean(
+      isDev && (
+        body?.dev_bypass === true ||
+        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
+        (token && token.startsWith("dev-bypass-"))
+      )
     );
 
-    let userEmail: string | undefined;
-
-    if (allowBypass) {
-      userEmail = "niwache12@gmail.com";
-    } else {
-      if (!authHeader?.startsWith("Bearer ")) {
-        return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
-      }
-      const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
-      if (authError || !userData.user?.email) {
-        return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
-      }
-      userEmail = userData.user.email;
+    const auth = await verifyAdminRequest(authHeader, allowBypass);
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
     }
+    const userEmail = auth.email || "niwache12@gmail.com";
 
     if (!bookingId || (status !== "confirmed" && status !== "declined" && status !== "cancelled")) {
       return NextResponse.json(

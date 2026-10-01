@@ -1,29 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    let userEmail: string | undefined;
-
-    if (process.env.NODE_ENV !== "production" && token.startsWith("dev-bypass-")) {
-      userEmail = "niwache12@gmail.com";
-    } else {
-      const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
-      if (authError || !userData.user?.email) {
-        return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
-      }
-      userEmail = userData.user.email;
+    const auth = await verifyAdminRequest(authHeader);
+    if (!auth.authenticated || !auth.email) {
+      return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
     }
+    const userEmail = auth.email;
     const body = await req.json();
     const { start_utc, end_utc, reason } = body;
 
@@ -75,22 +65,15 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
     }
 
-    const token = authHeader.replace("Bearer ", "");
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    let userEmail: string | undefined;
-
-    if (process.env.NODE_ENV !== "production" && token.startsWith("dev-bypass-")) {
-      userEmail = "niwache12@gmail.com";
-    } else {
-      const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
-      if (authError || !userData.user?.email) {
-        return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
-      }
-      userEmail = userData.user.email;
+    const auth = await verifyAdminRequest(authHeader);
+    if (!auth.authenticated || !auth.email) {
+      return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
     }
+    const userEmail = auth.email;
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
 

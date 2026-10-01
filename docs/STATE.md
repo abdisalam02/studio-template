@@ -50,3 +50,4 @@ Updated: 2026-10-01
 - Made email sender, reply-to, and email headers fully dynamic per tenant with agnostic fallbacks
 - Normalized email action URLs, added fallback review routes (/review, /vurder, /manage), and pushed to main
 - Fixed admin schedule reload sync, availability slot ghosting filter, approval email dispatch, and admin bookings list
+- Resolved Admin 401 with signed session tokens & added strict server-side schedule validation on booking POST

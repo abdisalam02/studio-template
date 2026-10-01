@@ -235,6 +235,68 @@ export async function POST(
       return NextResponse.json({ error: "service_not_found" }, { status: 404, headers: CORS_HEADERS });
     }
 
+    // 2.5. Strict Server-Side Schedule Validation: Verify date and operating hours
+    const tenantTz = tenant.timezone || "Europe/Oslo";
+    const datePartsFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: tenantTz,
+      weekday: "short",
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+    });
+
+    const parts = datePartsFormatter.formatToParts(new Date(normalizedStartUtc * 1000));
+    const partsMap: Record<string, string> = {};
+    for (const p of parts) {
+      if (p.type !== "literal") partsMap[p.type] = p.value;
+    }
+
+    const weekdayShort = partsMap.weekday; // "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+    const weekdayMap: Record<string, number> = {
+      Mon: 0,
+      Tue: 1,
+      Wed: 2,
+      Thu: 3,
+      Fri: 4,
+      Sat: 5,
+      Sun: 6,
+    };
+    const localWeekday = weekdayMap[weekdayShort] ?? -1;
+    const localHour = parseInt(partsMap.hour, 10);
+    const localMinute = parseInt(partsMap.minute, 10);
+    const localTimeInMinutes = localHour * 60 + localMinute;
+
+    // Load tenant operating hours for this weekday
+    const { data: shiftHours } = await supabaseAdmin
+      .from("hours")
+      .select("weekday, open_min, close_min")
+      .eq("tenant_id", tenant.id)
+      .eq("weekday", localWeekday)
+      .maybeSingle();
+
+    if (
+      !shiftHours ||
+      typeof shiftHours.open_min !== "number" ||
+      typeof shiftHours.close_min !== "number" ||
+      shiftHours.open_min >= shiftHours.close_min
+    ) {
+      return NextResponse.json(
+        { error: "schedule_closed", message: "Salon is closed on this date" },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
+    const bookingTotalDuration = services.reduce((acc, s) => acc + s.duration_min, 0);
+    if (
+      localTimeInMinutes < shiftHours.open_min ||
+      localTimeInMinutes + bookingTotalDuration > shiftHours.close_min
+    ) {
+      return NextResponse.json(
+        { error: "schedule_closed", message: "Requested time falls outside salon opening hours" },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
     // Compute combined duration, price and buffer
     const totalDurationMin = services.reduce((acc, s) => acc + s.duration_min, 0);
     const totalPriceNok = services.reduce((acc, s) => acc + s.price_nok, 0);

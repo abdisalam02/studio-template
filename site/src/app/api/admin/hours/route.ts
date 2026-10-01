@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -49,13 +50,16 @@ export async function POST(req: NextRequest) {
     const { tenant_id, hours, slot_step_min } = body;
 
     const isDev = process.env.NODE_ENV === "development";
-    const allowBypass = isDev && (
-      body?.dev_bypass === true ||
-      req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-      (token && token.startsWith("dev-bypass-"))
+    const allowBypass = Boolean(
+      isDev && (
+        body?.dev_bypass === true ||
+        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
+        (token && token.startsWith("dev-bypass-"))
+      )
     );
 
-    if (!allowBypass && !authHeader?.startsWith("Bearer ")) {
+    const auth = await verifyAdminRequest(authHeader, allowBypass);
+    if (!auth.authenticated) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 

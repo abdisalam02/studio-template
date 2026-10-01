@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyOtpCode } from "@/lib/otpStore";
+import { createAdminSessionToken } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
@@ -24,23 +25,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Successfully verified! Create authenticated session token
-    let sessionToken = `dev-bypass-${Buffer.from(email).toString("base64")}`;
-
-    if (supabaseAdmin) {
-      try {
-        const { data } = await supabaseAdmin.auth.admin.generateLink({
-          type: "magiclink",
-          email,
-        });
-
-        if (data?.properties?.hashed_token) {
-          sessionToken = data.properties.hashed_token;
-        }
-      } catch (err) {
-        console.warn("Could not generate Supabase auth link, using standard session token:", err);
-      }
-    }
+    // Successfully verified! Create signed authenticated session token
+    const sessionToken = createAdminSessionToken(email);
 
     return NextResponse.json({
       success: true,
