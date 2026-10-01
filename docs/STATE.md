@@ -49,3 +49,4 @@ Updated: 2026-10-01
 - Pushed clean multi-tenant engine template to origin (https://github.com/abdisalam02/studio-template)
 - Made email sender, reply-to, and email headers fully dynamic per tenant with agnostic fallbacks
 - Normalized email action URLs, added fallback review routes (/review, /vurder, /manage), and pushed to main
+- Fixed admin schedule reload sync, availability slot ghosting filter, approval email dispatch, and admin bookings list

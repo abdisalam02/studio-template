@@ -5,6 +5,8 @@ import { generateIcsCalendar } from "@/lib/ics";
 import { sendCustomerConfirmation, sendCustomerDeclined, type Tenant } from "@/lib/email";
 import type { BookingStatus } from "@/types/database";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -97,23 +99,29 @@ export async function POST(req: NextRequest) {
         notes: booking.notes,
       };
 
-      if (decision === "accept") {
-        const icsContent = generateIcsCalendar({
-          ref: booking.ref,
-          title: `${service.name} - ${tenant.name}`,
-          description: `Timebestilling for ${booking.customer_name}. Referanse: ${booking.ref}.`,
-          startUtc: booking.start_utc,
-          endUtc: booking.end_utc,
-          tenantName: tenant.name,
-        });
+      try {
+        if (decision === "accept") {
+          const icsContent = generateIcsCalendar({
+            ref: booking.ref,
+            title: `${service.name} - ${tenant.name}`,
+            description: `Timebestilling for ${booking.customer_name}. Referanse: ${booking.ref}.`,
+            startUtc: booking.start_utc,
+            endUtc: booking.end_utc,
+            tenantName: tenant.name,
+          });
 
-        sendCustomerConfirmation(tenant, bookingDetails, icsContent).catch((err) => {
-          console.error("Failed to send customer confirmation email:", err);
-        });
-      } else {
-        sendCustomerDeclined(tenant, bookingDetails).catch((err) => {
-          console.error("Failed to send customer declined email:", err);
-        });
+          const mailRes = await sendCustomerConfirmation(tenant, bookingDetails, icsContent);
+          if (mailRes && "error" in mailRes && mailRes.error) {
+            console.error("Error from Resend sending confirmation email:", mailRes.error);
+          }
+        } else {
+          const mailRes = await sendCustomerDeclined(tenant, bookingDetails);
+          if (mailRes && "error" in mailRes && mailRes.error) {
+            console.error("Error from Resend sending declined email:", mailRes.error);
+          }
+        }
+      } catch (mailErr) {
+        console.error("Failed to send customer notification email on decision:", mailErr);
       }
     }
 

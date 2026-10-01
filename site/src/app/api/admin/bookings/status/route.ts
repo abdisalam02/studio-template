@@ -4,6 +4,8 @@ import { generateIcsCalendar } from "@/lib/ics";
 import { sendCustomerConfirmation, sendCustomerDeclined, type Tenant } from "@/lib/email";
 import type { BookingStatus } from "@/types/database";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");

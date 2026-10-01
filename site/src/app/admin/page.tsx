@@ -218,6 +218,7 @@ function AdminPageContent() {
       // 1. Try server-side admin API endpoint with Bearer token (bypasses RLS for owner & dev bypass)
       try {
         const apiRes = await fetch(`/api/admin/bookings?tenant_id=gangina&dev_bypass=true`, {
+          cache: "no-store",
           credentials: "include",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -668,6 +669,9 @@ function AdminPageContent() {
       });
 
       alert("Åpningstider lagret.");
+      if (sessionToken && userEmail) {
+        await loadData(sessionToken, userEmail);
+      }
     } catch {
       alert("Kunne ikke lagre åpningstider.");
     } finally {

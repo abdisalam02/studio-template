@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { computeAvailability } from "@/lib/availability";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -177,11 +180,14 @@ export async function GET(
       return NextResponse.json({ error: "database_error", details: hoursRes.error.message }, { status: 500, headers: CORS_HEADERS });
     }
 
-    // Filter blocking bookings: confirmed OR (pending AND expires_at > now)
+    // Filter blocking bookings: confirmed OR (pending and not expired)
     const blockingBookings = (bookingsRes.data || [])
       .filter((b) => {
         if (b.status === "confirmed") return true;
-        if (b.status === "pending" && b.expires_at && b.expires_at > nowUtc) return true;
+        if (b.status === "pending") {
+          // If no expires_at timestamp is set, treat pending as active hold; otherwise check hold has not expired
+          return !b.expires_at || b.expires_at > nowUtc;
+        }
         return false;
       })
       .map((b) => ({
