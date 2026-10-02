@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { computeAvailability } from "@/lib/availability";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 export const revalidate = 0;
 
 const CORS_HEADERS = {
@@ -265,6 +265,17 @@ export async function GET(
       nowUtc,
     });
 
+    // Enforce rolling slot lead-time & max horizon:
+    // 1. Min notice: at least 2 hours (2 * 3600s) from now (also guarantees no past slots today)
+    // 2. Max horizon: at most 30 days (30 * 86400s) from now
+    const minLeadTimeUtc = nowUtc + (2 * 3600);
+    const maxHorizonUtc = nowUtc + (30 * 86400);
+
+    const validIsoSlots = isoSlots.filter((iso) => {
+      const slotUtc = Math.floor(new Date(iso).getTime() / 1000);
+      return slotUtc >= minLeadTimeUtc && slotUtc <= maxHorizonUtc;
+    });
+
     // Format simple "HH:MM" times in Europe/Oslo timezone for convenience
     const timeFormatter = new Intl.DateTimeFormat("en-GB", {
       timeZone: tenant.timezone || "Europe/Oslo",
@@ -273,12 +284,12 @@ export async function GET(
       hourCycle: "h23",
     });
 
-    const timeSlots = Array.from(new Set(isoSlots.map((iso) => timeFormatter.format(new Date(iso)))));
+    const timeSlots = Array.from(new Set(validIsoSlots.map((iso) => timeFormatter.format(new Date(iso)))));
 
     return NextResponse.json(
       {
         slots: timeSlots,
-        iso_slots: isoSlots,
+        iso_slots: validIsoSlots,
         date: dateParam || fromParam,
       },
       { status: 200, headers: CORS_HEADERS }

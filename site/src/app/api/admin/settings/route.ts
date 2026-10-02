@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,13 +52,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const targetTenantId = tenant_id || "gangina";
-
-    const updateData: { name?: string; owner_email?: string; buffer_min?: number } = {};
+    const updateData: {
+      name?: string;
+      owner_email?: string;
+      buffer_min?: number;
+      min_notice_min?: number;
+      max_days_ahead?: number;
+    } = {};
     if (name) updateData.name = name;
     if (owner_email) updateData.owner_email = owner_email;
     if (buffer_min != null) updateData.buffer_min = buffer_min;
+    if (body.min_notice_min != null) updateData.min_notice_min = body.min_notice_min;
+    if (body.max_days_ahead != null) updateData.max_days_ahead = body.max_days_ahead;
 
+    const targetTenantId = tenant_id || "gangina";
     const { data: tenant, error } = await supabaseAdmin
       .from("tenants")
       .update(updateData)

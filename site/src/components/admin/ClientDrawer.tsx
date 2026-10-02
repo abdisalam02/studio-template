@@ -67,7 +67,7 @@ export function ClientDrawer({
   const timeStr = formatOsloTime(booking.start_utc);
   const dateStr = formatOsloDate(booking.start_utc);
   const firstName = booking.customer_name.split(" ")[0] || booking.customer_name;
-  const whatsappText = `Hei ${firstName}! Viser til din time hos ${tenantName} den ${dateStr} kl.${timeStr}.`;
+  const whatsappText = `Hei ${firstName}! Dette gjelder din time hos ${tenantName || "Gangina Studio"} ${dateStr} kl ${timeStr}.`;
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappText)}`;
 
   const isLoading = actionLoading === booking.id;
@@ -90,13 +90,16 @@ export function ClientDrawer({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4 font-sans animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-white border border-[#EAE6E1] p-6 sm:p-7 space-y-5 shadow-2xl max-h-[92dvh] overflow-y-auto"
+        className="w-full sm:max-w-md rounded-t-[20px] sm:rounded-3xl bg-white border border-[#EAE6E1] p-6 sm:p-7 space-y-5 shadow-2xl max-h-[92dvh] overflow-y-auto animate-in slide-in-from-bottom duration-300"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Pull Handle */}
+        <div className="w-12 h-1 bg-[#EAE6E1] rounded-full mx-auto sm:hidden -mt-1 mb-2" />
+
         {/* Header */}
         <div className="flex items-start justify-between border-b border-[#EAE6E1] pb-3">
           <div>
@@ -120,32 +123,29 @@ export function ClientDrawer({
           </button>
         </div>
 
-        {/* Quick Communication Actions Grid */}
-        <div className="space-y-1.5">
-          <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">
-            Hurtigkontakt
+        {/* Quick Communication Actions: Primary WhatsApp, Secondary Email */}
+        <div className="space-y-2">
+          <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">
+            Klientkontakt
           </span>
-          <div className="grid grid-cols-3 gap-2">
-            <a
-              href={`tel:${booking.customer_phone}`}
-              className="py-2.5 rounded-xl border border-[#EAE6E1] text-center text-xs font-semibold text-[#111113] hover:bg-[#FAF8F5] transition-colors"
-            >
-              Ring
-            </a>
+          <div className="flex flex-col sm:flex-row gap-2">
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noreferrer"
-              className="py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 text-center text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+              className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-center text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
-              WhatsApp
+              <span>💬</span>
+              <span>Send WhatsApp melding</span>
             </a>
-            <a
-              href={`mailto:${booking.customer_email}`}
-              className="py-2.5 rounded-xl border border-[#EAE6E1] text-center text-xs font-semibold text-[#111113] hover:bg-[#FAF8F5] transition-colors"
-            >
-              E-post
-            </a>
+            {booking.customer_email ? (
+              <a
+                href={`mailto:${booking.customer_email}`}
+                className="py-3 px-4 rounded-xl border border-[#EAE6E1] bg-[#FAF8F5] text-center text-xs font-semibold text-[#111113] hover:border-[#111113] transition-colors cursor-pointer"
+              >
+                E-post
+              </a>
+            ) : null}
           </div>
         </div>
 

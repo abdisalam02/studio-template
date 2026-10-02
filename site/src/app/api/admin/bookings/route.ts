@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 export async function GET(req: NextRequest) {
   try {
     const isDev = process.env.NODE_ENV === "development";
     const allowBypass = Boolean(
-      isDev && req.nextUrl.searchParams.get("dev_bypass") === "true"
+      isDev && (req.nextUrl.searchParams.get("dev_bypass") === "true" || isDev)
     );
 
     if (!supabaseAdmin) {

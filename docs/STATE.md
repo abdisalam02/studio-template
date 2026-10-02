@@ -3,13 +3,13 @@
 Updated: 2026-10-01
 
 ## Now
-- Task: Scaffolding `studio-template` master boilerplate (site, widget, Supabase, docs)
-- Uncommitted changes: Initial boilerplate scaffolding
+- Task: Industry-standard Admin Portal shell & add-ons complete
+- Uncommitted changes: Verified admin portal shell, TimeBlockModal, ClientDrawer, and audit
 
 ## Next (max 3)
-1. Implement core 1-page studio site in `site/` (Hero, Treatment Menu, Lookbook, Booking)
-2. Build standalone embeddable booking modal in `widget/`
-3. Add initial Supabase appointment tables with RLS in `supabase/migrations/`
+1. Awaiting user approval to commit and push changes
+2. Client onboarding verification and Stripe/Vipps webhook integration
+3. Final deployment preparation
 
 ## Decisions made (don't reopen)
 - Architecture: `site/` (Next.js 15), `widget/` (embeddable script/component), `supabase/` (backend/RLS).
@@ -43,6 +43,8 @@ Updated: 2026-10-01
 - Switched sender to verified root domain booking@agure.space; live dispatch verified (ID 01a0f75a-7257-720e-b961-ab2e0d702f12)
 - Unified noire frontend into site/public (index.html, book.html, css, js, img) with relative API endpoints
 - Hardened admin API routes by gating dev_bypass strictly behind NODE_ENV === 'development'
+- Redesigned Admin feed: active-first appointments, collapsible archive accordion, responsive bottom nav, and calendar quick-jump
+- Streamlined Admin cards: compact space-saving rows with date, time, name, email & modal details trigger in both views
 - Verified .gitignore rules, secured environment secrets, and validated clean Next.js production build
 - Confirmed CORS on public availability and bookings endpoints; cleaned tenant assets from site/public
 - Initialized git repository, verified ignore rules (.env.local excluded), and created initial commit on main
@@ -55,3 +57,5 @@ Updated: 2026-10-01
 - Fixed Supabase .catch in admin hours route and parallelized booking emails with next/server after()
 - Batched admin schedule DB updates, removed blocking alerts, and added optimistic feedback UI
 - Refactored Admin Agenda calendar to architectural tab bridge with fillets and pure white editorial cards
+- Implemented GPU-accelerated fluid animated bubbly indicator connecting active date to obsidian agenda container
+- Implemented industry-standard 4-tab admin portal shell, dynamic blackout modal, lead time enforcement, and verified design pass

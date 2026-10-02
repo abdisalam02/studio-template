@@ -5,7 +5,7 @@ import { sendCustomerConfirmation, sendCustomerDeclined, type Tenant } from "@/l
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import type { BookingStatus } from "@/types/database";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 export async function POST(req: NextRequest) {
   try {

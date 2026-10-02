@@ -27,3 +27,9 @@ yarn-debug.log*
 yarn-error.log*
 .idea/
 .vscode/
+*.tsbuildinfo
+audit-screenshots/
+admin-screenshots/
+capture-*.js
+test-*.js
+inspect-*.js
