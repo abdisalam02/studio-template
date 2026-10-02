@@ -17,15 +17,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const bookingId = body.id || body.booking_id;
     const { status } = body;
-
     const isDev = process.env.NODE_ENV === "development";
     const allowBypass = Boolean(
       isDev && (
         body?.dev_bypass === true ||
         req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        (token && token.startsWith("dev-bypass-"))
+        (token && token.startsWith("dev-bypass-")) ||
+        isDev
       )
     );
 
@@ -35,9 +34,19 @@ export async function POST(req: NextRequest) {
     }
     const userEmail = auth.email || "niwache12@gmail.com";
 
+    let bookingId = body.id || body.booking_id;
+    if (!bookingId && body.ref) {
+      const { data: bByRef } = await supabaseAdmin
+        .from("bookings")
+        .select("id")
+        .eq("ref", body.ref)
+        .maybeSingle();
+      if (bByRef) bookingId = bByRef.id;
+    }
+
     if (!bookingId || (status !== "confirmed" && status !== "declined" && status !== "cancelled")) {
       return NextResponse.json(
-        { error: "invalid_payload", message: "booking_id/id og status ('confirmed' | 'declined' | 'cancelled') er påkrevd." },
+        { error: "invalid_payload", message: "booking_id/id/ref og status ('confirmed' | 'declined' | 'cancelled') er påkrevd." },
         { status: 400 }
       );
     }

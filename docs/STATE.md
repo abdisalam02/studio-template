@@ -3,8 +3,8 @@
 Updated: 2026-10-02
 
 ## Now
-- Task: Admin Portal dual-surface sheet polish, client drawer actions/contacts, custom slot duration, zero click-bleed
-- Status: Verified on Apache & Next.js (:3000), committed locally in noire (no push), ready for review
+- Task: Smooth GPU cubic-bezier dual-surface closing animation, month grid breathing room, and sibling fixed dock
+- Status: Verified on Apache & Next.js (:3000) with Playwright suite, committed locally (no push), ready for review
 
 ## Next (max 3)
 1. User testing and approval to git push

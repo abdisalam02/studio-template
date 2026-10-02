@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Gangina Studio Manager · Dual-Surface Executive Portal</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="icon" type="image/png" href="img/double-layer-star.png">
+</head>
+<body>
+
+  <div class="admin-shell" id="admin-shell">
+    
+    <!-- ================================================================= -->
+    <!-- 1. UPPER OBSIDIAN CANOPY (#121214)                                -->
+    <!-- ================================================================= -->
+    <header class="obsidian-canopy" id="obsidian-canopy">
+      
+      <!-- Topbar: Real Gangina Logo & Quick Actions -->
+      <div class="canopy-topbar">
+        <div class="canopy-brand-cluster">
+          <div class="canopy-logo-wrap">
+            <img src="img/logo-v2.png" alt="Gangina" class="canopy-logo-img">
+          </div>
+          <div class="studio-title-group">
+            <h1 class="studio-title" id="studio-brand-name">Gangina</h1>
+            <span class="studio-subtext">tooth gems &amp; custom grillz</span>
+          </div>
+        </div>
+
+        <div class="canopy-actions">
+          <button type="button" class="btn-ny-time" id="btn-quick-new-booking" title="Create a walk-in or phone booking">
+            <span>+</span> New Booking
+          </button>
+          <button type="button" class="btn-canopy-icon" id="studio-lock-btn" title="Lock Studio Manager">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Real Gangina Calligraphy Watermark behind Calendar Grid -->
+      <div class="canopy-watermark" aria-hidden="true">
+        <img src="img/logo-v2.png" alt="" class="canopy-watermark-img">
+      </div>
+
+      <!-- Calendar Header & View Switcher -->
+      <div class="canopy-calendar-header">
+        <div class="cal-month-title-wrap">
+          <h2 class="cal-month-title" id="cal-month-label">October 2026</h2>
+          <div class="cal-nav-arrows">
+            <button type="button" class="cal-arrow-btn" id="cal-prev-month" aria-label="Previous Month">‹</button>
+            <button type="button" class="cal-arrow-btn" id="cal-next-month" aria-label="Next Month">›</button>
+          </div>
+        </div>
+
+        <button type="button" class="cal-toggle-pill" id="cal-mode-toggle" title="Toggle between 7-day strip and 35-day month calendar">
+          <span id="cal-toggle-icon">📅</span>
+          <span id="cal-toggle-label">Month</span>
+        </button>
+      </div>
+
+      <!-- a) Week Strip Mode (Default in mobile expanded sheet) -->
+      <div class="canopy-week-strip" id="canopy-week-strip">
+        <!-- Injected via JavaScript: 7-day strip (M-S) with active gold capsule -->
+      </div>
+
+      <!-- b) Full Month Grid Mode: Spacious & Breathable -->
+      <div class="canopy-month-grid" id="canopy-month-grid">
+        <div class="month-grid-weekdays">
+          <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+        </div>
+        <div class="month-grid-days" id="month-grid-days">
+          <!-- Injected via JavaScript: 35-day grid with dot indicators -->
+        </div>
+      </div>
+
+    </header>
+
+    <!-- ================================================================= -->
+    <!-- 2. LOWER DRAGGABLE PORCELAIN SHEET (#FAFAFA)                      -->
+    <!-- ================================================================= -->
+    <main class="porcelain-sheet" id="porcelain-sheet">
+      
+      <!-- Top Centered Drag Handle Pill -->
+      <div class="sheet-handle-bar" id="sheet-handle-bar" title="Drag or tap to toggle month calendar">
+        <div class="sheet-handle-pill"></div>
+      </div>
+
+      <!-- Real Gangina Calligraphy Watermark Background (Centered) -->
+      <div class="sheet-watermark" aria-hidden="true">
+        <img src="img/logo-v2.png" alt="" class="sheet-watermark-img">
+      </div>
+
+      <!-- Scrollable Sheet Content -->
+      <div class="sheet-content-scroller" id="sheet-content-scroller">
+        
+        <!-- ============================================================= -->
+        <!-- TAB 1: CALENDAR (Daily Agenda & Timeline)                     -->
+        <!-- ============================================================= -->
+        <section class="tab-panel active" id="panel-kalender">
+          
+          <!-- Executive Daily Pulse & Review Banner -->
+          <div class="executive-pulse-banner" id="executive-pulse-banner">
+            <div class="pulse-review-pill" id="pulse-review-pill" title="Click to review pending bookings">
+              <div class="pulse-icon-box">🔔</div>
+              <div class="pulse-text-group">
+                <span class="pulse-title" id="pulse-review-count">3 appointments to review</span>
+                <span class="pulse-sub" id="pulse-today-count">3 appointments today</span>
+              </div>
+              <button type="button" class="pulse-action-btn" id="pulse-action-btn">Review →</button>
+            </div>
+            <div class="pulse-metrics-row">
+              <div class="pulse-metric-chip">
+                <span class="metric-label">Today's Revenue</span>
+                <span class="metric-val" id="revenue-amount-display">0 kr</span>
+              </div>
+              <div class="pulse-metric-chip">
+                <span class="metric-label">Confirmed Sessions</span>
+                <span class="metric-val" id="revenue-count-badge">0 sessions</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Action Bar -->
+          <div class="calendar-quick-bar">
+            <button type="button" class="quick-action-btn" id="btn-quick-block-time">
+              <span>🔒</span> + Block Time / Break
+            </button>
+            <button type="button" class="quick-action-btn" id="btn-refresh-agenda">
+              <span>↻</span> Sync Calendar
+            </button>
+          </div>
+
+          <!-- Section Head -->
+          <div class="card-section-head">
+            <div>
+              <h3 class="card-title-main" id="agenda-date-headline">Daily Agenda</h3>
+              <span class="card-subtitle" id="agenda-date-sub">Chronological timeline of appointments &amp; pauses</span>
+            </div>
+            <span class="status-pill-badge confirmed" id="agenda-count-badge">0 entries</span>
+          </div>
+
+          <!-- Chronological Timeline Stack -->
+          <div class="dagsagenda-timeline" id="dagsagenda-timeline">
+            <!-- Injected via JavaScript -->
+          </div>
+
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- TAB 2: APPOINTMENTS (Active Feed & Collapsible Archive)       -->
+        <!-- ============================================================= -->
+        <section class="tab-panel" id="panel-avtaler">
+          
+          <!-- Search Bar -->
+          <div class="search-filter-wrap" style="position:relative;">
+            <svg class="search-icon-pos" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="admin-search-input" class="admin-search-input" placeholder="Search by client, phone, email, or ref...">
+          </div>
+
+          <!-- Segment Filter Pills -->
+          <div class="filter-pills-row">
+            <button type="button" class="feed-filter-pill active" data-filter="active">Active (<span id="count-active">0</span>)</button>
+            <button type="button" class="feed-filter-pill" data-filter="pending">Pending (<span id="count-pending">0</span>)</button>
+            <button type="button" class="feed-filter-pill" data-filter="confirmed">Upcoming (<span id="count-upcoming">0</span>)</button>
+            <button type="button" class="feed-filter-pill" data-filter="archive">Archive (<span id="count-archive">0</span>)</button>
+            <button type="button" class="feed-filter-pill" data-filter="all">All (<span id="count-all">0</span>)</button>
+          </div>
+
+          <!-- Active Appointments Feed -->
+          <div id="bookings-active-feed">
+            <!-- Injected via JavaScript with clean date & time chips -->
+          </div>
+
+          <!-- Collapsible Archive Accordion -->
+          <div class="archive-accordion-box">
+            <div class="archive-toggle-head" id="archive-toggle-head">
+              <div class="archive-toggle-title">
+                <span>🗄 Past &amp; Cancelled Appointments</span>
+                <span class="archive-count-badge" id="archive-total-badge">0</span>
+              </div>
+              <span style="font-size:0.75rem; color:var(--admin-sheet-muted);" id="archive-chevron">View Archive ▼</span>
+            </div>
+            <div class="archive-content-body" id="archive-content-body">
+              <!-- Injected via JavaScript -->
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- TAB 3: OPENING HOURS & SHIFTS                                -->
+        <!-- ============================================================= -->
+        <section class="tab-panel" id="panel-schedule">
+          
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Studio Operating Hours</h3>
+                <span class="card-subtitle">Weekly shifts and appointment slot duration</span>
+              </div>
+              <button type="button" class="btn-ny-time" id="btn-copy-monday" style="font-size:0.72rem; padding:6px 12px;">
+                Copy Monday
+              </button>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; font-size:0.8rem; gap:10px; flex-wrap:wrap;">
+              <span style="font-weight:600; color:var(--admin-sheet-muted);">Appointment Slot Duration:</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <select id="sched-interval" class="pill-time-input" style="padding:6px 12px;">
+                  <option value="15">15 min</option>
+                  <option value="30" selected>30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">60 min</option>
+                  <option value="custom">Custom...</option>
+                </select>
+                <div id="sched-custom-wrap" style="display:none; align-items:center; gap:4px;">
+                  <input type="number" id="sched-interval-custom" class="pill-time-input" style="width:64px; padding:6px 8px; text-align:center;" min="5" max="240" step="5" placeholder="30">
+                  <span style="font-size:0.75rem; color:var(--admin-sheet-muted); font-weight:600;">min</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7-Day Shift Rows -->
+            <div id="schedule-days-container">
+              <!-- Injected via JavaScript: Monday to Sunday -->
+            </div>
+
+            <button type="button" id="save-sched-btn" class="btn-ny-time" style="width:100%; justify-content:center; margin-top:16px; padding:11px;">
+              Save Operating Hours
+            </button>
+          </div>
+
+          <!-- Active Blackouts Table Card -->
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Active Blackouts &amp; Breaks</h3>
+                <span class="card-subtitle">Personal leaves, lunch breaks, and holidays</span>
+              </div>
+              <button type="button" class="quick-action-btn" id="btn-add-blackout-tab" style="padding:6px 12px;">
+                + Block Time
+              </button>
+            </div>
+
+            <div id="blocked-intervals-list" style="margin-top:10px;">
+              <!-- Injected via JavaScript -->
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- TAB 4: SETTINGS & BESPOKE PALETTES                           -->
+        <!-- ============================================================= -->
+        <section class="tab-panel" id="panel-settings">
+          
+          <!-- Color Palette -->
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Color Palette</h3>
+                <span class="card-subtitle">Personalize your admin aesthetic with curated luxury tones</span>
+              </div>
+            </div>
+
+            <div class="palette-swatches-grid">
+              <button type="button" class="palette-btn active" data-theme-val="noir-champagne">
+                <span class="swatch-circle swatch-noir-champagne"></span>
+                <span class="palette-name">Noir Champagne</span>
+              </button>
+              <button type="button" class="palette-btn" data-theme-val="nordic-clay">
+                <span class="swatch-circle swatch-nordic-clay"></span>
+                <span class="palette-name">Nordic Clay</span>
+              </button>
+              <button type="button" class="palette-btn" data-theme-val="matcha-sage">
+                <span class="swatch-circle swatch-matcha-sage"></span>
+                <span class="palette-name">Matcha Sage</span>
+              </button>
+              <button type="button" class="palette-btn" data-theme-val="dusk-lilac">
+                <span class="swatch-circle swatch-dusk-lilac"></span>
+                <span class="palette-name">Dusk Lilac</span>
+              </button>
+              <button type="button" class="palette-btn" data-theme-val="ocean-coral">
+                <span class="swatch-circle swatch-ocean-coral"></span>
+                <span class="palette-name">Ocean Coral</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Studio Profile -->
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Studio Profile</h3>
+                <span class="card-subtitle">Information displayed on invites and confirmations</span>
+              </div>
+            </div>
+
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="studio-name-input">Studio Name</label>
+              <input type="text" id="studio-name-input" class="recessed-input" value="Gangina Beauty Studio">
+            </div>
+
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="studio-address-input">Studio Address</label>
+              <input type="text" id="studio-address-input" class="recessed-input" value="Dronningens gate 15, 0152 Oslo">
+            </div>
+
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="studio-org-input">Organization / VAT Number</label>
+              <input type="text" id="studio-org-input" class="recessed-input" value="931 245 876 MVA">
+            </div>
+          </div>
+
+          <!-- Booking Rules & Lead Time -->
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Booking Rules &amp; Lead Times</h3>
+                <span class="card-subtitle">Automated availability constraints</span>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="recessed-input-group">
+                <label class="recessed-label" for="rule-lead-time">Min. Notice Time (Hours)</label>
+                <input type="number" id="rule-lead-time" class="recessed-input" value="2">
+              </div>
+              <div class="recessed-input-group">
+                <label class="recessed-label" for="rule-horizon">Booking Horizon (Days)</label>
+                <input type="number" id="rule-horizon" class="recessed-input" value="60">
+              </div>
+            </div>
+          </div>
+
+          <!-- Contact & WhatsApp -->
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Notifications &amp; WhatsApp</h3>
+                <span class="card-subtitle">Channels where client alerts are dispatched</span>
+              </div>
+            </div>
+
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="studio-whatsapp-input">WhatsApp Business Number</label>
+              <input type="tel" id="studio-whatsapp-input" class="recessed-input" placeholder="4700000000">
+            </div>
+
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="studio-email-input">Notification Email</label>
+              <input type="email" id="studio-email-input" class="recessed-input" placeholder="ganginadental@gmail.com">
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:12px;">
+              <button type="button" id="save-settings-btn" class="btn-ny-time" style="flex:1; justify-content:center; padding:11px;">
+                Save Settings
+              </button>
+              <button type="button" id="send-test-alert-btn" class="quick-action-btn" style="flex:1;">
+                Send Test Ping
+              </button>
+            </div>
+          </div>
+
+        </section>
+
+      </div>
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- 3. ADAPTIVE FLOATING BOTTOM NAVIGATION DOCK                       -->
+    <!-- ================================================================= -->
+    <nav class="adaptive-pill-dock" id="adaptive-pill-dock" aria-label="Admin Navigation">
+      <!-- Tab 1: Calendar -->
+      <button type="button" class="dock-pill active" data-tab="kalender" aria-label="Calendar">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        <span class="dock-label">Calendar</span>
+      </button>
+
+      <!-- Tab 2: Appointments -->
+      <button type="button" class="dock-pill" data-tab="avtaler" aria-label="Appointments">
+        <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14l2 2 4-4"></path></svg>
+        <span class="dock-label">Appointments</span>
+        <span class="dock-badge" id="dock-pending-badge" style="display:none;"></span>
+      </button>
+
+      <!-- Tab 3: Opening Hours -->
+      <button type="button" class="dock-pill" data-tab="schedule" aria-label="Opening Hours">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <span class="dock-label">Opening Hours</span>
+      </button>
+
+      <!-- Tab 4: Settings -->
+      <button type="button" class="dock-pill" data-tab="settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="dock-label">Settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- 4. MODALS & CLIENT DETAILS BOTTOM SHEET                           -->
+  <!-- ================================================================= -->
+
+  <!-- Modal 1: Client Details Bottom Sheet (ClientDrawer) -->
+  <div class="modal-backdrop" id="modal-client-drawer">
+    <div class="modal-sheet">
+      <div class="modal-top-handle"></div>
+      <div class="modal-sheet-head">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="client-avatar-circle" id="drawer-avatar-circle" style="width:46px; height:46px; font-size:1rem; flex-shrink:0;">NL</div>
+          <div>
+            <span style="font-size:0.68rem; font-weight:700; color:var(--admin-sheet-muted); text-transform:uppercase; letter-spacing:0.08em;" id="drawer-ref-pill">CLIENT CARD · REF GNG-0000</span>
+            <h3 class="modal-sheet-title" id="drawer-client-name" style="margin-top:2px;">Client Name</h3>
+          </div>
+        </div>
+        <button type="button" class="modal-sheet-close" id="close-client-drawer-btn">✕</button>
+      </div>
+
+      <!-- Direct Triage Row on Client Card -->
+      <div class="drawer-triage-row" id="drawer-triage-row" style="display:flex; gap:8px; margin-bottom:14px;">
+        <button type="button" class="btn-triage btn-triage-approve" id="drawer-btn-approve" style="padding:10px 14px; font-size:0.8rem;">✓ Approve</button>
+        <button type="button" class="btn-triage btn-triage-decline" id="drawer-btn-decline" style="padding:10px 14px; font-size:0.8rem;">✕ Decline</button>
+      </div>
+
+      <!-- Distinct Date and Time Boxes -->
+      <div class="drawer-datetime-grid">
+        <div class="datetime-tile">
+          <span class="datetime-tile-label">DATE</span>
+          <span class="datetime-tile-val" id="drawer-date-display">October 02, 2026</span>
+        </div>
+        <div class="datetime-tile">
+          <span class="datetime-tile-label">TIME</span>
+          <span class="datetime-tile-val" id="drawer-time-display">12:00</span>
+        </div>
+      </div>
+
+      <!-- Compact Quick Contact Chips (Phone and Email visible) -->
+      <div class="drawer-contact-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <a href="#" target="_blank" class="contact-card-chip wa" id="drawer-btn-wa">
+          <div class="contact-card-icon" style="color:#25D366;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.52 3.48A11.9 11.9 0 0 0 12.06 0C5.46 0 .09 5.37.09 11.97c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.63a11.94 11.94 0 0 0 5.86 1.53h.01c6.6 0 11.97-5.37 11.97-11.97 0-3.2-1.25-6.21-3.52-8.45zM12.06 21.89h-.01a9.9 9.9 0 0 1-5.05-1.38l-.36-.21-3.75.98 1-3.66-.23-.37a9.88 9.88 0 0 1-1.52-5.28c0-5.46 4.45-9.91 9.92-9.91 2.65 0 5.14 1.03 7.01 2.9 1.87 1.87 2.9 4.36 2.9 7.01 0 5.46-4.45 9.92-9.92 9.92zm5.44-7.43c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.22 3.07c.15.2 2.1 3.2 5.09 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z"/></svg>
+          </div>
+          <div class="contact-card-info">
+            <span class="contact-card-label">WhatsApp</span>
+            <span class="contact-card-val" id="drawer-phone-val">+47 000 00 000</span>
+          </div>
+        </a>
+
+        <a href="#" class="contact-card-chip email" id="drawer-btn-email">
+          <div class="contact-card-icon" style="color:#6366F1;">✉️</div>
+          <div class="contact-card-info">
+            <span class="contact-card-label">Email</span>
+            <span class="contact-card-val" id="drawer-email-val">client@post.no</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Treatment Details -->
+      <div class="squircle-card" style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.86rem;">
+          <span style="color:var(--admin-sheet-muted);">Treatment</span>
+          <strong id="drawer-service-name">Single Gem</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.86rem;">
+          <span style="color:var(--admin-sheet-muted);">Total Fee</span>
+          <strong id="drawer-price-nok">350 kr</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.86rem;">
+          <span style="color:var(--admin-sheet-muted);">Status</span>
+          <span class="status-pill-badge confirmed" id="drawer-status-badge">CONFIRMED</span>
+        </div>
+      </div>
+
+      <!-- Intake & Notes -->
+      <div class="recessed-input-group">
+        <label class="recessed-label">Intake &amp; Specifications</label>
+        <div class="recessed-input" id="drawer-intake-details" style="font-size:0.8rem; line-height:1.4;">
+          Placement: Upper Canine
+        </div>
+      </div>
+
+      <div class="recessed-input-group">
+        <label class="recessed-label">Client Notes</label>
+        <div class="recessed-input" id="drawer-notes-display" style="font-size:0.8rem; line-height:1.4;">
+          No notes provided.
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;">
+        <button type="button" class="btn-ny-time" id="drawer-btn-reschedule" style="justify-content:center; padding:11px;">
+          Reschedule
+        </button>
+        <button type="button" class="quick-action-btn" id="drawer-btn-cancel" style="color:#71717A;">
+          Cancel Appointment
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Manual Booking / Walk-in -->
+  <div class="modal-backdrop" id="modal-new-booking">
+    <div class="modal-sheet">
+      <div class="modal-top-handle"></div>
+      <div class="modal-sheet-head">
+        <div>
+          <h3 class="modal-sheet-title">+ New Appointment (Walk-in / Phone)</h3>
+          <span class="card-subtitle">Schedule directly into studio book</span>
+        </div>
+        <button type="button" class="modal-sheet-close" id="close-new-booking-btn">✕</button>
+      </div>
+
+      <form id="form-new-booking">
+        <div class="recessed-input-group">
+          <label class="recessed-label" for="manual-client-name">Client Name *</label>
+          <input type="text" id="manual-client-name" class="recessed-input" placeholder="Full name" required>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="manual-client-phone">Phone / WhatsApp *</label>
+            <input type="tel" id="manual-client-phone" class="recessed-input" placeholder="+47 000 00 000" required>
+          </div>
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="manual-client-email">Email (Optional)</label>
+            <input type="email" id="manual-client-email" class="recessed-input" placeholder="client@post.no">
+          </div>
+        </div>
+
+        <div class="recessed-input-group">
+          <label class="recessed-label" for="manual-service-select">Treatment</label>
+          <select id="manual-service-select" class="recessed-input">
+            <option value="Single Gem" data-price="350">Single Gem (20 min · 350 kr)</option>
+            <option value="Iridescent Opal Gem" data-price="450">Iridescent Opal Gem (20 min · 450 kr)</option>
+            <option value="Custom Shape (Butterfly, Flower, Star)" data-price="550" selected>Custom Shape (30 min · 550 kr)</option>
+            <option value="Custom Grillz Consultation &amp; Mold" data-price="0">Custom Grillz Consultation (30 min · Free)</option>
+          </select>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="manual-date">Date *</label>
+            <input type="date" id="manual-date" class="recessed-input" required>
+          </div>
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="manual-time">Time Slot *</label>
+            <input type="time" id="manual-time" class="recessed-input" value="12:00" required>
+          </div>
+        </div>
+
+        <div class="recessed-input-group">
+          <label class="recessed-label" for="manual-notes">Notes (Placement, design specifics)</label>
+          <textarea id="manual-notes" class="recessed-input" rows="2" placeholder="Walk-in appointment..."></textarea>
+        </div>
+
+        <button type="submit" class="btn-ny-time" style="width:100%; justify-content:center; padding:12px; margin-top:8px;">
+          Create Confirmed Appointment
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Time Block & Break -->
+  <div class="modal-backdrop" id="modal-timeblock">
+    <div class="modal-sheet">
+      <div class="modal-top-handle"></div>
+      <div class="modal-sheet-head">
+        <div>
+          <h3 class="modal-sheet-title">Block Time / Add Pause</h3>
+          <span class="card-subtitle">Instantly disable slots from online booking</span>
+        </div>
+        <button type="button" class="modal-sheet-close" id="close-timeblock-btn">✕</button>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <button type="button" class="quick-action-btn" id="btn-quick-pause-30" style="padding:14px; text-align:left; justify-content:space-between;">
+          <div>
+            <strong>☕ 30 min break now</strong><br>
+            <span style="font-size:0.74rem; color:var(--admin-sheet-muted);">Blocks 30 minutes from current timestamp</span>
+          </div>
+          <span>Activate →</span>
+        </button>
+
+        <button type="button" class="quick-action-btn" id="btn-quick-close-day" style="padding:14px; text-align:left; justify-content:space-between;">
+          <div>
+            <strong>🔒 Close rest of the day</strong><br>
+            <span style="font-size:0.74rem; color:var(--admin-sheet-muted);">Blocks remaining open slots today until closing time</span>
+          </div>
+          <span>Activate →</span>
+        </button>
+
+        <div class="squircle-card" style="margin-top:6px;">
+          <h4 style="margin:0 0 10px; font-size:0.9rem;">Custom Break</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="custom-block-date">Date</label>
+              <input type="date" id="custom-block-date" class="recessed-input">
+            </div>
+            <div class="recessed-input-group">
+              <label class="recessed-label" for="custom-block-time">Start Time</label>
+              <input type="time" id="custom-block-time" class="recessed-input" value="13:00">
+            </div>
+          </div>
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="custom-block-reason">Reason / Note</label>
+            <input type="text" id="custom-block-reason" class="recessed-input" placeholder="Lunch, doctor visit, holiday...">
+          </div>
+          <button type="button" id="btn-save-custom-block" class="btn-ny-time" style="width:100%; justify-content:center; padding:11px;">
+            Save Time Block
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Reschedule Appointment -->
+  <div class="modal-backdrop" id="modal-reschedule">
+    <div class="modal-sheet">
+      <div class="modal-top-handle"></div>
+      <div class="modal-sheet-head">
+        <div>
+          <h3 class="modal-sheet-title">Reschedule Appointment</h3>
+          <span class="card-subtitle" id="resched-client-name">Client Name</span>
+        </div>
+        <button type="button" class="modal-sheet-close" id="close-resched-btn">✕</button>
+      </div>
+
+      <form id="form-reschedule">
+        <input type="hidden" id="resched-ref">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="resched-date">New Date *</label>
+            <input type="date" id="resched-date" class="recessed-input" required>
+          </div>
+          <div class="recessed-input-group">
+            <label class="recessed-label" for="resched-time">New Time Slot *</label>
+            <input type="time" id="resched-time" class="recessed-input" required>
+          </div>
+        </div>
+
+        <!-- Available Timeslot Chips -->
+        <div id="resched-slots-container" style="margin-top:12px;">
+          <span class="recessed-label" style="display:block; margin-bottom:6px;">Available Time Slots:</span>
+          <div id="resched-slots-list" style="display:flex; flex-wrap:wrap; gap:6px; max-height:100px; overflow-y:auto; padding:2px 0;">
+            <!-- Generated slot pills -->
+          </div>
+        </div>
+
+        <div style="font-size:0.78rem; color:var(--admin-sheet-muted); margin:10px 0 16px;">
+          Client automatically receives an updated confirmation email with new .ics calendar attachment.
+        </div>
+
+        <button type="submit" class="btn-ny-time" style="width:100%; justify-content:center; padding:12px;">
+          Confirm Reschedule
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Studio Manager Security Login Gate -->
+  <div id="admin-login-overlay" style="display:none; position:fixed; inset:0; background:#121214; z-index:2000; align-items:center; justify-content:center; padding:24px;">
+    <div style="width:100%; max-width:360px; background:#1C1917; border:1px solid rgba(255,255,255,0.12); border-radius:28px; padding:28px 22px; color:#FFFFFF; box-shadow:0 20px 50px rgba(0,0,0,0.5); text-align:center;">
+      <div style="width:54px; height:54px; margin:0 auto 12px;">
+        <img src="img/logo-v2.png" alt="Gangina" style="width:100%; height:100%; object-fit:contain;">
+      </div>
+      <h2 style="font-size:1.15rem; font-weight:700; margin:0 0 6px;">Studio Manager</h2>
+      <p style="font-size:0.78rem; color:#A1A1AA; margin:0 0 20px;">
+        Owner Security Access. Enter 6-digit passcode or Master Key (1107).
+      </p>
+
+      <form id="admin-login-form">
+        <input type="password" id="admin-pin-input" class="recessed-input" maxlength="6" placeholder="• • • • • •" style="text-align:center; font-size:1.3rem; letter-spacing:0.3em; background:#27272A; color:#FFFFFF; border:1px solid rgba(255,255,255,0.1); margin-bottom:12px;" autofocus>
+        
+        <div id="admin-login-error" style="display:none; color:#EF4444; font-size:0.75rem; margin-bottom:12px;"></div>
+
+        <button type="submit" id="admin-unlock-btn" class="btn-ny-time" style="width:100%; justify-content:center; padding:12px;">
+          Unlock Studio Manager →
+        </button>
+      </form>
+
+      <button type="button" id="admin-send-otp-btn" style="background:transparent; border:none; color:#A1A1AA; font-size:0.74rem; margin-top:14px; cursor:pointer;">
+        Send one-time code to email
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Box -->
+  <div class="admin-toast-box" id="admin-toast"></div>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
