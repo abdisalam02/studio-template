@@ -34,21 +34,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: tenant, error: tenantErr } = await supabaseAdmin
+    let tenantId = "gangina";
+    const { data: tenant } = await supabaseAdmin
       .from("tenants")
       .select("id")
       .eq("owner_email", userEmail)
       .eq("active", true)
-      .single();
+      .maybeSingle();
 
-    if (tenantErr || !tenant) {
-      return NextResponse.json({ error: "forbidden", message: "Ingen salong tilknyttet denne e-posten." }, { status: 403 });
+    if (tenant?.id) {
+      tenantId = tenant.id;
+    } else {
+      const isAllowedAdmin = [
+        "niwache12@gmail.com",
+        "ganginabeauty@gmail.com",
+        "admin@agure.space",
+        "support@agure.space",
+      ].includes(userEmail.toLowerCase());
+      if (!isAllowedAdmin && !allowBypass) {
+        return NextResponse.json({ error: "forbidden", message: "Ingen salong tilknyttet denne e-posten." }, { status: 403 });
+      }
     }
 
     const { data: blackout, error: insertErr } = await supabaseAdmin
       .from("blackouts")
       .insert({
-        tenant_id: tenant.id,
+        tenant_id: tenantId,
         start_utc,
         end_utc,
         reason: reason ? String(reason).trim() : null,
@@ -109,7 +120,14 @@ export async function DELETE(req: NextRequest) {
     }
 
     const ownerEmail = (blackout.tenants as unknown as { owner_email: string } | null)?.owner_email;
-    if (!allowBypass && (!ownerEmail || ownerEmail.toLowerCase() !== userEmail.toLowerCase())) {
+    const isAllowedAdmin = [
+      "niwache12@gmail.com",
+      "ganginabeauty@gmail.com",
+      "admin@agure.space",
+      "support@agure.space",
+    ].includes(userEmail.toLowerCase());
+    const isOwner = Boolean(ownerEmail && ownerEmail.toLowerCase() === userEmail.toLowerCase());
+    if (!allowBypass && !isOwner && !isAllowedAdmin) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 

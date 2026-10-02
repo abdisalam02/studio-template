@@ -3,8 +3,8 @@
 Updated: 2026-10-02
 
 ## Now
-- Task: Smooth GPU cubic-bezier dual-surface closing animation, month grid breathing room, and sibling fixed dock
-- Status: Verified on Apache & Next.js (:3000) with Playwright suite, committed locally (no push), ready for review
+- Task: Real email OTP & Master Key auth, dynamic API origin, and iPhone SE small screen responsiveness
+- Status: Verified with Playwright, tsc --noEmit, and verify check pass, ready for commit and push
 
 ## Next (max 3)
 1. User testing and approval to git push
@@ -59,3 +59,4 @@ Updated: 2026-10-02
 - Refactored Admin Agenda calendar to architectural tab bridge with fillets and pure white editorial cards
 - Implemented GPU-accelerated fluid animated bubbly indicator connecting active date to obsidian agenda container
 - Implemented industry-standard 4-tab admin portal shell, dynamic blackout modal, lead time enforcement, and verified design pass
+- Restored real email OTP & Master Key 1107 auth, dynamic API origins, and iPhone SE small-screen responsiveness

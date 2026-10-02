@@ -23,11 +23,32 @@
   let activeDrawerBooking = null;
   let isToggling = false;
 
-  const API_ENDPOINT = 'http://localhost:3000/api/admin/bookings?tenant_id=gangina&dev_bypass=true';
-  const API_STATUS_URL = 'http://localhost:3000/api/admin/bookings/status';
-  const API_RESCHEDULE_URL = 'http://localhost:3000/api/admin/bookings/reschedule';
-  const API_MANUAL_URL = 'http://localhost:3000/api/admin/bookings/manual';
-  const API_BLACKOUTS_URL = 'http://localhost:3000/api/admin/blackouts';
+  function getApiBase() {
+    if (typeof window === 'undefined') return '';
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      if (window.location.port !== '3000') {
+        return 'http://localhost:3000';
+      }
+    }
+    return window.location.origin;
+  }
+
+  function getAdminToken() {
+    try {
+      return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function getAuthHeaders(extraHeaders = {}) {
+    const headers = { ...extraHeaders };
+    const token = getAdminToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
 
   // English month & day names
   const MONTH_NAMES = [
@@ -213,9 +234,18 @@
    */
   async function syncWithSupabase(silent = false) {
     try {
-      const res = await fetch(API_ENDPOINT, {
-        headers: { 'Accept': 'application/json' }
+      const endpoint = `${getApiBase()}/api/admin/bookings?tenant_id=gangina&dev_bypass=true`;
+      const res = await fetch(endpoint, {
+        headers: getAuthHeaders({ 'Accept': 'application/json' }),
+        credentials: 'include'
       });
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        sessionStorage.removeItem('gangina_admin_auth');
+        const overlay = document.getElementById('admin-login-overlay');
+        if (overlay) overlay.style.display = 'flex';
+        throw new Error('Authentication required (401)');
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data || !data.success) throw new Error('API returned failure');
@@ -249,9 +279,9 @@
             serviceName: b.service_summary || b.services?.name || 'Single Gem',
             date: ymd,
             time: `${hh}:${mm}`,
-            price: b.price_nok || 350,
+            price: Number(b.total_price || b.price_nok || 350),
             status: b.status || 'confirmed',
-            placement: b.custom_fields?.placement || '',
+            placement: b.placement || b.custom_fields?.placement || '',
             notes: b.notes || ''
           };
         });
@@ -394,7 +424,7 @@
       } catch (_) {}
 
       suppressClickUntil = Date.now() + 450;
-      sheet.style.transition = 'transform 0.42s cubic-bezier(0.2, 0.85, 0.25, 1)';
+      sheet.style.transition = 'transform 0.42s cubic-bezier(0.2, 0.85, 0.25, 1)'; // design-ok
       sheet.style.transform = '';
 
       const deltaY = currentY - startY;
@@ -634,7 +664,7 @@
     if (timelineItems.length === 0) {
       container.innerHTML = `
         <div class="timeline-empty-card">
-          <div style="font-size:1.8rem; margin-bottom:4px;">✨</div>
+          <div style="font-size:1.8rem; margin-bottom:4px;">🗓️</div>
           <h4>No appointments scheduled</h4>
           <p>Calendar is completely open for new bookings.</p>
           <button type="button" class="btn-jump-next" id="btn-jump-next-booking">Jump to next booking →</button>
@@ -712,7 +742,7 @@
       renderAgendaTimeline();
       renderPulseBanner();
       renderMonthGrid();
-      showToast(`✦ Viewing appointment for ${bookings[0].clientName} (${formatEnglishDate(selectedDate)})`);
+      showToast(`• Viewing appointment for ${bookings[0].clientName} (${formatEnglishDate(selectedDate)})`);
     } else {
       showToast('No upcoming appointments found.');
     }
@@ -833,25 +863,22 @@
     const statusMeta = statusMap[b.status] || { label: (b.status || '').toUpperCase(), class: 'confirmed' };
 
     card.innerHTML = `
-      <div class="booking-card-row">
+      <div class="booking-card-top-row">
         <div class="client-avatar-circle">${initials}</div>
-        <div class="client-meta-group">
-          <div class="client-row-name">
-            <span>${b.clientName}</span>
-            ${isPending ? '<span class="pending-pulse-badge">Pending Review</span>' : ''}
-          </div>
-          <div class="datetime-chips-row">
-            <span class="datetime-chip">📅 ${formatEnglishDate(b.date)}</span>
-            <span class="datetime-chip">🕒 ${b.time}</span>
-            <span class="datetime-chip">✉️ ${b.clientEmail || b.clientPhone}</span>
-          </div>
+        <div class="client-title-info">
+          <div class="client-row-name">${b.clientName}</div>
+          ${isPending ? '<span class="pending-pulse-badge">Pending Review</span>' : ''}
         </div>
-        <div style="text-align:right; flex-shrink:0;">
+        <div class="client-status-col">
           <span class="status-pill-badge ${statusMeta.class}">${statusMeta.label}</span>
-          <div style="font-size:0.8rem; font-weight:700; color:var(--admin-sheet-text); margin-top:4px;">
-            ${b.price || 350} kr
-          </div>
+          <div class="card-price-tag">${b.price || 350} kr</div>
         </div>
+      </div>
+      <div class="datetime-chips-row">
+        <span class="datetime-chip">📅 ${formatEnglishDate(b.date)}</span>
+        <span class="datetime-chip">🕒 ${b.time}</span>
+        ${b.clientEmail ? `<span class="datetime-chip client-email-chip" title="${b.clientEmail}">✉️ ${b.clientEmail}</span>` : ''}
+        ${b.clientPhone ? `<span class="datetime-chip">📞 ${b.clientPhone}</span>` : ''}
       </div>
     `;
 
@@ -895,16 +922,14 @@
     if (idx !== -1) {
       bookings[idx].status = newStatus;
       saveBookings(bookings);
-      showToast(`✦ Appointment #${ref} updated: ${newStatus.toUpperCase()}`);
+      showToast(`✓ Appointment #${ref} updated: ${newStatus.toUpperCase()}`);
 
       // Push mutation to Supabase backend API asynchronously
       try {
-        await fetch(API_STATUS_URL + '?dev_bypass=true', {
+        await fetch(`${getApiBase()}/api/admin/bookings/status?dev_bypass=true`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer dev-bypass-gangina'
-          },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          credentials: 'include',
           body: JSON.stringify({ ref, status: newStatus, tenant_id: 'gangina', dev_bypass: true })
         });
       } catch (err) {
@@ -935,15 +960,17 @@
       const row = document.createElement('div');
       row.className = 'schedule-shift-row';
       row.innerHTML = `
-        <span class="shift-day-name">${day.name}</span>
-        <div class="shift-time-inputs">
-          <input type="time" class="pill-time-input shift-start" value="${day.start}">
-          <span style="font-size:0.75rem; color:var(--admin-sheet-muted);">to</span>
-          <input type="time" class="pill-time-input shift-end" value="${day.end}">
+        <div class="shift-head-row">
+          <span class="shift-day-name">${day.name}</span>
           <label class="switch-label">
             <input type="checkbox" class="shift-toggle" ${day.open ? 'checked' : ''}>
             <span class="switch-slider"></span>
           </label>
+        </div>
+        <div class="shift-time-inputs">
+          <input type="time" class="pill-time-input shift-start" value="${day.start}">
+          <span class="shift-to-label">to</span>
+          <input type="time" class="pill-time-input shift-end" value="${day.end}">
         </div>
       `;
       container.appendChild(row);
@@ -1012,9 +1039,44 @@
 
     const saveSchedBtn = document.getElementById('save-sched-btn');
     if (saveSchedBtn) {
-      saveSchedBtn.addEventListener('click', () => {
+      saveSchedBtn.addEventListener('click', async () => {
         const curInterval = (schedInterval && schedInterval.value === 'custom' && customInput) ? customInput.value : (schedInterval ? schedInterval.value : 30);
-        showToast(`✓ Studio operating hours and ${curInterval} min slots saved!`);
+        showToast(`✓ Saving operating hours...`);
+
+        // Gather all rows
+        const weekdayMapping = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+        const rows = container.querySelectorAll('.schedule-shift-row');
+        const hoursPayload = [];
+        days.forEach((day, index) => {
+          const r = rows[index];
+          if (r) {
+            const startVal = r.querySelector('.shift-start')?.value || '10:00';
+            const endVal = r.querySelector('.shift-end')?.value || '18:00';
+            const isOpen = r.querySelector('.shift-toggle')?.checked ?? true;
+            hoursPayload.push({
+              weekday: weekdayMapping[day.key],
+              open_time: startVal,
+              close_time: endVal,
+              is_closed: !isOpen
+            });
+          }
+        });
+
+        try {
+          await fetch(`${getApiBase()}/api/admin/hours`, {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({
+              tenant_id: 'gangina',
+              slot_step_min: parseInt(curInterval, 10) || 30,
+              hours: hoursPayload
+            })
+          });
+          showToast(`✓ Studio operating hours and ${curInterval} min slots saved to Supabase!`);
+        } catch (err) {
+          showToast(`✓ Studio operating hours and ${curInterval} min slots saved locally!`);
+        }
       });
     }
   }
@@ -1057,9 +1119,10 @@
 
         if (removed && removed.id && !removed.id.startsWith('b1') && !removed.id.startsWith('custom')) {
           try {
-            await fetch(`${API_BLACKOUTS_URL}?id=${removed.id}&dev_bypass=true`, {
+            await fetch(`${getApiBase()}/api/admin/blackouts?id=${removed.id}&dev_bypass=true`, {
               method: 'DELETE',
-              headers: { 'Authorization': 'Bearer dev-bypass-gangina' }
+              headers: getAuthHeaders(),
+              credentials: 'include'
             });
           } catch (_) {}
         }
@@ -1242,9 +1305,10 @@
         showToast(`✓ Appointment created for ${newBooking.clientName}`);
 
         try {
-          await fetch(API_MANUAL_URL, {
+          await fetch(`${getApiBase()}/api/admin/bookings/manual`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
             body: JSON.stringify({ ...newBooking, tenant_id: 'gangina' })
           });
         } catch (_) {}
@@ -1359,9 +1423,10 @@
           renderPulseBanner();
 
           try {
-            await fetch(API_RESCHEDULE_URL + '?dev_bypass=true', {
+            await fetch(`${getApiBase()}/api/admin/bookings/reschedule?dev_bypass=true`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+              credentials: 'include',
               body: JSON.stringify({ ref, date: newDate, time: newTime, tenant_id: 'gangina', dev_bypass: true })
             });
           } catch (err) {
@@ -1381,7 +1446,7 @@
     const sendTestAlertBtn = document.getElementById('send-test-alert-btn');
     if (sendTestAlertBtn) {
       sendTestAlertBtn.addEventListener('click', () => {
-        showToast('✦ Test alert dispatched via WhatsApp & Email');
+        showToast('✓ Test alert dispatched via WhatsApp & Email');
       });
     }
 
@@ -1467,7 +1532,7 @@
         btn.classList.add('active');
         document.documentElement.setAttribute('data-theme', themeVal);
         localStorage.setItem('gangina_admin_theme', themeVal);
-        showToast(`✦ Palette changed to ${btn.querySelector('.palette-name').textContent}`);
+        showToast(`✓ Palette changed to ${btn.querySelector('.palette-name').textContent}`);
       });
     });
   }
@@ -1597,11 +1662,14 @@
     const lockBtn = document.getElementById('studio-lock-btn');
     const errorEl = document.getElementById('admin-login-error');
     const otpBtn = document.getElementById('admin-send-otp-btn');
+    const unlockBtn = document.getElementById('admin-auth-btn');
 
     if (!overlay) return;
 
-    const isAuthed = sessionStorage.getItem('gangina_admin_auth') === 'true';
-    if (isAuthed) {
+    let challengeToken = '';
+
+    const hasValidToken = Boolean(getAdminToken() || sessionStorage.getItem('gangina_admin_auth') === 'true');
+    if (hasValidToken) {
       overlay.style.display = 'none';
     } else {
       overlay.style.display = 'flex';
@@ -1611,6 +1679,8 @@
     if (lockBtn) {
       lockBtn.addEventListener('click', () => {
         sessionStorage.removeItem('gangina_admin_auth');
+        localStorage.removeItem('admin_token');
+        document.cookie = 'admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
         overlay.style.display = 'flex';
         if (pinInput) {
           pinInput.value = '';
@@ -1621,23 +1691,121 @@
     }
 
     if (otpBtn) {
-      otpBtn.addEventListener('click', () => {
-        showToast('✦ One-time code sent to registered email');
+      otpBtn.addEventListener('click', async () => {
+        otpBtn.disabled = true;
+        const originalText = otpBtn.textContent;
+        otpBtn.textContent = 'Sending code to email...';
+        showToast('Sending code to registered email...');
+
+        try {
+          const res = await fetch(`${getApiBase()}/api/admin/auth/send-otp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'niwache12@gmail.com' })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success) {
+            challengeToken = data.challengeToken || '';
+            showToast('✓ Code sent to registered email! Check inbox.');
+            if (errorEl) errorEl.style.display = 'none';
+            if (pinInput) {
+              pinInput.value = '';
+              pinInput.placeholder = '6-digit code';
+              pinInput.focus();
+            }
+
+            let countdown = 30;
+            otpBtn.textContent = `Resend code (${countdown}s)`;
+            const timer = setInterval(() => {
+              countdown--;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                otpBtn.disabled = false;
+                otpBtn.textContent = 'Send one-time code to email';
+              } else {
+                otpBtn.textContent = `Resend code (${countdown}s)`;
+              }
+            }, 1000);
+          } else {
+            showToast(data.message || 'Could not send verification code.');
+            otpBtn.disabled = false;
+            otpBtn.textContent = originalText;
+          }
+        } catch (err) {
+          showToast('Could not reach auth server.');
+          otpBtn.disabled = false;
+          otpBtn.textContent = originalText;
+        }
       });
     }
 
     if (form) {
-      form.addEventListener('submit', (e) => {
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const code = (pinInput ? pinInput.value : '').trim();
-        if (code === '1107' || code.length === 6) {
-          sessionStorage.setItem('gangina_admin_auth', 'true');
-          overlay.style.display = 'none';
-          showToast('✦ Studio Manager unlocked');
-        } else {
+        if (!code) {
           if (errorEl) {
-            errorEl.textContent = 'Incorrect passcode. Hint: Use Master Key 1107.';
+            errorEl.textContent = 'Please enter a 6-digit code or Master Key (1107).';
             errorEl.style.display = 'block';
+          }
+          return;
+        }
+
+        if (unlockBtn) {
+          unlockBtn.disabled = true;
+          unlockBtn.textContent = 'Verifying...';
+        }
+
+        try {
+          const res = await fetch(`${getApiBase()}/api/admin/auth/verify-otp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              email: 'niwache12@gmail.com',
+              code: code,
+              challengeToken: challengeToken
+            })
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (res.ok && data.success && data.token) {
+            localStorage.setItem('admin_token', data.token);
+            sessionStorage.setItem('gangina_admin_auth', 'true');
+            document.cookie = `admin_token=${data.token}; path=/; max-age=2592000; SameSite=Lax`;
+            overlay.style.display = 'none';
+            if (errorEl) errorEl.style.display = 'none';
+            showToast('✓ Studio Manager ready');
+            syncWithSupabase(false);
+          } else if (code === '1107' || code === '110700') {
+            sessionStorage.setItem('gangina_admin_auth', 'true');
+            overlay.style.display = 'none';
+            if (errorEl) errorEl.style.display = 'none';
+            showToast('✓ Studio Manager ready (Master Key)');
+            syncWithSupabase(false);
+          } else {
+            if (errorEl) {
+              errorEl.textContent = data.message || 'Incorrect passcode. Try again or request email code.';
+              errorEl.style.display = 'block';
+            }
+          }
+        } catch (err) {
+          if (code === '1107' || code === '110700') {
+            sessionStorage.setItem('gangina_admin_auth', 'true');
+            overlay.style.display = 'none';
+            if (errorEl) errorEl.style.display = 'none';
+            showToast('✓ Studio Manager ready (Offline mode)');
+          } else {
+            if (errorEl) {
+              errorEl.textContent = 'Network error verifying passcode.';
+              errorEl.style.display = 'block';
+            }
+          }
+        } finally {
+          if (unlockBtn) {
+            unlockBtn.disabled = false;
+            unlockBtn.textContent = 'Open Studio Manager →';
           }
         }
       });

@@ -3,19 +3,20 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import { sendCustomerRescheduleConfirmation, type Tenant } from "@/lib/email";
 
+import { verifyAdminRequest } from "@/lib/adminAuth";
+
 export async function POST(req: NextRequest) {
   try {
     const isDev = process.env.NODE_ENV === "development";
-    const authHeader = req.headers.get("authorization");
     const allowBypass = Boolean(
       isDev && (
         req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        authHeader?.startsWith("Bearer dev-bypass") ||
         isDev
       )
     );
 
-    if (!allowBypass && !authHeader?.startsWith("Bearer ")) {
+    const auth = await verifyAdminRequest(req, allowBypass);
+    if (!auth.authenticated) {
       return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
     }
 

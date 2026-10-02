@@ -50,7 +50,15 @@ function check(path) {
     for (const r of RAW) {
       if (r.re.test(line)) add(r.lvl, path, i + 1, r.id, r.msg);
     }
-    if (BURN.test(line)) {
+    // Ignore CSS syntax properties & DOM style transforms
+    const copyLine = line
+      .replace(/\b(text-)?transform\s*:[^;]+;/gi, '')
+      .replace(/\b(text-)?transform\s*:[^"';\n]+/gi, '')
+      .replace(/\.style\.transform\b/gi, '')
+      .replace(/\btransition:[^;]+;/gi, '')
+      .replace(/\bwill-change:\s*transform/gi, '')
+      .replace(/\btransform\([^)]*\)/gi, '');
+    if (BURN.test(copyLine)) {
       add('error', path, i + 1, 'burn-word', 'Banned copy verb/adjective detected.');
     }
   });

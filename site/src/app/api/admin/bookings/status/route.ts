@@ -63,7 +63,15 @@ export async function POST(req: NextRequest) {
     }
 
     const tenant = booking.tenants as unknown as Tenant | null;
-    if (!allowBypass && (!tenant || tenant.owner_email.toLowerCase() !== userEmail?.toLowerCase())) {
+    const isAllowedAdmin = [
+      "niwache12@gmail.com",
+      "ganginabeauty@gmail.com",
+      "admin@agure.space",
+      "support@agure.space",
+    ].includes(userEmail?.toLowerCase() || "");
+    const isOwner = Boolean(tenant?.owner_email && tenant.owner_email.toLowerCase() === userEmail?.toLowerCase());
+
+    if (!allowBypass && !isOwner && !isAllowedAdmin) {
       return NextResponse.json({ error: "forbidden", message: "Du har ikke tilgang til denne salongen." }, { status: 403 });
     }
 

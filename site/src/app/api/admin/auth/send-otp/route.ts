@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const email = (body.email || "").toLowerCase().trim();
+    const email = (body.email || "niwache12@gmail.com").toLowerCase().trim();
 
     if (!email || !email.includes("@")) {
       return NextResponse.json(
