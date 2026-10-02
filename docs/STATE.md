@@ -1,15 +1,15 @@
 # STATE.md: resume point (read first, keep under 30 lines)
 
-Updated: 2026-10-01
+Updated: 2026-10-02
 
 ## Now
-- Task: Industry-standard Admin Portal shell & add-ons complete
-- Uncommitted changes: Verified admin portal shell, TimeBlockModal, ClientDrawer, and audit
+- Task: Admin Portal dual-surface sheet polish, client drawer actions/contacts, custom slot duration, zero click-bleed
+- Status: Verified on Apache & Next.js (:3000), committed locally in noire (no push), ready for review
 
 ## Next (max 3)
-1. Awaiting user approval to commit and push changes
-2. Client onboarding verification and Stripe/Vipps webhook integration
-3. Final deployment preparation
+1. User testing and approval to git push
+2. Optional client color palette additions
+3. Webhook and payment verification
 
 ## Decisions made (don't reopen)
 - Architecture: `site/` (Next.js 15), `widget/` (embeddable script/component), `supabase/` (backend/RLS).
