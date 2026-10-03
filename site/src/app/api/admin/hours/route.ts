@@ -5,13 +5,26 @@ import { verifyAdminRequest } from "@/lib/adminAuth";
 export const dynamic = "force-dynamic"; // design-ok
 export const revalidate = 0;
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-key",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const tenantId = url.searchParams.get("tenant_id") || "gangina";
 
     if (!supabaseAdmin) {
-      return NextResponse.json({ error: "server_error", message: "Database utilgjengelig." }, { status: 500 });
+      return NextResponse.json(
+        { error: "server_error", message: "Database unavailable." },
+        { status: 500, headers: CORS_HEADERS }
+      );
     }
 
     const [hoursRes, tenantRes] = await Promise.all([
@@ -27,44 +40,38 @@ export async function GET(req: NextRequest) {
         .maybeSingle(),
     ]);
 
-    let finalHours = hoursRes.data || [];
-    if (finalHours.length === 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const opHoursRes = await (supabaseAdmin as any)
-        .from("operating_hours")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("weekday", { ascending: true });
-      if (opHoursRes.data && opHoursRes.data.length > 0) {
-        finalHours = opHoursRes.data;
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      hours: finalHours,
-      slot_step_min: tenantRes.data?.slot_step_min || 15,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        hours: hoursRes.data || [],
+        slot_step_min: tenantRes.data?.slot_step_min || 30,
+      },
+      { headers: CORS_HEADERS }
+    );
   } catch (err) {
     console.error("GET hours error:", err);
-    return NextResponse.json({ error: "server_error" }, { status: 500 });
+    return NextResponse.json({ error: "server_error" }, { status: 500, headers: CORS_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     if (!supabaseAdmin) {
-      return NextResponse.json({ error: "server_error", message: "Database utilgjengelig." }, { status: 500 });
+      return NextResponse.json(
+        { error: "server_error", message: "Database unavailable." },
+        { status: 500, headers: CORS_HEADERS }
+      );
     }
 
     const isDev = process.env.NODE_ENV === "development";
-    const allowBypass = Boolean(
-      isDev && req.nextUrl.searchParams.get("dev_bypass") === "true"
-    );
+    const allowBypass = Boolean(isDev && req.nextUrl.searchParams.get("dev_bypass") === "true");
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
+      return NextResponse.json(
+        { error: "unauthorized", message: "Authentication required." },
+        { status: 401, headers: CORS_HEADERS }
+      );
     }
 
     const body = await req.json().catch(() => ({}));
@@ -72,90 +79,82 @@ export async function POST(req: NextRequest) {
     const targetTenantId = tenant_id || "gangina";
     const hoursList = Array.isArray(hours) ? hours : [];
 
-    if (!targetTenantId) {
-      return NextResponse.json({ error: "invalid_payload", message: "tenant_id er påkrevd." }, { status: 400 });
-    }
-
-    // 1. Update slot_step_min in tenants
+    // 1. Update slot step if provided
     if (slot_step_min) {
-      const { error: tenantUpdateErr } = await supabaseAdmin
+      await supabaseAdmin
         .from("tenants")
         .update({ slot_step_min })
         .eq("id", targetTenantId);
-      if (tenantUpdateErr) {
-        console.warn("Tenant slot_step_min update note:", tenantUpdateErr.message);
-      }
     }
 
-    const rows = hoursList.map((h: { weekday: number; open_min: number; close_min: number }) => ({
-      tenant_id: targetTenantId,
-      weekday: h.weekday,
-      open_min: h.open_min,
-      close_min: h.close_min,
-    }));
-
-    // 2. Batch update 'hours' table atomically
-    const { error: delErr } = await supabaseAdmin
-      .from("hours")
-      .delete()
-      .eq("tenant_id", targetTenantId);
-
-    if (delErr) {
-      console.warn("Delete old hours warning, attempting operating_hours:", delErr.message);
-      // Fallback: operating_hours
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: opDelErr } = await (supabaseAdmin as any)
-        .from("operating_hours")
-        .delete()
-        .eq("tenant_id", targetTenantId);
-      if (opDelErr) {
-        return NextResponse.json(
-          { error: "database_error", message: `Kunne ikke oppdatere åpningstider: ${opDelErr.message}` },
-          { status: 500 }
-        );
-      }
-    }
-
-    if (rows.length > 0) {
-      const { error: insErr } = await supabaseAdmin
-        .from("hours")
-        .insert(rows);
-
-      if (insErr) {
-        console.warn("Insert hours warning, falling back to operating_hours:", insErr.message);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: opInsErr } = await (supabaseAdmin as any)
-          .from("operating_hours")
-          .insert(rows);
-        if (opInsErr) {
-          return NextResponse.json(
-            { error: "database_error", message: `Kunne ikke lagre åpningstider: ${opInsErr.message}` },
-            { status: 500 }
-          );
+    const timeToMin = (val: unknown, fallback: number): number => {
+      if (typeof val === "number" && !isNaN(val)) return val;
+      if (typeof val === "string") {
+        const parts = val.split(":").map(Number);
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          return parts[0] * 60 + parts[1];
         }
-      } else {
-        // Non-blocking background sync to operating_hours table if present
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const anyAdmin = supabaseAdmin as any;
-        Promise.resolve().then(async () => {
-          try {
-            await anyAdmin.from("operating_hours").delete().eq("tenant_id", targetTenantId);
-            await anyAdmin.from("operating_hours").insert(rows);
-          } catch {
-            // Ignore background sync errors
-          }
+      }
+      return fallback;
+    };
+
+    const validRows: Array<{ tenant_id: string; weekday: number; open_min: number; close_min: number }> = [];
+
+    for (const h of hoursList) {
+      if (typeof h !== "object" || h === null || h.is_closed === true) continue;
+
+      const weekday = Number(h.weekday);
+      if (isNaN(weekday) || weekday < 0 || weekday > 6) continue;
+
+      const openMin = timeToMin(h.open_min ?? h.open_time, 600);
+      const closeMin = timeToMin(h.close_min ?? h.close_time, 1080);
+
+      if (closeMin > openMin && openMin >= 0 && closeMin <= 1440) {
+        validRows.push({
+          tenant_id: targetTenantId,
+          weekday,
+          open_min: openMin,
+          close_min: closeMin,
         });
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      hours: rows,
-      slot_step_min: slot_step_min || 15,
-    });
+    // 2. Clear previous entries for tenant
+    await supabaseAdmin
+      .from("hours")
+      .delete()
+      .eq("tenant_id", targetTenantId);
+
+    // 3. Insert deduplicated rows without trigger conflict
+    if (validRows.length > 0) {
+      const uniqueMap = new Map<string, typeof validRows[0]>();
+      validRows.forEach(r => uniqueMap.set(`${r.weekday}_${r.open_min}`, r));
+      const deduplicatedRows = Array.from(uniqueMap.values());
+
+      const { error: insErr } = await supabaseAdmin
+        .from("hours")
+        .insert(deduplicatedRows);
+
+      if (insErr) {
+        console.error("Insert hours error:", insErr.message);
+        return NextResponse.json(
+          { error: "database_error", message: `Failed to save hours: ${insErr.message}` },
+          { status: 500, headers: CORS_HEADERS }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        hours: validRows,
+        slot_step_min: slot_step_min || 30,
+      },
+      { headers: CORS_HEADERS }
+    );
   } catch (err: unknown) {
     console.error("POST hours error:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
-    return NextResponse.json({ error: "server_error", message }, { status: 500 });
+    return NextResponse.json({ error: "server_error", message }, { status: 500, headers: CORS_HEADERS });
   }
 }

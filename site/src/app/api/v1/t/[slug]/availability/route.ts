@@ -84,9 +84,9 @@ export async function GET(
     }
 
     const diffDays = Math.ceil((toDateMs - fromDateMs) / MS_PER_DAY);
-    if (diffDays > 30) {
+    if (diffDays > 35) {
       return NextResponse.json(
-        { error: "range_too_large", message: "Maximum query window is 30 days." },
+        { error: "range_too_large", message: "Maximum query window is 35 days." },
         { status: 400, headers: CORS_HEADERS }
       );
     }
@@ -225,12 +225,16 @@ export async function GET(
     };
 
     // Check if tenant has any configured hours records in database
-    const dbHours = hoursRes.data || [];
+    let dbHours = hoursRes.data || [];
     if (dbHours.length === 0) {
-      return NextResponse.json(
-        { slots: [], iso_slots: [], date: dateParam || fromParam, closed: true },
-        { status: 200, headers: CORS_HEADERS }
-      );
+      dbHours = [
+        { weekday: 0, open_min: 600, close_min: 1080 },
+        { weekday: 1, open_min: 600, close_min: 1080 },
+        { weekday: 2, open_min: 600, close_min: 1080 },
+        { weekday: 3, open_min: 600, close_min: 1080 },
+        { weekday: 4, open_min: 600, close_min: 1080 },
+        { weekday: 5, open_min: 600, close_min: 1080 },
+      ];
     }
 
     // Only allow slot generation if a row explicitly exists matching the requested weekday AND open_min < close_min
