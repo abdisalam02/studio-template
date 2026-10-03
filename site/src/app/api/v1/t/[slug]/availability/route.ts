@@ -39,8 +39,8 @@ export async function GET(
     const dateParam = searchParams.get("date");
     let fromParam = searchParams.get("from");
     let toParam = searchParams.get("to");
+    const isSingleDateQuery = Boolean(dateParam && (!searchParams.get("from") || !searchParams.get("to")));
 
-    // Support flexible date queries: if 'date' is passed, calculate from and to for that day
     if (dateParam && (!fromParam || !toParam)) {
       if (!DATE_REGEX.test(dateParam)) {
         return NextResponse.json(
@@ -49,13 +49,11 @@ export async function GET(
         );
       }
       fromParam = dateParam;
-      // To date is next day for range computation
       const d = new Date(`${dateParam}T00:00:00Z`);
       d.setUTCDate(d.getUTCDate() + 1);
       toParam = d.toISOString().split("T")[0];
     }
 
-    // 1. Validate required query parameters
     if (!fromParam || !toParam) {
       return NextResponse.json(
         {
@@ -98,7 +96,7 @@ export async function GET(
       );
     }
 
-    // 2. Fetch tenant by slug
+    // 1. Fetch tenant
     const { data: tenant, error: tenantErr } = await supabaseAdmin
       .from("tenants")
       .select("*")
@@ -110,10 +108,9 @@ export async function GET(
       return NextResponse.json({ error: "tenant_not_found" }, { status: 404, headers: CORS_HEADERS });
     }
 
-    // Check max_days_ahead restriction
     const nowUtc = Math.floor(Date.now() / 1000);
     const maxFutureEpoch = nowUtc + (tenant.max_days_ahead * 86400);
-    const toUtcEpoch = Math.floor(toDateMs / 1000) + 86400; // end of the 'to' day
+    const toUtcEpoch = Math.floor(toDateMs / 1000) + 86400;
 
     if (Math.floor(fromDateMs / 1000) > maxFutureEpoch) {
       return NextResponse.json(
@@ -122,7 +119,7 @@ export async function GET(
       );
     }
 
-    // 3. Fetch service (default to first active service if service_id not supplied or not found)
+    // 2. Fetch service
     let service: { id: number; duration_min: number; buffer_min?: number | null } | null | undefined;
     const serviceId = Number(serviceIdParam);
     if (!isNaN(serviceId) && serviceId > 0) {
@@ -152,8 +149,8 @@ export async function GET(
       return NextResponse.json({ error: "service_not_found" }, { status: 404, headers: CORS_HEADERS });
     }
 
-    // 4. Query hours, blackouts, and bookings
-    const rangeStartUtc = Math.floor(fromDateMs / 1000) - 86400; // 1-day safety margin for timezone diff
+    // 3. Query hours, blackouts, and bookings
+    const rangeStartUtc = Math.floor(fromDateMs / 1000) - 86400;
     const rangeEndUtc = toUtcEpoch + 86400;
 
     const [hoursRes, blackoutsRes, bookingsRes] = await Promise.all([
@@ -176,16 +173,13 @@ export async function GET(
     ]);
 
     if (hoursRes.error) {
-      console.error("Error fetching hours:", hoursRes.error);
       return NextResponse.json({ error: "database_error", details: hoursRes.error.message }, { status: 500, headers: CORS_HEADERS });
     }
 
-    // Filter blocking bookings: confirmed OR (pending and not expired)
     const blockingBookings = (bookingsRes.data || [])
       .filter((b) => {
         if (b.status === "confirmed") return true;
         if (b.status === "pending") {
-          // If no expires_at timestamp is set, treat pending as active hold; otherwise check hold has not expired
           return !b.expires_at || b.expires_at > nowUtc;
         }
         return false;
@@ -200,64 +194,23 @@ export async function GET(
       end_utc: k.end_utc,
     }));
 
-    // 5. Query range & Weekday calculation in tenant timezone
     const tenantTz = tenant.timezone || "Europe/Oslo";
-    const [yStr, mStr, dStr] = fromParam.split("-");
-    const targetDateObj = new Date(Date.UTC(Number(yStr), Number(mStr) - 1, Number(dStr), 12, 0, 0));
-    
-    // Format weekday in tenant's timezone
-    const dayFmt = new Intl.DateTimeFormat("en-US", { timeZone: tenantTz, weekday: "short" });
-    const dayName = dayFmt.format(targetDateObj);
-    const dayMap: Record<string, number> = {
-      Mon: 0,
-      Tue: 1,
-      Wed: 2,
-      Thu: 3,
-      Fri: 4,
-      Sat: 5,
-      Sun: 6,
-    };
-    const europeanWeekday = dayMap[dayName] ?? 0;
+    const dbHours = hoursRes.data || [];
+
+    if (dbHours.length === 0) {
+      if (isSingleDateQuery) {
+        return NextResponse.json(
+          { slots: [], iso_slots: [], date: dateParam, closed: true },
+          { status: 200, headers: CORS_HEADERS }
+        );
+      }
+      return NextResponse.json({ days: [], iso_slots: [] }, { status: 200, headers: CORS_HEADERS });
+    }
 
     const queryRange = {
       fromUtc: Math.floor(fromDateMs / 1000),
       toUtc: toUtcEpoch,
     };
-
-    // Check if tenant has configured hours records; fallback to defaults if table is empty
-    let dbHours = hoursRes.data || [];
-    if (dbHours.length === 0) {
-      dbHours = [
-        { weekday: 0, open_min: 600, close_min: 1080 },
-        { weekday: 1, open_min: 600, close_min: 1080 },
-        { weekday: 2, open_min: 600, close_min: 1080 },
-        { weekday: 3, open_min: 600, close_min: 1080 },
-        { weekday: 4, open_min: 600, close_min: 1080 },
-        { weekday: 5, open_min: 600, close_min: 1080 },
-      ];
-    }
-
-    // Single-day vs Multi-day range logic
-    const isSingleDate = Boolean(dateParam && (!searchParams.get("from") || !searchParams.get("to")));
-
-    if (isSingleDate) {
-      const matchedShift = dbHours.find(
-        (h) => h.weekday === europeanWeekday && typeof h.open_min === "number" && typeof h.close_min === "number" && h.open_min < h.close_min
-      );
-
-      if (!matchedShift) {
-        return NextResponse.json(
-          { slots: [], iso_slots: [], date: dateParam || fromParam, closed: true },
-          { status: 200, headers: CORS_HEADERS }
-        );
-      }
-    }
-
-    // For range queries, computeAvailability requires all weekday definitions.
-    // For single-date queries, restrict strictly to that day's shift.
-    const effectiveHours = isSingleDate
-      ? dbHours.filter((h) => h.weekday === europeanWeekday)
-      : dbHours;
 
     const isoSlots = computeAvailability({
       tenant: {
@@ -270,39 +223,87 @@ export async function GET(
         duration_min: service.duration_min,
         buffer_min: service.buffer_min,
       },
-      hours: effectiveHours,
+      hours: dbHours,
       blackouts,
       bookings: blockingBookings,
       range: queryRange,
       nowUtc,
     });
 
-    // Enforce rolling slot lead-time & max horizon:
-    // 1. Min notice: at least 2 hours (2 * 3600s) from now (also guarantees no past slots today)
-    // 2. Max horizon: at most 30 days (30 * 86400s) from now
     const minLeadTimeUtc = nowUtc + (2 * 3600);
-    const maxHorizonUtc = nowUtc + (30 * 86400);
+    const maxHorizonUtc = nowUtc + (35 * 86400);
 
     const validIsoSlots = isoSlots.filter((iso) => {
       const slotUtc = Math.floor(new Date(iso).getTime() / 1000);
       return slotUtc >= minLeadTimeUtc && slotUtc <= maxHorizonUtc;
     });
 
-    // Format simple "HH:MM" times in Europe/Oslo timezone for convenience
-    const timeFormatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: tenant.timezone || "Europe/Oslo",
+    const dateFmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tenantTz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    const timeFmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tenantTz,
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
     });
 
-    const timeSlots = Array.from(new Set(validIsoSlots.map((iso) => timeFormatter.format(new Date(iso)))));
+    // Group available slots by date
+    const slotsByDate: Record<string, string[]> = {};
+    for (const iso of validIsoSlots) {
+      const dateKey = dateFmt.format(new Date(iso));
+      const timeVal = timeFmt.format(new Date(iso));
+      if (!slotsByDate[dateKey]) {
+        slotsByDate[dateKey] = [];
+      }
+      if (!slotsByDate[dateKey].includes(timeVal)) {
+        slotsByDate[dateKey].push(timeVal);
+      }
+    }
+
+    // Sort times chronologically
+    for (const d of Object.keys(slotsByDate)) {
+      slotsByDate[d].sort((a, b) => a.localeCompare(b));
+    }
+
+    // Single Date Query: Return exact day payload
+    if (isSingleDateQuery && dateParam) {
+      const slotsForDay = slotsByDate[dateParam] || [];
+      return NextResponse.json(
+        {
+          date: dateParam,
+          slots: slotsForDay,
+          iso_slots: validIsoSlots.filter((iso) => dateFmt.format(new Date(iso)) === dateParam),
+          closed: slotsForDay.length === 0,
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
+    // Range Query: Return full days array map
+    const daysArray: Array<{ date: string; slots: string[]; closed: boolean }> = [];
+    const curDate = new Date(`${fromParam}T12:00:00Z`);
+    const endDate = new Date(`${toParam}T12:00:00Z`);
+
+    while (curDate < endDate) {
+      const ymd = curDate.toISOString().split("T")[0];
+      const slots = slotsByDate[ymd] || [];
+      daysArray.push({
+        date: ymd,
+        slots,
+        closed: slots.length === 0,
+      });
+      curDate.setUTCDate(curDate.getUTCDate() + 1);
+    }
 
     return NextResponse.json(
       {
-        slots: timeSlots,
+        days: daysArray,
         iso_slots: validIsoSlots,
-        date: dateParam || fromParam,
       },
       { status: 200, headers: CORS_HEADERS }
     );
