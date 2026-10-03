@@ -125,18 +125,18 @@ export async function POST(req: NextRequest) {
       .delete()
       .eq("tenant_id", targetTenantId);
 
-    // 3. Insert deduplicated rows without trigger conflict
+    // 3. Upsert deduplicated rows with onConflict protection
     if (validRows.length > 0) {
       const uniqueMap = new Map<string, typeof validRows[0]>();
-      validRows.forEach(r => uniqueMap.set(`${r.weekday}_${r.open_min}`, r));
+      validRows.forEach((r) => uniqueMap.set(`${r.weekday}_${r.open_min}`, r));
       const deduplicatedRows = Array.from(uniqueMap.values());
 
       const { error: insErr } = await supabaseAdmin
         .from("hours")
-        .insert(deduplicatedRows);
+        .upsert(deduplicatedRows, { onConflict: "tenant_id,weekday,open_min" });
 
       if (insErr) {
-        console.error("Insert hours error:", insErr.message);
+        console.error("Upsert hours error:", insErr.message);
         return NextResponse.json(
           { error: "database_error", message: `Failed to save hours: ${insErr.message}` },
           { status: 500, headers: CORS_HEADERS }

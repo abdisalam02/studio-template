@@ -224,7 +224,7 @@ export async function GET(
       toUtc: toUtcEpoch,
     };
 
-    // Check if tenant has any configured hours records in database
+    // Check if tenant has configured hours records; fallback to defaults if table is empty
     let dbHours = hoursRes.data || [];
     if (dbHours.length === 0) {
       dbHours = [
@@ -237,19 +237,27 @@ export async function GET(
       ];
     }
 
-    // Only allow slot generation if a row explicitly exists matching the requested weekday AND open_min < close_min
-    const matchedShift = dbHours.find(
-      (h) => h.weekday === europeanWeekday && typeof h.open_min === "number" && typeof h.close_min === "number" && h.open_min < h.close_min
-    );
+    // Single-day vs Multi-day range logic
+    const isSingleDate = Boolean(dateParam && (!searchParams.get("from") || !searchParams.get("to")));
 
-    if (!matchedShift) {
-      return NextResponse.json(
-        { slots: [], iso_slots: [], date: dateParam || fromParam, closed: true },
-        { status: 200, headers: CORS_HEADERS }
+    if (isSingleDate) {
+      const matchedShift = dbHours.find(
+        (h) => h.weekday === europeanWeekday && typeof h.open_min === "number" && typeof h.close_min === "number" && h.open_min < h.close_min
       );
+
+      if (!matchedShift) {
+        return NextResponse.json(
+          { slots: [], iso_slots: [], date: dateParam || fromParam, closed: true },
+          { status: 200, headers: CORS_HEADERS }
+        );
+      }
     }
 
-    const effectiveHours = [matchedShift];
+    // For range queries, computeAvailability requires all weekday definitions.
+    // For single-date queries, restrict strictly to that day's shift.
+    const effectiveHours = isSingleDate
+      ? dbHours.filter((h) => h.weekday === europeanWeekday)
+      : dbHours;
 
     const isoSlots = computeAvailability({
       tenant: {

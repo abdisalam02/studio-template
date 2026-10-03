@@ -945,32 +945,45 @@
     const container = document.getElementById('schedule-days-container');
     if (!container) return;
 
+    // Load persisted hours from cache if available
+    let savedHoursMap = {};
+    try {
+      const cached = localStorage.getItem('gangina_saved_hours');
+      if (cached) savedHoursMap = JSON.parse(cached);
+    } catch (_) {}
+
     const days = [
-      { name: 'Monday', key: 'mon', open: true, start: '10:00', end: '18:00' },
-      { name: 'Tuesday', key: 'tue', open: true, start: '10:00', end: '18:00' },
-      { name: 'Wednesday', key: 'wed', open: true, start: '10:00', end: '18:00' },
-      { name: 'Thursday', key: 'thu', open: true, start: '10:00', end: '18:00' },
-      { name: 'Friday', key: 'fri', open: true, start: '10:00', end: '18:00' },
-      { name: 'Saturday', key: 'sat', open: true, start: '11:00', end: '16:00' },
-      { name: 'Sunday', key: 'sun', open: false, start: '12:00', end: '16:00' }
+      { name: 'Monday', key: 'mon', weekday: 0, open: true, start: '10:00', end: '18:00' },
+      { name: 'Tuesday', key: 'tue', weekday: 1, open: true, start: '10:00', end: '18:00' },
+      { name: 'Wednesday', key: 'wed', weekday: 2, open: true, start: '10:00', end: '18:00' },
+      { name: 'Thursday', key: 'thu', weekday: 3, open: true, start: '10:00', end: '18:00' },
+      { name: 'Friday', key: 'fri', weekday: 4, open: true, start: '10:00', end: '18:00' },
+      { name: 'Saturday', key: 'sat', weekday: 5, open: true, start: '11:00', end: '16:00' },
+      { name: 'Sunday', key: 'sun', weekday: 6, open: false, start: '12:00', end: '16:00' }
     ];
 
     container.innerHTML = '';
     days.forEach(day => {
+      const saved = savedHoursMap[day.weekday];
+      const isOpen = saved ? !saved.is_closed : day.open;
+      const startTime = saved ? saved.open_time : day.start;
+      const endTime = saved ? saved.close_time : day.end;
+
       const row = document.createElement('div');
       row.className = 'schedule-shift-row';
+      row.setAttribute('data-weekday', day.weekday);
       row.innerHTML = `
         <div class="shift-head-row">
           <span class="shift-day-name">${day.name}</span>
           <label class="switch-label">
-            <input type="checkbox" class="shift-toggle" ${day.open ? 'checked' : ''}>
+            <input type="checkbox" class="shift-toggle" ${isOpen ? 'checked' : ''}>
             <span class="switch-slider"></span>
           </label>
         </div>
         <div class="shift-time-inputs">
-          <input type="time" class="pill-time-input shift-start" value="${day.start}">
+          <input type="time" class="pill-time-input shift-start" value="${startTime}">
           <span class="shift-to-label">to</span>
-          <input type="time" class="pill-time-input shift-end" value="${day.end}">
+          <input type="time" class="pill-time-input shift-end" value="${endTime}">
         </div>
       `;
       container.appendChild(row);
@@ -978,7 +991,7 @@
 
     const copyMonBtn = document.getElementById('btn-copy-monday');
     if (copyMonBtn) {
-      copyMonBtn.addEventListener('click', () => {
+      copyMonBtn.onclick = () => {
         const firstRow = container.querySelector('.schedule-shift-row');
         if (!firstRow) return;
         const monStart = firstRow.querySelector('.shift-start').value;
@@ -994,7 +1007,7 @@
           }
         }
         showToast('✓ Monday hours copied to Tuesday–Friday');
-      });
+      };
     }
 
     // Appointment Slot Duration (15, 30, 45, 60 or custom minutes)
@@ -1013,7 +1026,7 @@
         if (customInput) customInput.value = savedInterval;
       }
 
-      schedInterval.addEventListener('change', () => {
+      schedInterval.onchange = () => {
         if (schedInterval.value === 'custom') {
           customWrap.style.display = 'flex';
           if (customInput) {
@@ -1026,44 +1039,50 @@
           customWrap.style.display = 'none';
           localStorage.setItem('gangina_slot_interval', schedInterval.value);
         }
-      });
+      };
 
       if (customInput) {
-        customInput.addEventListener('input', () => {
+        customInput.oninput = () => {
           if (customInput.value) {
             localStorage.setItem('gangina_slot_interval', customInput.value);
           }
-        });
+        };
       }
     }
 
+    // Single-handler assignment to prevent multiple stacked event listeners
     const saveSchedBtn = document.getElementById('save-sched-btn');
     if (saveSchedBtn) {
-      saveSchedBtn.addEventListener('click', async () => {
-        const curInterval = (schedInterval && schedInterval.value === 'custom' && customInput) ? customInput.value : (schedInterval ? schedInterval.value : 30);
+      saveSchedBtn.onclick = async () => {
+        if (saveSchedBtn.disabled) return;
+        saveSchedBtn.disabled = true;
         showToast(`✓ Saving operating hours...`);
 
-        // Gather all rows
-        const weekdayMapping = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+        const curInterval = (schedInterval && schedInterval.value === 'custom' && customInput) ? customInput.value : (schedInterval ? schedInterval.value : (document.getElementById('sched-interval')?.value || '30'));
         const rows = container.querySelectorAll('.schedule-shift-row');
         const hoursPayload = [];
-        days.forEach((day, index) => {
-          const r = rows[index];
-          if (r) {
-            const startVal = r.querySelector('.shift-start')?.value || '10:00';
-            const endVal = r.querySelector('.shift-end')?.value || '18:00';
-            const isOpen = r.querySelector('.shift-toggle')?.checked ?? true;
-            hoursPayload.push({
-              weekday: weekdayMapping[day.key],
-              open_time: startVal,
-              close_time: endVal,
-              is_closed: !isOpen
-            });
-          }
+        const newCache = {};
+
+        rows.forEach(r => {
+          const weekday = parseInt(r.getAttribute('data-weekday'), 10);
+          const startVal = r.querySelector('.shift-start')?.value || '10:00';
+          const endVal = r.querySelector('.shift-end')?.value || '18:00';
+          const isOpen = r.querySelector('.shift-toggle')?.checked ?? true;
+
+          const item = {
+            weekday,
+            open_time: startVal,
+            close_time: endVal,
+            is_closed: !isOpen
+          };
+          hoursPayload.push(item);
+          newCache[weekday] = item;
         });
 
+        localStorage.setItem('gangina_saved_hours', JSON.stringify(newCache));
+
         try {
-          await fetch(`${getApiBase()}/api/admin/hours`, {
+          const res = await fetch(`${getApiBase()}/api/admin/hours`, {
             method: 'POST',
             headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             credentials: 'include',
@@ -1073,11 +1092,18 @@
               hours: hoursPayload
             })
           });
-          showToast(`✓ Studio operating hours and ${curInterval} min slots saved to Supabase!`);
+          const resData = await res.json().catch(() => ({}));
+          if (res.ok && resData.success) {
+            showToast(`✓ Operating hours saved to database`);
+          } else {
+            showToast(`✓ Saved locally (${resData.message || res.status})`);
+          }
         } catch (err) {
-          showToast(`✓ Studio operating hours and ${curInterval} min slots saved locally!`);
+          showToast(`✓ Operating hours saved locally`);
+        } finally {
+          saveSchedBtn.disabled = false;
         }
-      });
+      };
     }
   }
 
@@ -1778,29 +1804,16 @@
             if (errorEl) errorEl.style.display = 'none';
             showToast('✓ Studio Manager ready');
             syncWithSupabase(false);
-          } else if (code === '1107' || code === '110700') {
-            sessionStorage.setItem('gangina_admin_auth', 'true');
-            overlay.style.display = 'none';
-            if (errorEl) errorEl.style.display = 'none';
-            showToast('✓ Studio Manager ready (Master Key)');
-            syncWithSupabase(false);
           } else {
             if (errorEl) {
-              errorEl.textContent = data.message || 'Incorrect passcode. Try again or request email code.';
+              errorEl.textContent = data.message || 'Invalid or expired email code. Please request a new one.';
               errorEl.style.display = 'block';
             }
           }
         } catch (err) {
-          if (code === '1107' || code === '110700') {
-            sessionStorage.setItem('gangina_admin_auth', 'true');
-            overlay.style.display = 'none';
-            if (errorEl) errorEl.style.display = 'none';
-            showToast('✓ Studio Manager ready (Offline mode)');
-          } else {
-            if (errorEl) {
-              errorEl.textContent = 'Network error verifying passcode.';
-              errorEl.style.display = 'block';
-            }
+          if (errorEl) {
+            errorEl.textContent = 'Network error verifying email code. Please try again.';
+            errorEl.style.display = 'block';
           }
         } finally {
           if (unlockBtn) {
