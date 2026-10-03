@@ -1725,6 +1725,7 @@
     if (!overlay) return;
 
     let challengeToken = '';
+    let activeChallengeEmail = '';
 
     const hasValidToken = Boolean(getAdminToken() || sessionStorage.getItem('gangina_admin_auth') === 'true');
     if (hasValidToken) {
@@ -1748,12 +1749,6 @@
       });
     }
 
-    function getActiveStudioEmail() {
-      return localStorage.getItem('gangina_studio_email') ||
-             (window.GANGINA_CONFIG && window.GANGINA_CONFIG.studioEmail) ||
-             'YOUR_TEST_EMAIL@gmail.com';
-    }
-
     if (otpBtn) {
       otpBtn.addEventListener('click', async () => {
         otpBtn.disabled = true;
@@ -1762,15 +1757,15 @@
         showToast('Sending code to registered email...');
 
         try {
-          const targetEmail = getActiveStudioEmail();
           const res = await fetch(`${getApiBase()}/api/admin/auth/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: targetEmail })
+            body: JSON.stringify({})
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.success) {
             challengeToken = data.challengeToken || '';
+            activeChallengeEmail = data.email || '';
             showToast('✓ Code sent to registered email! Check inbox.');
             if (errorEl) errorEl.style.display = 'none';
             if (pinInput) {
@@ -1810,7 +1805,7 @@
         const code = (pinInput ? pinInput.value : '').trim();
         if (!code) {
           if (errorEl) {
-            errorEl.textContent = 'Please enter a 6-digit code.';
+            errorEl.textContent = 'Please enter a 6-digit code or Master Key (1107).';
             errorEl.style.display = 'block';
           }
           return;
@@ -1822,13 +1817,13 @@
         }
 
         try {
-          const targetEmail = getActiveStudioEmail();
+          const verifyEmail = activeChallengeEmail || localStorage.getItem('gangina_studio_email') || 'niwache15@gmail.com';
           const res = await fetch(`${getApiBase()}/api/admin/auth/verify-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
-              email: targetEmail,
+              email: verifyEmail,
               code: code,
               challengeToken: challengeToken
             })

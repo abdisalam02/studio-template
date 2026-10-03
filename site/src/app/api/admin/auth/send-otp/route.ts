@@ -6,43 +6,38 @@ import { supabaseAdmin } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const email = (body.email || "niwache12@gmail.com").toLowerCase().trim();
+    let targetEmail = (body.email || "").toLowerCase().trim();
 
-    if (!email || !email.includes("@")) {
-      return NextResponse.json(
-        { error: "invalid_email", message: "Vennligst oppgi en gyldig e-postadresse." },
-        { status: 400 }
-      );
-    }
-
-    // Optional check: verify if email belongs to an active tenant or allowed owner
+    // Look up current owner_email from Supabase tenant
     if (supabaseAdmin) {
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
-        .select("id, owner_email")
-        .eq("owner_email", email)
+        .select("owner_email")
+        .eq("id", "gangina")
         .maybeSingle();
 
-      // If not in database and not dev, we still allow sending or handle gracefully
+      if (tenant?.owner_email) {
+        targetEmail = tenant.owner_email.toLowerCase().trim();
+      }
+    }
+
+    if (!targetEmail || !targetEmail.includes("@")) {
+      targetEmail = "niwache15@gmail.com";
     }
 
     const code = generate6DigitOtp();
-    const { challengeToken, expiresAt } = createOtpChallenge(email, code);
+    const { challengeToken, expiresAt } = createOtpChallenge(targetEmail, code);
 
-    // Send email via Resend
-    await sendOwnerOtpEmail(email, code);
-
-    const isDev = process.env.NODE_ENV !== "production";
+    // Dispatch OTP via Resend
+    await sendOwnerOtpEmail(targetEmail, code);
 
     return NextResponse.json({
       success: true,
-      email,
+      email: targetEmail,
       challengeToken,
       expiresAt,
-      // For fast automated testing in development mode
-      devCode: isDev ? code : undefined,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Error in send-otp:", err);
     return NextResponse.json(
       { error: "server_error", message: "Kunne ikke sende engangskode." },

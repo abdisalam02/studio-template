@@ -1,55 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyOtpCode } from "@/lib/otpStore";
 import { createAdminSessionToken } from "@/lib/adminAuth";
-import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const email = (body.email || "").toLowerCase().trim();
-    const code = (body.code || "").trim();
-    const challengeToken = body.challengeToken;
+    const { email, code, challengeToken } = body;
 
-    const isMasterKey = code === "1107" || code === "110700";
-    const targetEmail = email || "niwache12@gmail.com";
-
-    if (!isMasterKey && (!code || code.length !== 6)) {
-      return NextResponse.json(
-        { error: "invalid_payload", message: "Vennligst fyll inn 6-sifret kode eller gyldig nøkkel." },
-        { status: 400 }
-      );
+    // 1. Master Key instant bypass
+    if (code === "1107") {
+      const adminToken = createAdminSessionToken(email || "niwache15@gmail.com", "gangina");
+      const res = NextResponse.json({ success: true, token: adminToken });
+      res.cookies.set("admin_token", adminToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60,
+        path: "/",
+      });
+      return res;
     }
 
-    const isValid = isMasterKey || verifyOtpCode(targetEmail, code, challengeToken);
+    // 2. Verify standard OTP challenge
+    if (!code) {
+      return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    }
+
+    const targetEmail = (email || "niwache15@gmail.com").toLowerCase().trim();
+    const isValid = verifyOtpCode(targetEmail, code, challengeToken);
     if (!isValid) {
       return NextResponse.json(
-        { error: "invalid_code", message: "Ugyldig eller utløpt verifiseringskode." },
+        { error: "invalid_code", message: "Ugyldig eller utløpt kode." },
         { status: 401 }
       );
     }
 
-    // Successfully verified! Create signed authenticated session token
-    const sessionToken = createAdminSessionToken(targetEmail, "gangina");
-
-    const res = NextResponse.json({
-      success: true,
-      email: targetEmail,
-      token: sessionToken,
-    });
-
-    res.cookies.set("admin_token", sessionToken, {
-      path: "/",
-      maxAge: 2592000,
-      sameSite: "lax",
+    const adminToken = createAdminSessionToken(targetEmail, "gangina");
+    const res = NextResponse.json({ success: true, token: adminToken });
+    res.cookies.set("admin_token", adminToken, {
       httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60,
+      path: "/",
     });
-
     return res;
   } catch (err) {
-    console.error("Error in verify-otp:", err);
-    return NextResponse.json(
-      { error: "server_error", message: "Kunne ikke verifisere koden." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
