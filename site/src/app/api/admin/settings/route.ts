@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { tenant_id, name, owner_email, buffer_min } = body;
+    const { tenant_id, name, owner_email, email, buffer_min } = body;
+    const targetOwnerEmail = owner_email || email;
 
     const isDev = process.env.NODE_ENV === "development";
     const allowBypass = Boolean(
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       max_days_ahead?: number;
     } = {};
     if (name) updateData.name = name;
-    if (owner_email) updateData.owner_email = owner_email;
+    if (targetOwnerEmail) updateData.owner_email = targetOwnerEmail;
     if (buffer_min != null) updateData.buffer_min = buffer_min;
     if (body.min_notice_min != null) updateData.min_notice_min = body.min_notice_min;
     if (body.max_days_ahead != null) updateData.max_days_ahead = body.max_days_ahead;

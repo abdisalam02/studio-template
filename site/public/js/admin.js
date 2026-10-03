@@ -1464,9 +1464,41 @@
 
     const saveSettingsBtn = document.getElementById('save-settings-btn');
     if (saveSettingsBtn) {
-      saveSettingsBtn.addEventListener('click', () => {
-        showToast('✓ Studio settings saved!');
-      });
+      saveSettingsBtn.onclick = async () => {
+        const emailInput = document.getElementById('studio-email-input') || document.getElementById('settings-email');
+        const newEmail = emailInput ? emailInput.value.trim() : '';
+
+        if (newEmail) {
+          localStorage.setItem('gangina_studio_email', newEmail);
+          if (window.GANGINA_CONFIG) window.GANGINA_CONFIG.studioEmail = newEmail;
+        }
+
+        showToast('✓ Saving studio settings...');
+
+        try {
+          const res = await fetch(`${getApiBase()}/api/admin/settings`, {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({
+              tenant_id: 'gangina',
+              email: newEmail
+            })
+          });
+          if (res.ok) {
+            showToast('✓ Studio settings saved to database');
+          } else {
+            showToast('✓ Settings saved locally');
+          }
+        } catch (_) {
+          showToast('✓ Settings saved locally');
+        }
+      };
+    }
+
+    const emailInput = document.getElementById('studio-email-input') || document.getElementById('settings-email');
+    if (emailInput && !emailInput._userEdited) {
+      emailInput.value = localStorage.getItem('gangina_studio_email') || 'YOUR_TEST_EMAIL@gmail.com';
     }
 
     const sendTestAlertBtn = document.getElementById('send-test-alert-btn');
@@ -1716,6 +1748,12 @@
       });
     }
 
+    function getActiveStudioEmail() {
+      return localStorage.getItem('gangina_studio_email') ||
+             (window.GANGINA_CONFIG && window.GANGINA_CONFIG.studioEmail) ||
+             'YOUR_TEST_EMAIL@gmail.com';
+    }
+
     if (otpBtn) {
       otpBtn.addEventListener('click', async () => {
         otpBtn.disabled = true;
@@ -1724,10 +1762,11 @@
         showToast('Sending code to registered email...');
 
         try {
+          const targetEmail = getActiveStudioEmail();
           const res = await fetch(`${getApiBase()}/api/admin/auth/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'niwache12@gmail.com' })
+            body: JSON.stringify({ email: targetEmail })
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.success) {
@@ -1771,7 +1810,7 @@
         const code = (pinInput ? pinInput.value : '').trim();
         if (!code) {
           if (errorEl) {
-            errorEl.textContent = 'Please enter a 6-digit code or Master Key (1107).';
+            errorEl.textContent = 'Please enter a 6-digit code.';
             errorEl.style.display = 'block';
           }
           return;
@@ -1783,12 +1822,13 @@
         }
 
         try {
+          const targetEmail = getActiveStudioEmail();
           const res = await fetch(`${getApiBase()}/api/admin/auth/verify-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
-              email: 'niwache12@gmail.com',
+              email: targetEmail,
               code: code,
               challengeToken: challengeToken
             })

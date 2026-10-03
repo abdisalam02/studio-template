@@ -151,7 +151,7 @@ export async function verifyAdminRequest(
     } catch {
       return {
         authenticated: true,
-        email: "niwache12@gmail.com",
+        email: process.env.ADMIN_FALLBACK_EMAIL || "YOUR_TEST_EMAIL@gmail.com",
         tenantId: "gangina",
       };
     }
@@ -174,7 +174,11 @@ export async function verifyAdminRequest(
   }
 
   if (allowDevBypass) {
-    return { authenticated: true, email: "niwache12@gmail.com", tenantId: "gangina" };
+    return {
+      authenticated: true,
+      email: process.env.ADMIN_FALLBACK_EMAIL || "YOUR_TEST_EMAIL@gmail.com",
+      tenantId: "gangina",
+    };
   }
 
   return { authenticated: false, error: "invalid_or_expired_token" };
