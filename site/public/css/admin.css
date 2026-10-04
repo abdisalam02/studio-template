@@ -2583,6 +2583,52 @@ body.is-unlocked .admin-shell {
   transform: scale(1);
 }
 
+/* --------------------------------------------------------------------------
+   MOBILE PERFORMANCE & KEYBOARD
+   A full-viewport backdrop-filter is expensive on phones: the browser must
+   re-composite the whole screen on every keyboard/scroll frame. On small
+   screens we trade the blur for a denser veil, drop the dashboard blur, and
+   keep inputs at 16px so iOS never auto-zooms on focus (the source of the
+   "laggy scroll up").
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .login-gate-overlay {
+    /* Anchor the stack to the top so the focused field clears the keyboard
+       without the browser scrolling the whole veil. */
+    align-items: flex-start;
+    padding-top: max(48px, 12vh);
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+    background-color: rgba(10, 10, 12, 0.86);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    overscroll-behavior: contain;
+  }
+
+  .login-card {
+    margin: 0 auto;
+  }
+
+  .login-brand-badge {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* 16px prevents iOS Safari's focus auto-zoom. */
+  .login-gate-input {
+    font-size: 16px;
+    scroll-margin-bottom: 28vh;
+  }
+
+  .login-gate-pin {
+    font-size: 20px;
+  }
+
+  /* The dense veil fully covers the dashboard; skip the extra blur layer. */
+  body.is-locked .admin-shell {
+    filter: none;
+  }
+}
+
 @keyframes loginStepIn {
   from { opacity: 0; transform: translateX(10px); }
   to { opacity: 1; transform: translateX(0); }
