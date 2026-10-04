@@ -23,6 +23,11 @@
   let activeDrawerBooking = null;
   let isToggling = false;
 
+  // The frosted login gate starts locked. While locked the dashboard renders
+  // only synthetic silhouettes and Supabase is never queried, so an
+  // unauthenticated visitor can never read a real customer's data.
+  let isGateLocked = true;
+
   // ----------------------------------------------------------------------------
   // 1b. MULTI-TENANT RESOLUTION & NAMESPACED STORAGE
   // ----------------------------------------------------------------------------
@@ -221,6 +226,68 @@
     }
   ];
 
+  // Synthetic layout silhouettes rendered behind the frosted gate. Deliberately
+  // free of any real customer data so nothing sensitive is readable through the
+  // blur before the owner authenticates.
+  const PREVIEW_BOOKINGS = [
+    {
+      id: 'preview-1',
+      ref: '••••-4821',
+      clientName: 'Reserved appointment',
+      clientPhone: '',
+      clientEmail: '',
+      serviceName: 'Signature Session',
+      date: formatDateYMD(todayObj),
+      time: '10:30',
+      price: 0,
+      status: 'confirmed',
+      placement: '',
+      notes: ''
+    },
+    {
+      id: 'preview-2',
+      ref: '••••-7390',
+      clientName: 'Reserved appointment',
+      clientPhone: '',
+      clientEmail: '',
+      serviceName: 'Consultation',
+      date: formatDateYMD(todayObj),
+      time: '13:00',
+      price: 0,
+      status: 'pending',
+      placement: '',
+      notes: ''
+    },
+    {
+      id: 'preview-3',
+      ref: '••••-1057',
+      clientName: 'Reserved appointment',
+      clientPhone: '',
+      clientEmail: '',
+      serviceName: 'Custom Shape',
+      date: formatDateYMD(addDays(todayObj, 1)),
+      time: '15:30',
+      price: 0,
+      status: 'confirmed',
+      placement: '',
+      notes: ''
+    },
+    {
+      id: 'preview-4',
+      ref: '••••-9244',
+      clientName: 'Completed appointment',
+      clientPhone: '',
+      clientEmail: '',
+      serviceName: 'Signature Session',
+      date: formatDateYMD(addDays(todayObj, -2)),
+      time: '11:00',
+      price: 0,
+      status: 'confirmed',
+      placement: '',
+      notes: ''
+    }
+  ];
+
   // ----------------------------------------------------------------------------
   // 2. HELPER FUNCTIONS
   // ----------------------------------------------------------------------------
@@ -297,6 +364,8 @@
   // 3. STORAGE & SUPABASE DATA ACCESS
   // ----------------------------------------------------------------------------
   function getBookings() {
+    // Locked gate: expose only synthetic silhouettes, never cached real data.
+    if (isGateLocked) return PREVIEW_BOOKINGS;
     try {
       const stored = localStorage.getItem(storageKey('bookings'));
       if (stored) {
@@ -318,6 +387,13 @@
   }
 
   function getBlackouts() {
+    // Locked gate: never surface the owner's saved schedule notes to an
+    // unauthenticated visitor; show a single neutral silhouette block instead.
+    if (isGateLocked) {
+      return [
+        { id: 'preview-block', date: formatDateYMD(todayObj), start_time: '12:30', end_time: '13:00', reason: 'Blocked' }
+      ];
+    }
     try {
       const stored = localStorage.getItem(storageKey('blackouts'));
       if (stored) return JSON.parse(stored);
@@ -337,6 +413,8 @@
    * Synchronizes with Supabase via Next.js backend API
    */
   async function syncWithSupabase(silent = false) {
+    // Privacy guard: never fetch or paint real bookings while the gate is locked.
+    if (isGateLocked) return false;
     try {
       const endpoint = `${getApiBase()}/api/admin/bookings?tenant_id=${encodeURIComponent(TENANT_ID)}&dev_bypass=true`;
       const res = await fetch(endpoint, {
@@ -346,8 +424,14 @@
       if (res.status === 401) {
         localStorage.removeItem(tokenStorageKey());
         sessionStorage.removeItem(storageKey('admin_auth'));
+        isGateLocked = true;
         const overlay = document.getElementById('admin-login-overlay');
-        if (overlay) overlay.style.display = 'flex';
+        if (overlay) {
+          overlay.classList.remove('unlocking');
+          overlay.style.display = 'flex';
+        }
+        document.body.classList.add('is-locked');
+        document.body.classList.remove('is-unlocked');
         throw new Error('Authentication required (401)');
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -441,6 +525,15 @@
       renderAllViews();
       return false;
     }
+  }
+
+  /**
+   * Loads the authenticated dashboard: paints the current view, then syncs the
+   * real Supabase feed. Only invoked after the frosted gate unlocks.
+   */
+  function loadAllData() {
+    renderAllViews();
+    return syncWithSupabase(true);
   }
 
   // ----------------------------------------------------------------------------
@@ -2259,6 +2352,7 @@
       }
       if (resendBtn) {
         resendBtn.disabled = false;
+        resendBtn.classList.remove('is-loading');
         resendBtn.textContent = RESEND_LABEL;
       }
     }
@@ -2267,7 +2361,7 @@
       if (!resendBtn) return;
       let remaining = 30;
       resendBtn.disabled = true;
-      resendBtn.textContent = `Resend (${remaining}s)`;
+      resendBtn.textContent = `Resend code (${remaining}s)`;
       if (resendTimer) clearInterval(resendTimer);
       resendTimer = setInterval(() => {
         remaining -= 1;
@@ -2277,7 +2371,7 @@
           resendBtn.disabled = false;
           resendBtn.textContent = RESEND_LABEL;
         } else {
-          resendBtn.textContent = `Resend (${remaining}s)`;
+          resendBtn.textContent = `Resend code (${remaining}s)`;
         }
       }, 1000);
     }
@@ -2301,6 +2395,7 @@
         stopResendCooldown();
         if (otpBtn) {
           otpBtn.disabled = false;
+          otpBtn.classList.remove('is-loading');
           otpBtn.textContent = OTP_LABEL;
         }
         if (emailInputEl) setTimeout(() => emailInputEl.focus(), 120);
@@ -2348,7 +2443,8 @@
 
       if (button) {
         button.disabled = true;
-        button.textContent = 'Sending…';
+        button.classList.add('is-loading');
+        button.textContent = isResend ? 'Sending...' : 'Sending code...';
       }
       clearStepErrors();
 
@@ -2373,6 +2469,7 @@
 
           if (button) {
             button.disabled = false;
+            button.classList.remove('is-loading');
             button.textContent = idleLabel;
           }
 
@@ -2382,7 +2479,6 @@
             pinInput.focus();
           }
           startResendCooldown();
-          showToast(`✓ Code sent to ${activeChallengeEmail}`);
         } else {
           setStepError(
             isResend ? codeError : emailError,
@@ -2390,6 +2486,7 @@
           );
           if (button) {
             button.disabled = false;
+            button.classList.remove('is-loading');
             button.textContent = idleLabel;
           }
         }
@@ -2397,6 +2494,7 @@
         setStepError(isResend ? codeError : emailError, 'Could not reach the service. Please try again.');
         if (button) {
           button.disabled = false;
+          button.classList.remove('is-loading');
           button.textContent = idleLabel;
         }
       }
@@ -2404,9 +2502,17 @@
 
     const hasValidToken = Boolean(getAdminToken() || sessionStorage.getItem(storageKey('admin_auth')) === 'true');
     if (hasValidToken) {
+      isGateLocked = false;
+      overlay.classList.remove('unlocking');
       overlay.style.display = 'none';
+      document.body.classList.remove('is-locked');
+      document.body.classList.remove('is-unlocked');
     } else {
+      isGateLocked = true;
+      overlay.classList.remove('unlocking');
       overlay.style.display = 'flex';
+      document.body.classList.add('is-locked');
+      document.body.classList.remove('is-unlocked');
       showLoginStep('email');
     }
 
@@ -2415,10 +2521,16 @@
         sessionStorage.removeItem(storageKey('admin_auth'));
         localStorage.removeItem(tokenStorageKey());
         document.cookie = 'admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+        isGateLocked = true;
+        overlay.classList.remove('unlocking');
         overlay.style.display = 'flex';
+        document.body.classList.add('is-locked');
+        document.body.classList.remove('is-unlocked');
         if (emailInputEl) emailInputEl.value = '';
         if (pinInput) pinInput.value = '';
+        applyLoginBranding(HAS_TENANT_PARAM ? TENANT_ID : '');
         showLoginStep('email');
+        renderAllViews();
         showToast('Studio Manager locked');
       });
     }
@@ -2459,6 +2571,7 @@
 
         if (verifyBtn) {
           verifyBtn.disabled = true;
+          verifyBtn.classList.add('is-loading');
           verifyBtn.textContent = 'Verifying...';
         }
         clearStepErrors();
@@ -2492,10 +2605,22 @@
             localStorage.setItem(tokenStorageKey(), data.token);
             sessionStorage.setItem(storageKey('admin_auth'), 'true');
             document.cookie = `admin_token=${data.token}; path=/; max-age=2592000; SameSite=Lax`;
-            overlay.style.display = 'none';
             clearStepErrors();
             showToast('✓ Studio Manager ready');
-            syncWithSupabase(true);
+
+            // Cinematic dissolve: recede the capsule, clear the veil, then load
+            // the authenticated feed once the animation has settled.
+            isGateLocked = false;
+            overlay.classList.add('unlocking');
+            document.body.classList.remove('is-locked');
+            document.body.classList.add('is-unlocked');
+
+            setTimeout(() => {
+              overlay.style.display = 'none';
+              overlay.classList.remove('unlocking');
+              document.body.classList.remove('is-unlocked');
+              loadAllData();
+            }, 750);
           } else {
             setStepError(codeError, data.message || 'Invalid or expired code. Request a new one.');
           }
@@ -2504,6 +2629,7 @@
         } finally {
           if (verifyBtn) {
             verifyBtn.disabled = false;
+            verifyBtn.classList.remove('is-loading');
             verifyBtn.textContent = VERIFY_LABEL;
           }
         }
@@ -2514,7 +2640,7 @@
   // ----------------------------------------------------------------------------
   // 13. DYNAMIC TENANT BRANDING
   // ----------------------------------------------------------------------------
-  /** Styles the security-gate card. Empty id renders the neutral login view. */
+  /** Styles the frosted gate capsule. Empty id renders the neutral atelier view. */
   function applyLoginBranding(tenantId) {
     const card = document.getElementById('admin-login-card');
     const heading = document.getElementById('login-studio-name');
@@ -2526,19 +2652,19 @@
     if (profile) {
       if (heading) heading.textContent = profile.fullName || profile.name || tenantId;
       if (card) card.setAttribute('data-tenant', tenantId);
-      // Cross-fade the squircle badge from the "A.G" mark to the studio logo.
+      // Cross-fade the glass badge from the "A.G" monogram to the studio logo.
       if (logoImg) {
         logoImg.setAttribute('src', profile.logoUrl || '');
         logoImg.setAttribute('alt', profile.name || '');
       }
       if (badge) badge.classList.add('is-resolved');
     } else {
-      if (heading) heading.textContent = 'Login';
+      if (heading) heading.textContent = 'Atelier Portal';
       if (card) card.removeAttribute('data-tenant');
       if (badge) badge.classList.remove('is-resolved');
     }
-    // Subtitle stays constant per the two-tone login design.
-    if (subtitle) subtitle.textContent = 'Log in to manage appointments';
+    // Subtitle stays constant per the frosted-capsule design.
+    if (subtitle) subtitle.textContent = 'Enter email to open portal';
   }
 
   function applyTenantBranding() {
@@ -2590,7 +2716,11 @@
     initPaletteSwitcher();
     initSecurityGate();
     renderAllViews();
-    syncWithSupabase(true);
+    // Only reach for real data when a session is already established; the locked
+    // dashboard stays on its synthetic silhouettes until the owner signs in.
+    if (!isGateLocked) {
+      syncWithSupabase(true);
+    }
   });
 
 })();

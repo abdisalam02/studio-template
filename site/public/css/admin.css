@@ -197,18 +197,21 @@ html, body {
   gap: 12px;
 }
 
-/* Real Gangina Calligraphy Monogram (No Black Box) */
-.canopy-logo-wrap {
-  width: 44px;
-  height: 44px;
-  background: transparent;
-  border: none;
-  display: flex;
+/* Dashboard header studio logo — illuminated glass pill with a universal light
+   backing so dark/black marks stay 100% visible on the pitch-black canopy. */
+.admin-header-logo-container {
+  width: 46px;
+  height: 46px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  padding: 6px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  padding: 0;
-  box-shadow: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  filter: drop-shadow(0 2px 6px rgba(255, 255, 255, 0.15));
 }
 
 .canopy-logo-img {
@@ -2202,306 +2205,173 @@ input:checked + .switch-slider:before {
 }
 
 /* --------------------------------------------------------------------------
-   12. NEUTRAL LUXURY LOGIN GATE
+   12. FROSTED GLASS LOGIN GATE (eased veil over the locked dashboard)
    -------------------------------------------------------------------------- */
+
+/* Eased frosted veil: floating above a softly receded dashboard while locked. */
 .login-gate-overlay {
   position: fixed;
   inset: 0;
-  display: none;
   z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow-y: auto;
-  /* Full-bleed canvas — no artificial device bezel or outer void margins. */
-  background: #0D0D10;
-  animation: loginFade 0.4s ease both;
+  overflow-x: hidden;
+  padding: 24px;
+  background-color: rgba(10, 10, 12, 0.42);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: backdrop-filter 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              -webkit-backdrop-filter 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.75s ease,
+              opacity 0.5s ease;
 }
 
-/* Mobile (< 640px): the split card IS the viewport — edge to edge, no shell. */
+/* Cinematic dissolve: the veil clears and the floating stack recedes. */
+.login-gate-overlay.unlocking {
+  background-color: rgba(10, 10, 12, 0);
+  backdrop-filter: blur(0px) saturate(100%);
+  -webkit-backdrop-filter: blur(0px) saturate(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Architectural typography watermark — Swiss-poster depth behind the inputs. */
+.login-arch-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(90px, 18vw, 150px);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.05);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Zero-card floating form stack — no matte container, elements float free. */
 .login-card {
   position: relative;
+  z-index: 1;
   width: 100%;
-  min-height: 100dvh;
-  background: #FFFFFF;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: loginCardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  max-width: 360px;
+  margin: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-align: center;
+  animation: loginCardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.4s ease, opacity 0.35s ease;
 }
 
-/* Desktop / tablet: a centered, softly elevated split card (never a phone mockup). */
-@media (min-width: 640px) {
-  .login-gate-overlay {
-    align-items: center;
-    justify-content: center;
-    padding: 40px 24px;
-    overflow-y: auto;
-    background: radial-gradient(120% 120% at 50% 0%, #141417 0%, #0A0A0A 55%, #050505 100%);
-  }
-
-  .login-card {
-    max-width: 440px;
-    min-height: min(820px, calc(100dvh - 80px));
-    margin: auto;
-    border-radius: 34px;
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
-  }
+/* Cinematic unlock: the stack lifts and dissolves as the dashboard focuses. */
+.login-gate-overlay.unlocking .login-card {
+  transform: scale(1.02);
+  opacity: 0;
 }
 
-/* Short desktop viewports: let the form breathe and scroll instead of clipping. */
-@media (min-width: 640px) and (max-height: 640px) {
-  .login-card {
-    min-height: 0;
-  }
-}
-
-/* Top section: deep Bauhaus-arch black canvas */
-.login-card-header {
+/* 82px pearl frosted squircle: editorial "A.G" cross-fades to the studio mark. */
+.login-brand-badge {
   position: relative;
-  height: 250px;
-  flex-shrink: 0;
-  background: #0D0D10;
-  overflow: hidden;
-}
-
-.login-watermark {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.08;
-  pointer-events: none;
-}
-
-.login-watermark svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-/* Asymmetric organic wave seam (higher left, scoops down to the right) */
-.login-wave {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  width: 100%;
-  height: 52px;
-  display: block;
-  pointer-events: none;
-  z-index: 3;
-}
-
-.login-wave path {
-  fill: #FFFFFF;
-  filter: drop-shadow(0 -6px 14px rgba(0, 0, 0, 0.18));
-}
-
-/* Centered squircle brand badge (A.G -> tenant logo cross-fade).
-   Badge size is locked at 128px; the inner logo fill is tunable. */
-.login-badge {
-  position: absolute;
-  /* Vertically centered within the visible dark area (header minus the wave). */
-  top: calc((198px - var(--login-badge-size, 128px)) / 2);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4;
-  width: var(--login-badge-size, 128px);
-  height: var(--login-badge-size, 128px);
-  background: #FFFFFF;
-  border-radius: calc(var(--login-badge-size, 128px) * 0.29);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  margin: 0 auto 22px;
+  width: 82px;
+  height: 82px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 24px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
-.login-badge-mark,
-.login-badge-logo {
+/* Universal logo backing: dark/black studio marks need a light plate to stay
+   100% legible, so the pearl surface brightens once a real logo is shown. */
+.login-brand-badge.is-resolved {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.95);
+}
+
+.login-brand-badge-mark,
+.login-brand-badge-logo {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.3s ease;
 }
 
-.login-badge-mark {
+.login-brand-badge-mark {
   opacity: 1;
 }
 
-.login-badge-logo {
+.login-brand-badge-logo {
   opacity: 0;
   overflow: hidden;
 }
 
-.login-badge-logo img {
+.login-brand-badge-logo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  /* Zoom past the source logo's white margins so the mark fills the badge.
-     White-on-white blending keeps the crop seamless. */
+  /* Zoom past the source logo's transparent margins so the mark fills the badge. */
   transform: scale(var(--login-badge-logo-scale, 1.3));
 }
 
-.login-badge.is-resolved .login-badge-mark {
+.login-brand-badge.is-resolved .login-brand-badge-mark {
   opacity: 0;
 }
 
-.login-badge.is-resolved .login-badge-logo {
+.login-brand-badge.is-resolved .login-brand-badge-logo {
   opacity: 1;
 }
 
-.login-badge-mark span {
-  font-size: calc(var(--login-badge-size, 128px) * 0.32);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: #111111;
+/* Editorial "A.G" monogram — ultra-bold Syne. */
+.login-brand-badge-mark span {
+  font-family: 'Syne', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  color: #FFFFFF;
   line-height: 1;
-}
-
-/* Bottom white sheet body — anchors to the viewport bottom on mobile. */
-.login-card-body {
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: #FFFFFF;
-  border-radius: 0;
-  margin-top: -18px;
-  padding: 34px 30px calc(44px + env(safe-area-inset-bottom, 0px));
-  text-align: left;
-}
-
-/* Desktop restores the rounded seam so the split card reads as a card, not a phone. */
-@media (min-width: 640px) {
-  .login-card-body {
-    border-radius: 34px 34px 24px 24px;
-    padding-bottom: 44px;
-  }
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 .login-card-title {
-  font-size: 28px;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: #111111;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #FAFAFA;
   margin: 0 0 8px;
-  text-align: center;
 }
 
 .login-card-subtitle {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: #A1A1AA;
-  margin: 0 auto 30px;
-  text-align: center;
-  max-width: 240px;
-}
-
-.login-gate-input {
-  width: 100%;
-  background: #F6F6F9;
-  border: 1px solid #EAEAEA;
-  border-radius: 16px;
-  padding: 16px;
-  font-family: inherit;
-  font-size: 15px;
-  color: #111111;
-  text-align: left;
-  outline: none;
-  margin-bottom: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.login-gate-input::placeholder {
-  color: #A1A1AA;
-}
-
-.login-gate-input:focus {
-  border-color: #111111;
-  background: #FFFFFF;
-  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
-}
-
-.login-gate-pin {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  margin-top: 2px;
-}
-
-.login-gate-error {
-  color: #DC2626;
-  font-size: 13px;
-  line-height: 1.45;
-  margin-bottom: 12px;
-  text-align: left;
-}
-
-.login-gate-submit {
-  width: 100%;
-  border: none;
-  border-radius: 16px;
-  padding: 18px;
-  margin-top: 14px;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  color: #FFFFFF;
-  background: #111111;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, opacity 0.2s ease;
-}
-
-.login-gate-submit:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
-}
-
-.login-gate-submit:active {
-  transform: translateY(0);
-}
-
-.login-gate-submit:disabled {
-  opacity: 0.5;
-  cursor: default;
-  transform: none;
-  box-shadow: none;
-}
-
-.login-gate-otp {
-  display: block;
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: #71717A;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  margin-top: 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.login-gate-otp:hover {
-  color: #111111;
-}
-
-.login-gate-otp:disabled {
-  opacity: 0.45;
-  cursor: default;
-  color: #A1A1AA;
+  margin: 0 auto 28px;
+  max-width: 280px;
 }
 
 /* Step 1 / Step 2 progressive disclosure */
 .login-step {
-  flex: 1;
   display: flex;
   flex-direction: column;
 }
@@ -2516,26 +2386,148 @@ input:checked + .switch-slider:before {
 }
 
 .login-step.login-step-in {
-  animation: loginStepIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: loginStepIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Dark glass recessed capsule inputs. */
+.login-gate-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+  padding: 16px 22px;
+  font-family: inherit;
+  font-size: 15px;
+  color: #FAFAFA;
+  text-align: center;
+  outline: none;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.login-gate-input::placeholder {
+  color: #71717A;
+}
+
+.login-gate-input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
+}
+
+.login-gate-pin {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.login-gate-error {
+  color: #F87171;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* Crisp high-contrast primary pill. */
+.login-gate-submit {
+  width: 100%;
+  border: none;
+  border-radius: 99px;
+  padding: 16px;
+  margin-top: 14px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #0A0A0A;
+  background: #FAFAFA;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition: transform 0.15s, opacity 0.2s, background-color 0.15s;
+}
+
+.login-gate-submit:hover {
+  transform: translateY(-1px);
+  background: #FFFFFF;
+}
+
+.login-gate-submit:active {
+  transform: translateY(0);
+}
+
+.login-gate-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+/* Luxury micro-spinner (champagne highlight) while a request is in flight. */
+.login-gate-submit.is-loading,
+.login-gate-submit.is-loading:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.login-gate-submit.is-loading::before {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 12, 0.18);
+  border-top-color: #C9A876;
+  animation: loginSpin 0.7s linear infinite;
+}
+
+.login-gate-otp {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #A1A1AA;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.login-gate-otp:hover {
+  color: #FAFAFA;
+}
+
+.login-gate-otp:disabled {
+  opacity: 0.45;
+  cursor: default;
+  color: #71717A;
+}
+
+/* Single clean OTP status line with inline "Change" link (no duplicate toasts). */
 .login-code-chip {
   display: flex;
   align-items: center;
-  gap: 10px;
-  text-align: left;
-  padding: 12px 14px;
-  margin-bottom: 18px;
-  border-radius: 16px;
-  background: #F6F6F9;
-  border: 1px solid #EAEAEA;
-  color: #71717A;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  text-align: center;
+  padding: 0;
+  margin: 0 auto 18px;
+  background: transparent;
+  border: none;
+  color: #A1A1AA;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .login-code-chip-text {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2543,7 +2535,7 @@ input:checked + .switch-slider:before {
 }
 
 .login-code-chip-text strong {
-  color: #111111;
+  color: #FAFAFA;
   font-weight: 600;
 }
 
@@ -2551,11 +2543,11 @@ input:checked + .switch-slider:before {
   flex-shrink: 0;
   background: transparent;
   border: none;
-  color: #111111;
+  color: #FAFAFA;
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 700;
-  padding: 2px 0;
+  padding: 0;
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -2566,19 +2558,43 @@ input:checked + .switch-slider:before {
   opacity: 0.6;
 }
 
+/* --------------------------------------------------------------------------
+   LOCKED DASHBOARD — softly blurred silhouette + subtle recession behind veil
+   -------------------------------------------------------------------------- */
+.admin-shell {
+  filter: blur(0px);
+  transform: scale(1);
+  transition: filter 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.is-locked .admin-shell {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: blur(6px);
+  transform: scale(0.985);
+  transform-origin: 50% 42%;
+}
+
+body.is-unlocked .admin-shell {
+  pointer-events: auto;
+  filter: blur(0px);
+  transform: scale(1);
+}
+
 @keyframes loginStepIn {
   from { opacity: 0; transform: translateX(10px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes loginFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes loginCardIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes loginCardIn {
-  from { opacity: 0; transform: translateY(22px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes loginSpin {
+  to { transform: rotate(360deg); }
 }
 
 /* --------------------------------------------------------------------------

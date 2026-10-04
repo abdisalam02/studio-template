@@ -7,12 +7,12 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="css/admin.css">
   <link rel="icon" type="image/png" href="img/double-layer-star.png">
 </head>
-<body>
+<body class="is-locked">
 
   <div class="admin-shell" id="admin-shell">
     
@@ -24,7 +24,7 @@
       <!-- Topbar: Real Gangina Logo & Quick Actions -->
       <div class="canopy-topbar">
         <div class="canopy-brand-cluster">
-          <div class="canopy-logo-wrap">
+          <div class="canopy-logo-wrap admin-header-logo-container">
             <img src="img/logo-v2.png" alt="Gangina" class="canopy-logo-img">
           </div>
           <div class="studio-title-group">
@@ -651,69 +651,48 @@
     </div>
   </div>
 
-  <!-- Studio Manager Security Login Gate (asymmetric wave + squircle badge) -->
-  <div id="admin-login-overlay" class="login-gate-overlay" style="display:none;">
-    <div id="admin-login-card" class="login-card">
-      <!-- Dark Bauhaus-arch header -->
-      <div class="login-card-header">
-        <div class="login-watermark" aria-hidden="true">
-          <svg viewBox="0 0 390 250" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
-            <circle cx="64" cy="58" r="44" stroke="#FFFFFF" stroke-width="1.4"/>
-            <circle cx="64" cy="58" r="24" stroke="#FFFFFF" stroke-width="1.4"/>
-            <path d="M300 -24a132 132 0 0 1 132 132" stroke="#FFFFFF" stroke-width="1.4"/>
-            <path d="M246 -34a186 186 0 0 1 186 186" stroke="#FFFFFF" stroke-width="1.4"/>
-            <rect x="16" y="150" width="66" height="66" rx="33" stroke="#FFFFFF" stroke-width="1.4"/>
-            <path d="M150 250c0-58 38-98 98-98" stroke="#FFFFFF" stroke-width="1.4"/>
-            <line x1="0" y1="118" x2="390" y2="118" stroke="#FFFFFF" stroke-width="0.8" opacity="0.5"/>
-            <line x1="196" y1="0" x2="196" y2="250" stroke="#FFFFFF" stroke-width="0.8" opacity="0.5"/>
-          </svg>
-        </div>
+  <!-- Studio Manager Security Gate — editorial zero-card veil over the locked dashboard -->
+  <div id="admin-login-overlay" class="login-gate-overlay">
+    <!-- Architectural typography watermark (Swiss-poster depth layer) -->
+    <div class="login-arch-watermark" aria-hidden="true">PORTAL</div>
 
-        <!-- Squircle brand badge: A.G mark cross-fades to the tenant logo -->
-        <div class="login-badge" id="admin-login-badge" aria-hidden="true">
-          <span class="login-badge-mark"><span>A.G</span></span>
-          <span class="login-badge-logo"><img id="admin-login-logo" alt=""></span>
-        </div>
-
-        <!-- Asymmetric organic wave seam -->
-        <svg class="login-wave" viewBox="0 0 390 52" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M0,46 C110,46 150,26 220,16 C290,6 335,4 390,4 L390,52 L0,52 Z"/>
-        </svg>
+    <div id="admin-login-card" class="login-card" role="dialog" aria-modal="true" aria-labelledby="login-studio-name">
+      <!-- 82px pearl frosted squircle: editorial "A.G" cross-fades to the studio logo -->
+      <div class="login-brand-badge" id="admin-login-badge" aria-hidden="true">
+        <span class="login-brand-badge-mark"><span>A.G</span></span>
+        <span class="login-brand-badge-logo"><img id="admin-login-logo" alt=""></span>
       </div>
 
-      <!-- White sheet body -->
-      <div class="login-card-body">
-        <h2 id="login-studio-name" class="login-card-title">Login</h2>
-        <p id="login-subtitle" class="login-card-subtitle">Log in to manage appointments</p>
+      <h2 id="login-studio-name" class="login-card-title">Atelier Portal</h2>
+      <p id="login-subtitle" class="login-card-subtitle">Enter email to open portal</p>
 
-        <!-- STEP 1 — Email -->
-        <div class="login-step" id="login-step-email">
-          <form id="admin-email-form" novalidate>
-            <input type="email" id="admin-login-email" class="login-gate-input" placeholder="E-post" autocomplete="email">
-            <div id="admin-email-error" class="login-gate-error" style="display:none;"></div>
-            <button type="submit" id="admin-send-otp-btn" class="login-gate-submit">
-              Send verification code →
-            </button>
-          </form>
-        </div>
-
-        <!-- STEP 2 — Verification code -->
-        <div class="login-step" id="login-step-code" hidden>
-          <div class="login-code-chip" id="login-code-chip">
-            <span class="login-code-chip-text">Kode sendt til <strong id="login-code-chip-email"></strong></span>
-            <button type="button" id="login-change-email-btn" class="login-code-chip-change">Change email</button>
-          </div>
-          <form id="admin-login-form" novalidate>
-            <input type="password" id="admin-pin-input" class="login-gate-input login-gate-pin" maxlength="6" inputmode="numeric" placeholder="• • • • • •" autocomplete="one-time-code">
-            <div id="admin-login-error" class="login-gate-error" style="display:none;"></div>
-            <button type="submit" id="admin-verify-btn" class="login-gate-submit">
-              Open Studio Manager →
-            </button>
-          </form>
-          <button type="button" id="login-resend-btn" class="login-gate-otp">
-            Resend code
+      <!-- STEP 1 — Email -->
+      <div class="login-step" id="login-step-email">
+        <form id="admin-email-form" novalidate>
+          <input type="email" id="admin-login-email" class="login-gate-input" placeholder="Email address" autocomplete="email">
+          <div id="admin-email-error" class="login-gate-error" style="display:none;"></div>
+          <button type="submit" id="admin-send-otp-btn" class="login-gate-submit">
+            Send verification code →
           </button>
+        </form>
+      </div>
+
+      <!-- STEP 2 — Verification code -->
+      <div class="login-step" id="login-step-code" hidden>
+        <div class="login-code-chip" id="login-code-chip">
+          <span class="login-code-chip-text">Code sent to <strong id="login-code-chip-email"></strong></span>
+          <button type="button" id="login-change-email-btn" class="login-code-chip-change">Change</button>
         </div>
+        <form id="admin-login-form" novalidate>
+          <input type="password" id="admin-pin-input" class="login-gate-input login-gate-pin" maxlength="6" inputmode="numeric" placeholder="• • • • • •" autocomplete="one-time-code">
+          <div id="admin-login-error" class="login-gate-error" style="display:none;"></div>
+          <button type="submit" id="admin-verify-btn" class="login-gate-submit">
+            Open Studio Manager →
+          </button>
+        </form>
+        <button type="button" id="login-resend-btn" class="login-gate-otp">
+          Resend code
+        </button>
       </div>
     </div>
   </div>
