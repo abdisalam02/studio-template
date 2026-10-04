@@ -17,6 +17,19 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   try {
+    const isDev = process.env.NODE_ENV === "development";
+    const allowBypass = Boolean(
+      isDev && (req.nextUrl.searchParams.get("dev_bypass") === "true" || isDev)
+    );
+
+    const auth = await verifyAdminRequest(req, allowBypass);
+    if (!auth.authenticated) {
+      return NextResponse.json(
+        { error: "unauthorized", message: "Authentication required." },
+        { status: 401, headers: CORS_HEADERS }
+      );
+    }
+
     const url = new URL(req.url);
     const tenantId = url.searchParams.get("tenant_id") || "gangina";
 

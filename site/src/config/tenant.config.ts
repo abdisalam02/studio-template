@@ -343,9 +343,9 @@ export const studioKloConfig: TenantConfig = {
       red: "#F87171",
       warning: "#FBBF24",
     },
-    logoUrl: "/img/logo-chrome.png",
+    logoUrl: "/img/klø.png",
     watermarkUrl: "/img/logo-watermark.png",
-    monogram: "SK",
+    monogram: "KLŌ",
     watermarkText: "KLŌ",
   },
   rules: {
@@ -439,6 +439,23 @@ export function getTenantConfig(slug?: string | null): TenantConfig {
     return TENANTS[slug];
   }
   return ganginaConfig;
+}
+
+/**
+ * Finds the tenant whose admin allow-list contains the given email.
+ * Used for smart login auto-detection so an owner is never rejected with a
+ * 403 simply because the `?tenant=` query param was omitted.
+ */
+export function findTenantByAdminEmail(email?: string | null): TenantConfig | null {
+  const normalized = (email || "").toLowerCase().trim();
+  if (!normalized || !normalized.includes("@")) return null;
+  for (const tenant of Object.values(TENANTS)) {
+    const match = tenant.auth.allowedAdminEmails.some(
+      (entry) => entry.toLowerCase().trim() === normalized
+    );
+    if (match) return tenant;
+  }
+  return null;
 }
 
 /** Identity helper for onboarding scripts / config composition. */

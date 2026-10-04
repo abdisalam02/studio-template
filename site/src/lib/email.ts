@@ -1,8 +1,8 @@
 import { Resend } from "resend";
 import fs from "fs";
-import path from "path";
 import type { Database } from "@/types/database";
 import { getEngineBaseUrl } from "@/lib/url";
+import { resolveBrandLogo } from "@/lib/brandAsset";
 import {
   getTenantConfig,
   type TenantConfig,
@@ -39,7 +39,6 @@ type ResendEmailAttachment = NonNullable<ResendEmailPayload["attachments"]>[numb
 
 const STUDIO_LOGO_CID = "studio-brand-logo";
 const STUDIO_LOGO_FALLBACK_PUBLIC_PATH = "/img/logo-chrome.png";
-const STUDIO_LOGO_FALLBACK_FILENAME = "logo-chrome.png";
 const STUDIO_WATERMARK_FALLBACK_PUBLIC_PATH = "/img/logo-watermark.png";
 const DEFAULT_EMAIL_FROM_ADDRESS = "booking@agure.space";
 
@@ -70,46 +69,71 @@ function getWatermarkUrl(config: TenantConfig): string {
   return `${getEngineBaseUrl()}${configured || STUDIO_WATERMARK_FALLBACK_PUBLIC_PATH}`;
 }
 
-const logoAssetCache = new Map<
-  string,
-  { src: string; attachment: ResendEmailAttachment | null }
->();
-
-function getLogoAsset(config: TenantConfig): {
+interface LogoAsset {
   src: string;
   attachment: ResendEmailAttachment | null;
-} {
-  const logoUrl = config.theme.logoUrl || STUDIO_LOGO_FALLBACK_PUBLIC_PATH;
-  const cached = logoAssetCache.get(logoUrl);
-  if (cached) return cached;
+  /** When true, no loadable logo exists and the monogram badge should render. */
+  useMonogram: boolean;
+  /** Absolute path of the embedded local file, used to validate the cache. */
+  absolutePath?: string;
+}
 
-  try {
-    const filename = path.basename(logoUrl) || STUDIO_LOGO_FALLBACK_FILENAME;
-    const filePath = path.join(process.cwd(), "public", "img", filename);
-    const buffer = fs.readFileSync(filePath);
-    const asset = {
-      src: `cid:${STUDIO_LOGO_CID}`,
-      attachment: {
-        filename,
-        content: buffer,
-        contentType: "image/png",
-        contentId: STUDIO_LOGO_CID,
-      },
-    };
-    logoAssetCache.set(logoUrl, asset);
-    return asset;
-  } catch (err) {
-    console.warn(
-      "Studio logo could not be read for inline embedding; falling back to hosted URL.",
-      err
-    );
-    const src = logoUrl.startsWith("http")
-      ? logoUrl
-      : `${getEngineBaseUrl()}${logoUrl}`;
-    const asset = { src, attachment: null };
-    logoAssetCache.set(logoUrl, asset);
-    return asset;
+const logoAssetCache = new Map<string, LogoAsset>();
+
+function getLogoAsset(config: TenantConfig): LogoAsset {
+  const logoUrl = config.theme.logoUrl || STUDIO_LOGO_FALLBACK_PUBLIC_PATH;
+  // Trusted hosted/data logos never need a disk lookup or monogram fallback.
+  if (/^https?:\/\//i.test(logoUrl)) {
+    const remoteAsset: LogoAsset = { src: logoUrl, attachment: null, useMonogram: false };
+    logoAssetCache.set(logoUrl, remoteAsset);
+    return remoteAsset;
   }
+
+  const cached = logoAssetCache.get(logoUrl);
+  // A cached embedded logo is only reused while its file still exists. A cached
+  // monogram is never trusted, so adding the asset is picked up immediately.
+  if (cached && !cached.useMonogram && cached.absolutePath && fs.existsSync(cached.absolutePath)) {
+    return cached;
+  }
+
+  // Resolve the configured logo against public/img, tolerating URL-encoding,
+  // Unicode normalization and Nordic look-alikes (klø.png / klo.png).
+  const resolved = resolveBrandLogo(logoUrl);
+  if (resolved) {
+    try {
+      const buffer = fs.readFileSync(resolved.absolutePath);
+      const asset: LogoAsset = {
+        src: `cid:${STUDIO_LOGO_CID}`,
+        useMonogram: false,
+        absolutePath: resolved.absolutePath,
+        attachment: {
+          filename: resolved.filename,
+          content: buffer,
+          contentType: resolved.contentType,
+          contentId: STUDIO_LOGO_CID,
+        },
+      };
+      logoAssetCache.set(logoUrl, asset);
+      return asset;
+    } catch (err) {
+      console.warn(
+        "Studio logo file could not be read; falling back to the monogram badge.",
+        err
+      );
+    }
+  } else {
+    console.warn(
+      "Studio logo asset is missing; falling back to the monogram badge. Add it to public/img to enable the logo."
+    );
+  }
+
+  // The monogram fallback is intentionally not cached so a newly added asset is
+  // picked up without a server restart.
+  return {
+    src: `${getEngineBaseUrl()}${encodeURI(logoUrl)}`,
+    attachment: null,
+    useMonogram: true,
+  };
 }
 
 function getSenderInfo(tenant: Tenant | null | undefined, config: TenantConfig) {
@@ -245,6 +269,10 @@ function renderEmailShell(params: EmailShellParams): string {
   const maxWidth = params.maxWidth ?? 560;
   const titleColor = params.titleColor || palette.value;
   const logo = getLogoAsset(config);
+  const monogram = (config.theme.monogram || studioName.slice(0, 2) || "•").toUpperCase();
+  const logoMarkup = logo.useMonogram
+    ? `<div style="width:64px;height:64px;margin:0 auto 10px auto;line-height:62px;border:1px solid ${palette.borderStrong};border-radius:50%;background-color:${palette.recessed};font-family:${EMAIL_FONT};font-size:22px;font-weight:700;letter-spacing:0.04em;color:${palette.accent};text-align:center;">${escapeHtml(monogram)}</div>`
+    : `<img src="${logo.src}" alt="${escapeHtml(studioName)}" width="88" height="88" style="display:block;width:88px;height:88px;max-width:88px;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;" />`;
 
   return `<!DOCTYPE html>
 <html lang="no">
@@ -263,7 +291,7 @@ function renderEmailShell(params: EmailShellParams): string {
       <table role="presentation" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${maxWidth}px;">
         <tr>
           <td align="center" style="padding-bottom:22px;">
-            <img src="${logo.src}" alt="${escapeHtml(studioName)}" width="88" height="88" style="display:block;width:88px;height:88px;max-width:88px;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;" />
+            ${logoMarkup}
             <div style="font-family:${EMAIL_FONT};font-size:13px;line-height:1.4;letter-spacing:0.34em;text-transform:uppercase;font-weight:700;color:${palette.value};">${escapeHtml(studioName)}</div>
             <div style="font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${palette.soft};margin-top:7px;">${escapeHtml(params.subtitle)}</div>
           </td>
@@ -609,29 +637,29 @@ export async function sendOwnerCancellationAlert(
   });
 }
 
-export async function sendOwnerOtpEmail(email: string, code: string) {
+export async function sendOwnerOtpEmail(email: string, code: string, tenantId?: string) {
   if (!resend) {
     console.warn("RESEND_API_KEY is not set. Skipping OTP email.");
     return { success: false, reason: "missing_api_key" };
   }
 
-  const config = getTenantConfig();
+  const config = getTenantConfig(tenantId);
   const palette = config.theme.colors;
-  const subject = `Din verifiseringskode: ${code}`;
+  const subject = `Your verification code: ${code}`;
   const html = renderEmailShell({
     config,
     tenantName: config.integrations.emailFromName || config.name,
-    subtitle: "Sikker innlogging",
-    eyebrow: "Verifiseringskode",
-    title: "Din innloggingskode",
+    subtitle: "Secure login",
+    eyebrow: "Verification code",
+    title: "Your login code",
     introHtml:
-      "Bruk følgende 6-sifrede kode for å logge inn på ditt kontrollpanel. Koden er gyldig i 15 minutter.",
+      "Use the following 6-digit code to sign in to your control panel. The code is valid for 15 minutes.",
     detailsHtml: `<tr>
       <td align="center" style="padding-top:6px;">
         <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:22px 16px;font-family:${EMAIL_FONT};font-size:30px;line-height:1;font-weight:800;letter-spacing:0.34em;color:${palette.value};font-variant-numeric:tabular-nums;">${escapeHtml(code)}</div>
       </td>
     </tr>`,
-    footerHtml: "Dersom du ikke har bedt om denne koden, kan du trygt se bort fra denne e-posten.",
+    footerHtml: "If you did not request this code, you can safely ignore this email.",
     maxWidth: 480,
   });
 

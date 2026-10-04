@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler eller ugyldig innlogging." }, { status: 401 });
+      return NextResponse.json({ error: "unauthorized", message: "Missing or invalid login." }, { status: 401 });
     }
 
     const userEmail = (auth.email || "niwache12@gmail.com").toLowerCase();
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
       if (!isOwner && !isAllowedAdmin && !isDevEmail) {
         return NextResponse.json(
-          { error: "forbidden", message: "Du har ikke tilgang til denne salongen." },
+          { error: "forbidden", message: "You do not have access to this studio." },
           { status: 403 }
         );
       }

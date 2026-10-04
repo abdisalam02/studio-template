@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated || !auth.email) {
-      return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
+      return NextResponse.json({ error: "unauthorized", message: "Invalid or expired session." }, { status: 401 });
     }
     const userEmail = auth.email;
     const body = await req.json();
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     if (typeof start_utc !== "number" || typeof end_utc !== "number" || end_utc <= start_utc) {
       return NextResponse.json(
-        { error: "invalid_payload", message: "start_utc og end_utc må være gyldige tidsstempler (end_utc > start_utc)." },
+        { error: "invalid_payload", message: "start_utc and end_utc must be valid timestamps (end_utc > start_utc)." },
         { status: 400 }
       );
     }
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         "support@agure.space",
       ].includes(userEmail.toLowerCase());
       if (!isAllowedAdmin && !allowBypass) {
-        return NextResponse.json({ error: "forbidden", message: "Ingen salong tilknyttet denne e-posten." }, { status: 403 });
+        return NextResponse.json({ error: "forbidden", message: "No studio is linked to this email." }, { status: 403 });
       }
     }
 
@@ -98,14 +98,14 @@ export async function DELETE(req: NextRequest) {
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated || !auth.email) {
-      return NextResponse.json({ error: "unauthorized", message: "Ugyldig eller utløpt økt." }, { status: 401 });
+      return NextResponse.json({ error: "unauthorized", message: "Invalid or expired session." }, { status: 401 });
     }
     const userEmail = auth.email;
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
 
     if (!idParam) {
-      return NextResponse.json({ error: "missing_id", message: "id er påkrevd." }, { status: 400 });
+      return NextResponse.json({ error: "missing_id", message: "id is required." }, { status: 400 });
     }
 
     const blackoutId = Number(idParam);

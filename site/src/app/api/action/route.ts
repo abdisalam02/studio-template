@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "already_decided",
-          message: `Bestillingen er allerede ${booking.status}.`,
+          message: `This booking is already ${booking.status}.`,
           status: booking.status,
         },
         { status: 409 }
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
           const icsContent = generateIcsCalendar({
             ref: booking.ref,
             title: `${service.name} - ${tenant.name}`,
-            description: `Timebestilling for ${booking.customer_name}. Referanse: ${booking.ref}.`,
+            description: `Booking for ${booking.customer_name}. Reference: ${booking.ref}.`,
             startUtc: booking.start_utc,
             endUtc: booking.end_utc,
             tenantName: tenant.name,

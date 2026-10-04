@@ -1,5 +1,7 @@
+import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import { getTenantConfig } from "@/config/tenant.config";
+import { resolveBrandLogo } from "@/lib/brandAsset";
 import {
   renderOwnerAlertEmail,
   renderCustomerConfirmationEmail,
@@ -12,7 +14,7 @@ export const dynamic = "force-dynamic"; // design-ok
 /**
  * Dev-only visual harness for the transactional email templates.
  *
- *   GET /api/dev/preview-email?type=owner    (default)  → "Ny timebestilling mottatt"
+ *   GET /api/dev/preview-email?type=owner    (default)  → "New booking received"
  *   GET /api/dev/preview-email?type=customer            → customer confirmation
  *   GET /api/dev/preview-email?type=customer&tenant=studio-klo
  *
@@ -59,7 +61,7 @@ function buildBookingFixture(tenant: Tenant, slug: string): BookingDetails {
     price_nok: service?.priceNok ?? 0,
     start_utc: startUtc,
     end_utc: startUtc + durationMin * 60,
-    notes: "Forhåndsvisning av e-postdesign (kun i utviklingsmiljø).",
+    notes: "Email design preview (development only).",
   };
 }
 
@@ -85,7 +87,23 @@ export async function GET(req: NextRequest) {
       ? renderCustomerConfirmationEmail(tenant, booking)
       : renderOwnerAlertEmail(tenant, booking, actionUrl);
 
-  return new NextResponse(rendered.html, {
+  // Browsers cannot resolve the `cid:` scheme, so the inline email logo would
+  // render as a broken image in this preview. Resolve the brand logo on disk
+  // and swap every `cid:studio-brand-logo` reference for an inlined data URI.
+  const config = getTenantConfig(slug);
+  let html = rendered.html;
+  const logo = resolveBrandLogo(config.theme.logoUrl);
+  if (logo && html.includes("cid:studio-brand-logo")) {
+    try {
+      const base64 = fs.readFileSync(logo.absolutePath).toString("base64");
+      const dataUri = `data:${logo.contentType || "image/png"};base64,${base64}`;
+      html = html.split("cid:studio-brand-logo").join(dataUri);
+    } catch (err) {
+      console.warn("preview-email: unable to inline brand logo", err);
+    }
+  }
+
+  return new NextResponse(html, {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
@@ -93,6 +111,7 @@ export async function GET(req: NextRequest) {
       "X-Email-Type": type,
       "X-Email-Tenant": slug,
       "X-Email-Subject": rendered.subject.replace(/[^\x20-\x7E]/g, ""),
+      "X-Email-Logo-Inlined": logo ? "true" : "false",
     },
   });
 }

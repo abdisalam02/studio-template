@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "invalid_email",
-          message: "Oppgi en gyldig e-postadresse (recipient eller email).",
+          message: "Provide a valid email address (recipient or email).",
         },
         { status: 400 }
       );
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Test email error:", err);
     return NextResponse.json(
-      { error: "server_error", message: "Kunne ikke sende test-varsel." },
+      { error: "server_error", message: "Could not send the test alert." },
       { status: 500 }
     );
   }

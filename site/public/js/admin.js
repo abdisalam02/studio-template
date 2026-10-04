@@ -23,19 +23,121 @@
   let activeDrawerBooking = null;
   let isToggling = false;
 
-  function getApiBase() {
-    if (typeof window === 'undefined') return '';
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      if (window.location.port !== '3000') {
-        return 'http://localhost:3000';
+  // ----------------------------------------------------------------------------
+  // 1b. MULTI-TENANT RESOLUTION & NAMESPACED STORAGE
+  // ----------------------------------------------------------------------------
+  function resolveActiveTenant() {
+    try {
+      if (window.ACTIVE_TENANT_ID) return window.ACTIVE_TENANT_ID;
+      if (window.GANGINA_CONFIG && window.GANGINA_CONFIG.tenantId) return window.GANGINA_CONFIG.tenantId;
+      const params = new URLSearchParams(window.location.search || '');
+      const requested = (params.get('tenant') || '').trim().toLowerCase();
+      if (requested === 'klo' || requested === 'studioklo') return 'studio-klo';
+      return requested || 'gangina';
+    } catch (e) {
+      return 'gangina';
+    }
+  }
+
+  function tenantProfileById(id) {
+    return (
+      (window.GANGINA_CONFIG &&
+        window.GANGINA_CONFIG.profiles &&
+        window.GANGINA_CONFIG.profiles[id]) ||
+      null
+    );
+  }
+
+  let TENANT_ID = resolveActiveTenant();
+  let TENANT_PROFILE = tenantProfileById(TENANT_ID);
+  const HAS_TENANT_PARAM = Boolean(window.GANGINA_CONFIG && window.GANGINA_CONFIG.hasTenantParam);
+
+  // Namespace local storage per tenant so two studios never share cached data.
+  // Gangina keeps its historical keys for backwards compatibility.
+  function tenantPrefix() {
+    return TENANT_ID === 'gangina' ? 'gangina_' : `admin_${TENANT_ID}_`;
+  }
+
+  function storageKey(name) {
+    return tenantPrefix() + name;
+  }
+
+  // Gangina keeps its historical unprefixed token key so existing sessions and
+  // tooling stay valid; every other tenant gets an isolated token key.
+  function tokenStorageKey() {
+    return TENANT_ID === 'gangina' ? 'admin_token' : `${tenantPrefix()}admin_token`;
+  }
+
+  function getTenantId() {
+    return TENANT_ID;
+  }
+
+  function getRefPrefix() {
+    return TENANT_ID === 'studio-klo' ? 'STU' : 'GNG';
+  }
+
+  function studioDisplayName() {
+    if (TENANT_PROFILE && TENANT_PROFILE.name) return TENANT_PROFILE.name;
+    const el = document.getElementById('studio-brand-name');
+    return (el && el.textContent.trim()) || 'Gangina';
+  }
+
+  /**
+   * Maps a known admin email to its tenant id using the runtime profiles.
+   * Returns '' when the email is not recognized.
+   */
+  function resolveTenantByAdminEmail(email) {
+    const normalized = (email || '').trim().toLowerCase();
+    if (!normalized || normalized.indexOf('@') === -1) return '';
+    const profiles = (window.GANGINA_CONFIG && window.GANGINA_CONFIG.profiles) || {};
+    const ids = Object.keys(profiles);
+    for (let i = 0; i < ids.length; i++) {
+      const list = profiles[ids[i]].adminEmails || [];
+      for (let j = 0; j < list.length; j++) {
+        if (String(list[j]).toLowerCase().trim() === normalized) return ids[i];
       }
     }
+    return '';
+  }
+
+  /**
+   * Switches the active tenant at runtime (used by smart login detection).
+   * `applyBranding: false` updates the tenant scope without repainting the
+   * login gate, which the caller styles explicitly.
+   */
+  function setActiveTenant(id, options) {
+    if (!id) return;
+    const opts = options || {};
+    TENANT_ID = id;
+    TENANT_PROFILE = tenantProfileById(id);
+    if (window.GANGINA_CONFIG) window.GANGINA_CONFIG.tenantId = id;
+    window.ACTIVE_TENANT_ID = id;
+    if (opts.applyBranding !== false) {
+      applyTenantBranding();
+    }
+    applyCustomThemeFromStorage();
+  }
+
+  /**
+   * Resolves the API origin for every client fetch.
+   * Always same-origin so the portal works on any deployed custom domain with
+   * zero hardcoded dev hosts. An optional runtime override
+   * (window.ADMIN_API_ORIGIN) supports split front-end/API hosting.
+   */
+  function getApiBase() {
+    if (typeof window === 'undefined') return '';
+    const override = window.ADMIN_API_ORIGIN;
+    if (override) return String(override).replace(/\/$/, '');
     return window.location.origin;
   }
 
   function getAdminToken() {
     try {
-      return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '';
+      return (
+        localStorage.getItem(tokenStorageKey()) ||
+        sessionStorage.getItem(tokenStorageKey()) ||
+        ''
+      );
     } catch (e) {
       return '';
     }
@@ -196,7 +298,7 @@
   // ----------------------------------------------------------------------------
   function getBookings() {
     try {
-      const stored = localStorage.getItem('gangina_bookings');
+      const stored = localStorage.getItem(storageKey('bookings'));
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -204,18 +306,20 @@
     } catch (e) {
       console.warn('Error reading bookings:', e);
     }
-    localStorage.setItem('gangina_bookings', JSON.stringify(SEED_BOOKINGS));
-    return SEED_BOOKINGS;
+    // Only Gangina ships demo seed data; other studios start with a clean slate.
+    const seed = TENANT_ID === 'gangina' ? SEED_BOOKINGS : [];
+    localStorage.setItem(storageKey('bookings'), JSON.stringify(seed));
+    return seed;
   }
 
   function saveBookings(bookings) {
-    localStorage.setItem('gangina_bookings', JSON.stringify(bookings));
+    localStorage.setItem(storageKey('bookings'), JSON.stringify(bookings));
     renderAllViews();
   }
 
   function getBlackouts() {
     try {
-      const stored = localStorage.getItem('gangina_blackouts');
+      const stored = localStorage.getItem(storageKey('blackouts'));
       if (stored) return JSON.parse(stored);
     } catch (e) {}
     return [
@@ -224,7 +328,7 @@
   }
 
   function saveBlackouts(list) {
-    localStorage.setItem('gangina_blackouts', JSON.stringify(list));
+    localStorage.setItem(storageKey('blackouts'), JSON.stringify(list));
     renderAgendaTimeline();
     renderBlockedIntervalsTable();
   }
@@ -234,14 +338,14 @@
    */
   async function syncWithSupabase(silent = false) {
     try {
-      const endpoint = `${getApiBase()}/api/admin/bookings?tenant_id=gangina&dev_bypass=true`;
+      const endpoint = `${getApiBase()}/api/admin/bookings?tenant_id=${encodeURIComponent(TENANT_ID)}&dev_bypass=true`;
       const res = await fetch(endpoint, {
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
         credentials: 'include'
       });
       if (res.status === 401) {
-        localStorage.removeItem('admin_token');
-        sessionStorage.removeItem('gangina_admin_auth');
+        localStorage.removeItem(tokenStorageKey());
+        sessionStorage.removeItem(storageKey('admin_auth'));
         const overlay = document.getElementById('admin-login-overlay');
         if (overlay) overlay.style.display = 'flex';
         throw new Error('Authentication required (401)');
@@ -250,16 +354,38 @@
       const data = await res.json();
       if (!data || !data.success) throw new Error('API returned failure');
 
-      // 1. Fetch Tenant Name and clean up to Gangina
+      // 1. Apply tenant branding + profile fields
       if (data.tenant) {
-        const rawName = data.tenant.name || 'Gangina';
+        const rawName = data.tenant.name || (TENANT_PROFILE && TENANT_PROFILE.fullName) || 'Gangina';
         const brandName = rawName.replace(/ Beauty Studio/i, '').trim();
         const brandEl = document.getElementById('studio-brand-name');
-        if (brandEl) brandEl.textContent = brandName || 'Gangina';
+        if (brandEl) brandEl.textContent = brandName || studioDisplayName();
+
+        const subEl = document.querySelector('.studio-subtext');
+        if (subEl) {
+          const subtext =
+            (TENANT_PROFILE && TENANT_PROFILE.subtitle) || data.tenant.niche || data.tenant.tagline || subEl.textContent;
+          subEl.textContent = subtext;
+        }
 
         const studioNameInput = document.getElementById('studio-name-input');
         if (studioNameInput && !studioNameInput._userEdited) {
           studioNameInput.value = rawName;
+        }
+
+        const studioEmailInput = document.getElementById('studio-email-input');
+        if (studioEmailInput && !studioEmailInput._userEdited && data.tenant.owner_email) {
+          studioEmailInput.value = data.tenant.owner_email;
+        }
+
+        // Static studio profile fields fall back to the tenant config profile.
+        if (TENANT_PROFILE) {
+          const waInput = document.getElementById('studio-whatsapp-input');
+          if (waInput && !waInput._userEdited && !waInput.value) waInput.value = TENANT_PROFILE.whatsapp || '';
+          const addrInput = document.getElementById('studio-address-input');
+          if (addrInput && !addrInput._userEdited && !addrInput.value) addrInput.value = TENANT_PROFILE.address || '';
+          const orgInput = document.getElementById('studio-org-input');
+          if (orgInput && !orgInput._userEdited && !orgInput.value) orgInput.value = TENANT_PROFILE.org || '';
         }
       }
 
@@ -272,7 +398,7 @@
           const mm = String(dt.getMinutes()).padStart(2, '0');
           return {
             id: String(b.id),
-            ref: b.ref || `GNG-${b.id}`,
+            ref: b.ref || `${getRefPrefix()}-${b.id}`,
             clientName: b.customer_name || 'Client',
             clientPhone: b.customer_phone || '',
             clientEmail: b.customer_email || '',
@@ -287,7 +413,7 @@
         });
 
         if (mapped.length > 0) {
-          localStorage.setItem('gangina_bookings', JSON.stringify(mapped));
+          localStorage.setItem(storageKey('bookings'), JSON.stringify(mapped));
         }
       }
 
@@ -304,7 +430,7 @@
             reason: bl.reason || 'Blocked Time'
           };
         });
-        localStorage.setItem('gangina_blackouts', JSON.stringify(mappedBlackouts));
+        localStorage.setItem(storageKey('blackouts'), JSON.stringify(mappedBlackouts));
       }
 
       renderAllViews();
@@ -632,7 +758,7 @@
     if (!container) return;
 
     if (headlineEl) headlineEl.textContent = formatDisplayDate(selectedDate);
-    if (subEl) subEl.textContent = `Daily schedule for Gangina Studio`;
+    if (subEl) subEl.textContent = `Daily schedule for ${studioDisplayName()}`;
 
     const bookings = getBookings().filter(b => b.date === selectedDate && b.status !== 'cancelled');
     const blackouts = getBlackouts().filter(b => b.date === selectedDate);
@@ -693,7 +819,7 @@
           </div>
           <div class="timeline-card-content timeline-blackout">
             <div class="timeline-header-row">
-              <span class="timeline-client-name">🔒 ${bl.reason || 'Blocked Time'}</span>
+              <span class="timeline-client-name">${bl.reason || 'Blocked Time'}</span>
               <span class="status-pill-badge" style="background:#F4F4F5; color:#71717A;">Blocked</span>
             </div>
             <div class="timeline-service-name">${bl.start_time} – ${bl.end_time || 'End'}</div>
@@ -875,10 +1001,10 @@
         </div>
       </div>
       <div class="datetime-chips-row">
-        <span class="datetime-chip">📅 ${formatEnglishDate(b.date)}</span>
-        <span class="datetime-chip">🕒 ${b.time}</span>
-        ${b.clientEmail ? `<span class="datetime-chip client-email-chip" title="${b.clientEmail}">✉️ ${b.clientEmail}</span>` : ''}
-        ${b.clientPhone ? `<span class="datetime-chip">📞 ${b.clientPhone}</span>` : ''}
+        <span class="datetime-chip">${formatEnglishDate(b.date)}</span>
+        <span class="datetime-chip">${b.time}</span>
+        ${b.clientEmail ? `<span class="datetime-chip client-email-chip" title="${b.clientEmail}">${b.clientEmail}</span>` : ''}
+        ${b.clientPhone ? `<span class="datetime-chip">${b.clientPhone}</span>` : ''}
       </div>
     `;
 
@@ -887,9 +1013,9 @@
       const triageRow = document.createElement('div');
       triageRow.className = 'triage-action-row';
       triageRow.innerHTML = `
-        <button type="button" class="btn-triage btn-triage-approve">✓ Approve</button>
-        <button type="button" class="btn-triage btn-triage-decline">✕ Decline</button>
-        <button type="button" class="btn-triage btn-triage-details">Details →</button>
+        <button type="button" class="btn-triage btn-triage-approve">Approve</button>
+        <button type="button" class="btn-triage btn-triage-decline">Decline</button>
+        <button type="button" class="btn-triage btn-triage-details">Details</button>
       `;
 
       triageRow.querySelector('.btn-triage-approve').addEventListener('click', (e) => {
@@ -930,7 +1056,7 @@
           method: 'POST',
           headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           credentials: 'include',
-          body: JSON.stringify({ ref, status: newStatus, tenant_id: 'gangina', dev_bypass: true })
+          body: JSON.stringify({ ref, status: newStatus, tenant_id: TENANT_ID, dev_bypass: true })
         });
       } catch (err) {
         console.warn('Backend status mutation notice:', err.message);
@@ -948,7 +1074,7 @@
     // Load persisted hours from cache if available
     let savedHoursMap = {};
     try {
-      const cached = localStorage.getItem('gangina_saved_hours');
+      const cached = localStorage.getItem(storageKey('saved_hours'));
       if (cached) savedHoursMap = JSON.parse(cached);
     } catch (_) {}
 
@@ -1016,7 +1142,7 @@
     const customInput = document.getElementById('sched-interval-custom');
 
     if (schedInterval && customWrap) {
-      const savedInterval = localStorage.getItem('gangina_slot_interval') || '30';
+      const savedInterval = localStorage.getItem(storageKey('slot_interval')) || '30';
       if (['15', '30', '45', '60'].includes(savedInterval)) {
         schedInterval.value = savedInterval;
         customWrap.style.display = 'none';
@@ -1032,19 +1158,19 @@
           if (customInput) {
             customInput.focus();
             if (customInput.value) {
-              localStorage.setItem('gangina_slot_interval', customInput.value);
+              localStorage.setItem(storageKey('slot_interval'), customInput.value);
             }
           }
         } else {
           customWrap.style.display = 'none';
-          localStorage.setItem('gangina_slot_interval', schedInterval.value);
+          localStorage.setItem(storageKey('slot_interval'), schedInterval.value);
         }
       };
 
       if (customInput) {
         customInput.oninput = () => {
           if (customInput.value) {
-            localStorage.setItem('gangina_slot_interval', customInput.value);
+            localStorage.setItem(storageKey('slot_interval'), customInput.value);
           }
         };
       }
@@ -1079,7 +1205,7 @@
           newCache[weekday] = item;
         });
 
-        localStorage.setItem('gangina_saved_hours', JSON.stringify(newCache));
+        localStorage.setItem(storageKey('saved_hours'), JSON.stringify(newCache));
 
         try {
           const res = await fetch(`${getApiBase()}/api/admin/hours`, {
@@ -1087,7 +1213,7 @@
             headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             credentials: 'include',
             body: JSON.stringify({
-              tenant_id: 'gangina',
+              tenant_id: TENANT_ID,
               slot_step_min: parseInt(curInterval, 10) || 30,
               hours: hoursPayload
             })
@@ -1126,7 +1252,7 @@
       item.innerHTML = `
         <div style="display:flex; align-items:center; justify-content:space-between;">
           <div>
-            <strong style="font-size:0.86rem;">🔒 ${bl.reason || 'Blocked Time'}</strong>
+            <strong style="font-size:0.86rem;">${bl.reason || 'Blocked Time'}</strong>
             <div style="font-size:0.74rem; color:var(--admin-sheet-muted); margin-top:2px;">
               ${formatEnglishDate(bl.date)} · ${bl.start_time || 'All Day'} ${bl.end_time ? '– ' + bl.end_time : ''}
             </div>
@@ -1166,7 +1292,7 @@
     const modal = document.getElementById('modal-client-drawer');
     if (!modal) return;
 
-    document.getElementById('drawer-ref-pill').textContent = `CLIENT CARD · REF ${booking.ref || 'GNG-0000'}`;
+    document.getElementById('drawer-ref-pill').textContent = `REF ${booking.ref || `${getRefPrefix()}-0000`}`;
     document.getElementById('drawer-client-name').textContent = booking.clientName || 'Client';
 
     const dateEl = document.getElementById('drawer-date-display');
@@ -1224,11 +1350,11 @@
     document.getElementById('drawer-notes-display').textContent = booking.notes || 'No client notes recorded.';
 
     const cleanNumber = cleanPhone(booking.clientPhone);
-    const greeting = encodeURIComponent(`Hi ${booking.clientName}! Regarding your appointment at Gangina on ${formatEnglishDate(booking.date)} at ${booking.time} (Ref #${booking.ref}).`);
+    const greeting = encodeURIComponent(`Hi ${booking.clientName}! Regarding your appointment at ${studioDisplayName()} on ${formatEnglishDate(booking.date)} at ${booking.time} (Ref #${booking.ref}).`);
     const waLink = `https://wa.me/${cleanNumber || '4700000000'}?text=${greeting}`;
     document.getElementById('drawer-btn-wa').href = waLink;
 
-    document.getElementById('drawer-btn-email').href = `mailto:${booking.clientEmail || ''}?subject=${encodeURIComponent(`Regarding your appointment at Gangina (Ref #${booking.ref})`)}`;
+    document.getElementById('drawer-btn-email').href = `mailto:${booking.clientEmail || ''}?subject=${encodeURIComponent(`Regarding your appointment at ${studioDisplayName()} (Ref #${booking.ref})`)}`;
 
     modal.classList.add('open');
   }
@@ -1309,7 +1435,7 @@
 
         const newBooking = {
           id: 'manual-' + Date.now(),
-          ref: 'GNG-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+          ref: `${getRefPrefix()}-` + Math.random().toString(36).substring(2, 6).toUpperCase(),
           clientName: document.getElementById('manual-client-name').value.trim(),
           clientPhone: document.getElementById('manual-client-phone').value.trim(),
           clientEmail: document.getElementById('manual-client-email').value.trim(),
@@ -1335,7 +1461,7 @@
             method: 'POST',
             headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             credentials: 'include',
-            body: JSON.stringify({ ...newBooking, tenant_id: 'gangina' })
+            body: JSON.stringify({ ...newBooking, tenant_id: TENANT_ID })
           });
         } catch (_) {}
       });
@@ -1453,7 +1579,7 @@
               method: 'POST',
               headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
               credentials: 'include',
-              body: JSON.stringify({ ref, date: newDate, time: newTime, tenant_id: 'gangina', dev_bypass: true })
+              body: JSON.stringify({ ref, date: newDate, time: newTime, tenant_id: TENANT_ID, dev_bypass: true })
             });
           } catch (err) {
             console.warn('Backend sync failed, stored in localStorage:', err);
@@ -1469,7 +1595,7 @@
         const newEmail = emailInput ? emailInput.value.trim() : '';
 
         if (newEmail) {
-          localStorage.setItem('gangina_studio_email', newEmail);
+          localStorage.setItem(storageKey('studio_email'), newEmail);
           if (window.GANGINA_CONFIG) window.GANGINA_CONFIG.studioEmail = newEmail;
         }
 
@@ -1481,7 +1607,7 @@
             headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             credentials: 'include',
             body: JSON.stringify({
-              tenant_id: 'gangina',
+              tenant_id: TENANT_ID,
               email: newEmail
             })
           });
@@ -1498,8 +1624,24 @@
 
     const emailInput = document.getElementById('studio-email-input') || document.getElementById('settings-email');
     if (emailInput && !emailInput._userEdited) {
-      emailInput.value = localStorage.getItem('gangina_studio_email') || 'YOUR_TEST_EMAIL@gmail.com';
+      emailInput.value =
+        localStorage.getItem(storageKey('studio_email')) ||
+        (TENANT_PROFILE && TENANT_PROFILE.studioEmail) ||
+        '';
     }
+
+    // Track manual edits so background syncs never clobber operator input.
+    ['studio-name-input', 'studio-email-input', 'studio-whatsapp-input', 'studio-address-input', 'studio-org-input'].forEach(id => {
+      const field = document.getElementById(id);
+      if (field) {
+        field.addEventListener('input', () => { field._userEdited = true; });
+        if (TENANT_PROFILE && !field.value) {
+          if (id === 'studio-whatsapp-input') field.value = TENANT_PROFILE.whatsapp || '';
+          if (id === 'studio-address-input') field.value = TENANT_PROFILE.address || '';
+          if (id === 'studio-org-input') field.value = TENANT_PROFILE.org || '';
+        }
+      }
+    });
 
     const sendTestAlertBtn = document.getElementById('send-test-alert-btn');
     if (sendTestAlertBtn) {
@@ -1519,7 +1661,7 @@
     const modal = document.getElementById('modal-reschedule');
     if (!modal) return;
     document.getElementById('resched-ref').value = booking.ref;
-    document.getElementById('resched-client-name').textContent = `${booking.clientName} (Current: ${formatEnglishDate(booking.date)} at ${booking.time})`;
+    document.getElementById('resched-client-name').textContent = booking.clientName || '';
 
     const dateInput = document.getElementById('resched-date');
     const timeInput = document.getElementById('resched-time');
@@ -1573,26 +1715,378 @@
   }
 
   // ----------------------------------------------------------------------------
-  // 10. COLOR PALETTE SWITCHER
+  // 10. ADVANCED COLOR ENGINE (preset swatches + custom palette picker)
   // ----------------------------------------------------------------------------
+  const THEME_PRESETS = {
+    'noir-champagne': { label: 'Noir Champagne', accent: '#C9A876', card: '#18181B', canvas: '#0A0A0A' },
+    'klo-sage': { label: 'Klō Sage', accent: '#A3B18A', card: '#161A16', canvas: '#0E110E' },
+    'rose-chrome': { label: 'Rose & Chrome', accent: '#E0A899', card: '#1C1619', canvas: '#120E10' },
+    'titanium-minimal': { label: 'Titanium Minimal', accent: '#E4E4E7', card: '#18181B', canvas: '#0F0F10' },
+    'royal-cobalt': { label: 'Royal Cobalt', accent: '#3B82F6', card: '#131722', canvas: '#0A0D14' }
+  };
+
+  // Circular swatches rendered inside the custom theme drawer. The accent
+  // swatches are mirrored by the inline `data-accent` buttons; the surface
+  // swatches pair a card and a canvas tone.
+  const THEME_ACCENT_SWATCHES = [
+    { name: 'Champagne Gold', hex: '#C9A876' },
+    { name: 'Klō Sage', hex: '#A3B18A' },
+    { name: 'Rose Quartz', hex: '#E0A899' },
+    { name: 'Titanium Silver', hex: '#E4E4E7' },
+    { name: 'Royal Cobalt', hex: '#3B82F6' },
+    { name: 'Emerald Noir', hex: '#2D5A27' },
+    { name: 'Warm Terracotta', hex: '#C86D51' },
+    { name: 'Lavender Frost', hex: '#9D8DF1' },
+    { name: 'Pure Bronze', hex: '#A97148' }
+  ];
+
+  const THEME_SURFACE_SWATCHES = [
+    { name: 'Noir Slate', card: '#18181B', canvas: '#0A0A0A' },
+    { name: 'Warm Espresso', card: '#1A1615', canvas: '#0F0D0C' },
+    { name: 'Forest Deep', card: '#141A15', canvas: '#0A0E0B' },
+    { name: 'Titanium Gray', card: '#1F2024', canvas: '#121316' },
+    { name: 'Cashmere Light', card: '#FFFFFF', canvas: '#F8F6F0' }
+  ];
+
+  let currentPalette = null;
+  let draftPalette = { accent: '#E4E4E7', card: '#18181B', canvas: '#0F0F10' };
+
+  function clampChannel(value) {
+    return Math.max(0, Math.min(255, Math.round(value)));
+  }
+
+  function parseHexColor(hex) {
+    let value = String(hex == null ? '' : hex).trim().replace(/^#/, '');
+    if (value.length === 3) {
+      value = value.split('').map(c => c + c).join('');
+    }
+    if (!/^[0-9a-fA-F]{6}$/.test(value)) return null;
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16)
+    };
+  }
+
+  function toHexColor(c) {
+    const part = n => clampChannel(n).toString(16).padStart(2, '0');
+    return `#${part(c.r)}${part(c.g)}${part(c.b)}`.toUpperCase();
+  }
+
+  function normalizeHexColor(hex, fallback) {
+    const parsed = parseHexColor(hex);
+    if (!parsed) return fallback || null;
+    return toHexColor(parsed);
+  }
+
+  function mixHexColors(from, to, ratio) {
+    const a = parseHexColor(from);
+    const b = parseHexColor(to);
+    if (!a || !b) return from;
+    return toHexColor({
+      r: a.r + (b.r - a.r) * ratio,
+      g: a.g + (b.g - a.g) * ratio,
+      b: a.b + (b.b - a.b) * ratio
+    });
+  }
+
+  function rgbaFromHex(hex, alpha) {
+    const c = parseHexColor(hex);
+    if (!c) return `rgba(0, 0, 0, ${alpha})`;
+    return `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+  }
+
+  function relativeLuminance(hex) {
+    const c = parseHexColor(hex);
+    if (!c) return 0;
+    const channels = [c.r, c.g, c.b].map(value => {
+      const s = value / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  }
+
+  function isDarkColor(hex) {
+    return relativeLuminance(hex) < 0.5;
+  }
+
+  /** Picks the foreground (near-black / near-white) with the best contrast. */
+  function bestContrastText(bg) {
+    const l = relativeLuminance(bg);
+    const contrastWithWhite = 1.05 / (l + 0.05);
+    const contrastWithBlack = (l + 0.05) / 0.05;
+    return contrastWithBlack >= contrastWithWhite ? '#121214' : '#FAFAFA';
+  }
+
+  function themeStorageKey() {
+    return `${TENANT_ID}_custom_theme`;
+  }
+
+  function studioDefaultPalette() {
+    // Titanium Minimal is the studio-wide default color combo.
+    const base = 'titanium-minimal';
+    return Object.assign({ preset: base }, THEME_PRESETS[base]);
+  }
+
+  /**
+   * Applies a palette with STRICT theme isolation: only the accent family is
+   * exposed to CSS. Sheets, cards, inputs and the bottom dock are hardcoded in
+   * the stylesheet and must never be overridden here, which keeps text/background
+   * contrast safe under every theme (rule: no white-on-white / dark-on-dark).
+   */
+  function applyCustomTheme(palette) {
+    if (!palette) return;
+    const root = document.documentElement;
+    const accent = normalizeHexColor(palette.accent, '#C9A876');
+    const card = normalizeHexColor(palette.card, '#18181B');
+    const canvas = normalizeHexColor(palette.canvas, '#0A0A0A');
+    const accentText = bestContrastText(accent);
+
+    const setVar = (name, value) => root.style.setProperty(name, value);
+
+    // Theme surface 1/3: accent fills (calendar active day, secondary buttons).
+    setVar('--admin-accent', accent);
+    setVar('--admin-accent-hover', mixHexColors(accent, accentText, 0.18));
+    setVar('--admin-accent-light', rgbaFromHex(accent, 0.18));
+    setVar('--admin-accent-text', accentText);
+    // Theme surface 3/3: focus rings & subtle brand glow.
+    setVar('--admin-accent-glow', rgbaFromHex(accent, 0.32));
+
+    // Note: `card`/`canvas` are persisted for the drawer + live preview only.
+    // They intentionally do NOT touch --admin-sheet-*, --admin-card-* or the dock.
+    currentPalette = { accent, card, canvas, preset: palette.preset || '' };
+  }
+
+  function clearCustomTheme() {
+    const root = document.documentElement;
+    [
+      '--admin-accent', '--admin-accent-hover', '--admin-accent-light',
+      '--admin-accent-text', '--admin-accent-glow'
+    ].forEach(name => root.style.removeProperty(name));
+    currentPalette = null;
+  }
+
+  function persistCustomTheme(palette) {
+    try {
+      localStorage.setItem(themeStorageKey(), JSON.stringify(palette));
+    } catch (e) {
+      // Storage may be unavailable (private mode); the theme still applies live.
+    }
+  }
+
+  function loadStoredTheme() {
+    try {
+      const raw = localStorage.getItem(themeStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.accent || !parsed.card || !parsed.canvas) return null;
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function syncPaletteControls(palette) {
+    document.querySelectorAll('#theme-presets-grid .palette-btn').forEach(btn => {
+      const presetId = btn.getAttribute('data-preset');
+      btn.classList.toggle('active', Boolean(palette) && presetId === palette.preset);
+    });
+  }
+
+  function applyCustomThemeFromStorage() {
+    const stored = loadStoredTheme();
+    if (stored) {
+      applyCustomTheme(stored);
+    } else {
+      // No saved theme: fall back to the studio default (Titanium Minimal).
+      applyCustomTheme(studioDefaultPalette());
+    }
+    syncPaletteControls(currentPalette);
+  }
+
+  function commitPalette(palette) {
+    applyCustomTheme({
+      accent: normalizeHexColor(palette.accent, '#C9A876'),
+      card: normalizeHexColor(palette.card, '#18181B'),
+      canvas: normalizeHexColor(palette.canvas, '#0A0A0A'),
+      preset: palette.preset || ''
+    });
+    persistCustomTheme(currentPalette);
+    syncPaletteControls(currentPalette);
+  }
+
+  /** Returns the preset id matching a palette exactly, else 'custom'. */
+  function matchPresetId(palette) {
+    if (!palette) return '';
+    for (const id of Object.keys(THEME_PRESETS)) {
+      const preset = THEME_PRESETS[id];
+      if (
+        preset.accent === palette.accent &&
+        preset.card === palette.card &&
+        preset.canvas === palette.canvas
+      ) {
+        return id;
+      }
+    }
+    return 'custom';
+  }
+
+  function openCustomThemeSheet() {
+    const base = currentPalette || studioDefaultPalette();
+    draftPalette = {
+      accent: normalizeHexColor(base.accent, '#C9A876'),
+      card: normalizeHexColor(base.card, '#18181B'),
+      canvas: normalizeHexColor(base.canvas, '#0A0A0A')
+    };
+    renderThemeDraft();
+    const sheet = document.getElementById('custom-theme-sheet');
+    if (sheet) {
+      sheet.classList.add('open');
+      sheet.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function closeCustomThemeSheet() {
+    const sheet = document.getElementById('custom-theme-sheet');
+    if (sheet) {
+      sheet.classList.remove('open');
+      sheet.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  /** Paints the drawer selection rings and the mini live preview. */
+  function renderThemeDraft() {
+    const accentDots = Array.from(
+      document.querySelectorAll('#theme-accent-dots .theme-dot[data-accent]')
+    );
+    accentDots.forEach(dot => {
+      const hex = normalizeHexColor(dot.getAttribute('data-accent'), '');
+      dot.classList.toggle('active', Boolean(hex) && hex === draftPalette.accent);
+    });
+
+    document.querySelectorAll('#theme-surface-dots .theme-dot[data-card]').forEach(dot => {
+      const card = normalizeHexColor(dot.getAttribute('data-card'), '');
+      const canvas = normalizeHexColor(dot.getAttribute('data-canvas'), '');
+      dot.classList.toggle('active', card === draftPalette.card && canvas === draftPalette.canvas);
+    });
+
+    const wheel = document.getElementById('theme-accent-wheel');
+    if (wheel) wheel.value = draftPalette.accent;
+
+    const wheelDot = document.getElementById('theme-accent-wheel-dot');
+    if (wheelDot) {
+      const curated = accentDots.map(dot => normalizeHexColor(dot.getAttribute('data-accent'), ''));
+      wheelDot.classList.toggle('active', curated.indexOf(draftPalette.accent) === -1);
+    }
+
+    const preview = document.getElementById('theme-preview');
+    if (preview) {
+      const cardText = bestContrastText(draftPalette.card);
+      preview.style.setProperty('--preview-accent', draftPalette.accent);
+      preview.style.setProperty('--preview-accent-text', bestContrastText(draftPalette.accent));
+      preview.style.setProperty('--preview-card', draftPalette.card);
+      preview.style.setProperty('--preview-canvas', draftPalette.canvas);
+      // Auto-contrast the preview copy so it is never white-on-white.
+      preview.style.setProperty('--preview-card-text', cardText);
+      preview.style.setProperty('--preview-card-muted', rgbaFromHex(cardText, 0.62));
+      preview.setAttribute('data-preview-tone', isDarkColor(draftPalette.card) ? 'dark' : 'light');
+    }
+  }
+
+  function applyCustomThemeDraft() {
+    commitPalette({
+      accent: draftPalette.accent,
+      card: draftPalette.card,
+      canvas: draftPalette.canvas,
+      preset: matchPresetId(draftPalette)
+    });
+    closeCustomThemeSheet();
+    showToast('✓ Custom theme applied');
+  }
+
   function initPaletteSwitcher() {
-    const savedTheme = localStorage.getItem('gangina_admin_theme') || 'noir-champagne';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-
-    const buttons = document.querySelectorAll('.palette-btn');
-    buttons.forEach(btn => {
-      const themeVal = btn.getAttribute('data-theme-val');
-      if (themeVal === savedTheme) btn.classList.add('active');
-      else btn.classList.remove('active');
-
+    // Curated preset swatches (applied immediately)
+    document.querySelectorAll('#theme-presets-grid .palette-btn[data-preset]').forEach(btn => {
+      const presetId = btn.getAttribute('data-preset');
+      if (presetId === 'custom') return;
       btn.addEventListener('click', () => {
-        buttons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.documentElement.setAttribute('data-theme', themeVal);
-        localStorage.setItem('gangina_admin_theme', themeVal);
-        showToast(`✓ Palette changed to ${btn.querySelector('.palette-name').textContent}`);
+        const preset = THEME_PRESETS[presetId];
+        if (!preset) return;
+        commitPalette({ accent: preset.accent, card: preset.card, canvas: preset.canvas, preset: presetId });
+        showToast(`✓ Palette changed to ${preset.label}`);
       });
     });
+
+    // 6th card -> slide up the custom theme drawer
+    const openBtn = document.getElementById('theme-custom-open');
+    if (openBtn) openBtn.addEventListener('click', openCustomThemeSheet);
+
+    // Drawer controls
+    const sheet = document.getElementById('custom-theme-sheet');
+    const closeBtn = document.getElementById('custom-theme-close');
+    const cancelBtn = document.getElementById('custom-theme-cancel');
+    const applyBtn = document.getElementById('custom-theme-apply');
+    if (closeBtn) closeBtn.addEventListener('click', closeCustomThemeSheet);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeCustomThemeSheet);
+    if (applyBtn) applyBtn.addEventListener('click', applyCustomThemeDraft);
+    if (sheet) {
+      sheet.addEventListener('click', (e) => {
+        if (e.target === sheet) closeCustomThemeSheet();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeCustomThemeSheet();
+    });
+
+    // Accent circular swatches
+    document.querySelectorAll('#theme-accent-dots .theme-dot[data-accent]').forEach(dot => {
+      const hex = normalizeHexColor(dot.getAttribute('data-accent'), '');
+      if (!hex) return;
+      dot.addEventListener('click', () => {
+        draftPalette.accent = hex;
+        renderThemeDraft();
+      });
+    });
+
+    // Native color wheel for exact hex selection
+    const wheel = document.getElementById('theme-accent-wheel');
+    if (wheel) {
+      wheel.addEventListener('input', () => {
+        draftPalette.accent = normalizeHexColor(wheel.value, draftPalette.accent);
+        renderThemeDraft();
+      });
+    }
+
+    // Surface circular swatches
+    document.querySelectorAll('#theme-surface-dots .theme-dot[data-card]').forEach(dot => {
+      const card = normalizeHexColor(dot.getAttribute('data-card'), '');
+      const canvas = normalizeHexColor(dot.getAttribute('data-canvas'), '');
+      if (!card || !canvas) return;
+      dot.addEventListener('click', () => {
+        draftPalette.card = card;
+        draftPalette.canvas = canvas;
+        renderThemeDraft();
+      });
+    });
+
+    // Reset to the studio's default palette
+    const resetBtn = document.getElementById('theme-reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        commitPalette(studioDefaultPalette());
+        showToast('✓ Default palette restored');
+      });
+    }
+
+    // Initial paint: restore a stored palette, otherwise apply the default
+    // combo (Titanium Minimal) and highlight its swatch.
+    const stored = loadStoredTheme();
+    if (stored) {
+      applyCustomTheme(stored);
+    } else {
+      applyCustomTheme(studioDefaultPalette());
+    }
+    syncPaletteControls(currentPalette);
   }
 
   // ----------------------------------------------------------------------------
@@ -1715,109 +2209,270 @@
   // ----------------------------------------------------------------------------
   function initSecurityGate() {
     const overlay = document.getElementById('admin-login-overlay');
-    const form = document.getElementById('admin-login-form');
+    const emailForm = document.getElementById('admin-email-form');
+    const codeForm = document.getElementById('admin-login-form');
+    const emailInputEl = document.getElementById('admin-login-email');
     const pinInput = document.getElementById('admin-pin-input');
     const lockBtn = document.getElementById('studio-lock-btn');
-    const errorEl = document.getElementById('admin-login-error');
+    const emailError = document.getElementById('admin-email-error');
+    const codeError = document.getElementById('admin-login-error');
     const otpBtn = document.getElementById('admin-send-otp-btn');
-    const unlockBtn = document.getElementById('admin-auth-btn');
+    const verifyBtn = document.getElementById('admin-verify-btn');
+    const resendBtn = document.getElementById('login-resend-btn');
+    const changeEmailBtn = document.getElementById('login-change-email-btn');
+    const chipEmailEl = document.getElementById('login-code-chip-email');
+    const emailStep = document.getElementById('login-step-email');
+    const codeStep = document.getElementById('login-step-code');
 
     if (!overlay) return;
 
+    const OTP_LABEL = 'Send verification code →';
+    const RESEND_LABEL = 'Resend code';
+    const VERIFY_LABEL = 'Open Studio Manager →';
+
     let challengeToken = '';
     let activeChallengeEmail = '';
+    let activeChallengeTenant = '';
+    let loginStep = 'email';
+    let resendTimer = null;
 
-    const hasValidToken = Boolean(getAdminToken() || sessionStorage.getItem('gangina_admin_auth') === 'true');
+    function setStepError(el, message) {
+      if (!el) return;
+      if (message) {
+        el.textContent = message;
+        el.style.display = 'block';
+      } else {
+        el.textContent = '';
+        el.style.display = 'none';
+      }
+    }
+
+    function clearStepErrors() {
+      setStepError(emailError, '');
+      setStepError(codeError, '');
+    }
+
+    function stopResendCooldown() {
+      if (resendTimer) {
+        clearInterval(resendTimer);
+        resendTimer = null;
+      }
+      if (resendBtn) {
+        resendBtn.disabled = false;
+        resendBtn.textContent = RESEND_LABEL;
+      }
+    }
+
+    function startResendCooldown() {
+      if (!resendBtn) return;
+      let remaining = 30;
+      resendBtn.disabled = true;
+      resendBtn.textContent = `Resend (${remaining}s)`;
+      if (resendTimer) clearInterval(resendTimer);
+      resendTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(resendTimer);
+          resendTimer = null;
+          resendBtn.disabled = false;
+          resendBtn.textContent = RESEND_LABEL;
+        } else {
+          resendBtn.textContent = `Resend (${remaining}s)`;
+        }
+      }, 1000);
+    }
+
+    function showLoginStep(step) {
+      loginStep = step;
+      if (emailStep) emailStep.hidden = step !== 'email';
+      if (codeStep) codeStep.hidden = step !== 'code';
+
+      const activeStep = step === 'code' ? codeStep : emailStep;
+      if (activeStep && activeStep.classList) {
+        activeStep.classList.remove('login-step-in');
+        // Force reflow so the entrance animation restarts on every switch.
+        void activeStep.offsetWidth;
+        activeStep.classList.add('login-step-in');
+      }
+
+      clearStepErrors();
+
+      if (step === 'email') {
+        stopResendCooldown();
+        if (otpBtn) {
+          otpBtn.disabled = false;
+          otpBtn.textContent = OTP_LABEL;
+        }
+        if (emailInputEl) setTimeout(() => emailInputEl.focus(), 120);
+      } else if (pinInput) {
+        pinInput.value = '';
+        setTimeout(() => pinInput.focus(), 220);
+      }
+    }
+
+    // Smart tenant auto-detection: adapt the gate as the owner types/blurs.
+    if (emailInputEl) {
+      let detectTimer = null;
+      const detectTenantFromEmail = () => {
+        const matched = resolveTenantByAdminEmail(emailInputEl.value);
+        if (matched) {
+          setActiveTenant(matched, { applyBranding: false });
+          applyLoginBranding(matched);
+        } else {
+          applyLoginBranding(HAS_TENANT_PARAM ? TENANT_ID : '');
+        }
+      };
+      emailInputEl.addEventListener('input', () => {
+        if (detectTimer) clearTimeout(detectTimer);
+        detectTimer = setTimeout(detectTenantFromEmail, 200);
+      });
+      emailInputEl.addEventListener('blur', detectTenantFromEmail);
+    }
+
+    async function sendOtp(isResend) {
+      const requestedEmail =
+        (emailInputEl && emailInputEl.value.trim()) ||
+        (TENANT_PROFILE && TENANT_PROFILE.studioEmail) ||
+        localStorage.getItem(storageKey('studio_email')) ||
+        '';
+
+      if (!isResend && (!requestedEmail || requestedEmail.indexOf('@') === -1)) {
+        setStepError(emailError, 'Enter a valid email address to receive the code.');
+        if (emailInputEl) emailInputEl.focus();
+        return;
+      }
+
+      const requestedTenant = resolveTenantByAdminEmail(requestedEmail) || TENANT_ID;
+      const button = isResend ? resendBtn : otpBtn;
+      const idleLabel = isResend ? RESEND_LABEL : OTP_LABEL;
+
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Sending…';
+      }
+      clearStepErrors();
+
+      try {
+        const res = await fetch(`${getApiBase()}/api/admin/auth/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: requestedTenant, email: requestedEmail })
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.success) {
+          challengeToken = data.challengeToken || '';
+          activeChallengeEmail = data.email || requestedEmail;
+          activeChallengeTenant = data.tenant_id || requestedTenant;
+
+          if (activeChallengeTenant) {
+            setActiveTenant(activeChallengeTenant, { applyBranding: false });
+            applyLoginBranding(activeChallengeTenant);
+          }
+          if (chipEmailEl) chipEmailEl.textContent = activeChallengeEmail;
+
+          if (button) {
+            button.disabled = false;
+            button.textContent = idleLabel;
+          }
+
+          if (!isResend) {
+            showLoginStep('code');
+          } else if (pinInput) {
+            pinInput.focus();
+          }
+          startResendCooldown();
+          showToast(`✓ Code sent to ${activeChallengeEmail}`);
+        } else {
+          setStepError(
+            isResend ? codeError : emailError,
+            data.message || 'Could not send the verification code. Please try again.'
+          );
+          if (button) {
+            button.disabled = false;
+            button.textContent = idleLabel;
+          }
+        }
+      } catch (err) {
+        setStepError(isResend ? codeError : emailError, 'Could not reach the service. Please try again.');
+        if (button) {
+          button.disabled = false;
+          button.textContent = idleLabel;
+        }
+      }
+    }
+
+    const hasValidToken = Boolean(getAdminToken() || sessionStorage.getItem(storageKey('admin_auth')) === 'true');
     if (hasValidToken) {
       overlay.style.display = 'none';
     } else {
       overlay.style.display = 'flex';
-      if (pinInput) setTimeout(() => pinInput.focus(), 150);
+      showLoginStep('email');
     }
 
     if (lockBtn) {
       lockBtn.addEventListener('click', () => {
-        sessionStorage.removeItem('gangina_admin_auth');
-        localStorage.removeItem('admin_token');
+        sessionStorage.removeItem(storageKey('admin_auth'));
+        localStorage.removeItem(tokenStorageKey());
         document.cookie = 'admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
         overlay.style.display = 'flex';
-        if (pinInput) {
-          pinInput.value = '';
-          pinInput.focus();
-        }
-        showToast('🔒 Studio Manager locked');
+        if (emailInputEl) emailInputEl.value = '';
+        if (pinInput) pinInput.value = '';
+        showLoginStep('email');
+        showToast('Studio Manager locked');
       });
     }
 
-    if (otpBtn) {
-      otpBtn.addEventListener('click', async () => {
-        otpBtn.disabled = true;
-        const originalText = otpBtn.textContent;
-        otpBtn.textContent = 'Sending code to email...';
-        showToast('Sending code to registered email...');
+    // STEP 1 — request the verification code
+    if (emailForm) {
+      emailForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (loginStep === 'email') sendOtp(false);
+      });
+    }
+    if (otpBtn && otpBtn.type !== 'submit') {
+      otpBtn.addEventListener('click', () => sendOtp(false));
+    }
 
-        try {
-          const res = await fetch(`${getApiBase()}/api/admin/auth/send-otp`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && data.success) {
-            challengeToken = data.challengeToken || '';
-            activeChallengeEmail = data.email || '';
-            showToast('✓ Code sent to registered email! Check inbox.');
-            if (errorEl) errorEl.style.display = 'none';
-            if (pinInput) {
-              pinInput.value = '';
-              pinInput.placeholder = '6-digit code';
-              pinInput.focus();
-            }
-
-            let countdown = 30;
-            otpBtn.textContent = `Resend code (${countdown}s)`;
-            const timer = setInterval(() => {
-              countdown--;
-              if (countdown <= 0) {
-                clearInterval(timer);
-                otpBtn.disabled = false;
-                otpBtn.textContent = 'Send one-time code to email';
-              } else {
-                otpBtn.textContent = `Resend code (${countdown}s)`;
-              }
-            }, 1000);
-          } else {
-            showToast(data.message || 'Could not send verification code.');
-            otpBtn.disabled = false;
-            otpBtn.textContent = originalText;
-          }
-        } catch (err) {
-          showToast('Could not reach auth server.');
-          otpBtn.disabled = false;
-          otpBtn.textContent = originalText;
-        }
+    // STEP 2 — resend code (30s cooldown enforced by the button state)
+    if (resendBtn) {
+      resendBtn.addEventListener('click', () => {
+        if (resendBtn.disabled) return;
+        sendOtp(true);
       });
     }
 
-    if (form) {
-      form.addEventListener('submit', async (e) => {
+    // STEP 2 — return to the email step
+    if (changeEmailBtn) {
+      changeEmailBtn.addEventListener('click', () => showLoginStep('email'));
+    }
+
+    // STEP 2 — verify the code and mint the session
+    if (codeForm) {
+      codeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const code = (pinInput ? pinInput.value : '').trim();
         if (!code) {
-          if (errorEl) {
-            errorEl.textContent = 'Please enter a 6-digit code or Master Key (1107).';
-            errorEl.style.display = 'block';
-          }
+          setStepError(codeError, 'Enter the 6-digit code from the email.');
           return;
         }
 
-        if (unlockBtn) {
-          unlockBtn.disabled = true;
-          unlockBtn.textContent = 'Verifying...';
+        if (verifyBtn) {
+          verifyBtn.disabled = true;
+          verifyBtn.textContent = 'Verifying...';
         }
+        clearStepErrors();
 
         try {
-          const verifyEmail = activeChallengeEmail || localStorage.getItem('gangina_studio_email') || 'niwache15@gmail.com';
+          const verifyEmail =
+            activeChallengeEmail ||
+            (emailInputEl && emailInputEl.value.trim()) ||
+            (TENANT_PROFILE && TENANT_PROFILE.studioEmail) ||
+            localStorage.getItem(storageKey('studio_email')) ||
+            '';
+          const verifyTenant =
+            activeChallengeTenant || resolveTenantByAdminEmail(verifyEmail) || TENANT_ID;
+
           const res = await fetch(`${getApiBase()}/api/admin/auth/verify-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1825,35 +2480,31 @@
             body: JSON.stringify({
               email: verifyEmail,
               code: code,
-              challengeToken: challengeToken
+              challengeToken: challengeToken,
+              tenant_id: verifyTenant
             })
           });
 
           const data = await res.json().catch(() => ({}));
 
           if (res.ok && data.success && data.token) {
-            localStorage.setItem('admin_token', data.token);
-            sessionStorage.setItem('gangina_admin_auth', 'true');
+            setActiveTenant(verifyTenant, { applyBranding: true });
+            localStorage.setItem(tokenStorageKey(), data.token);
+            sessionStorage.setItem(storageKey('admin_auth'), 'true');
             document.cookie = `admin_token=${data.token}; path=/; max-age=2592000; SameSite=Lax`;
             overlay.style.display = 'none';
-            if (errorEl) errorEl.style.display = 'none';
+            clearStepErrors();
             showToast('✓ Studio Manager ready');
-            syncWithSupabase(false);
+            syncWithSupabase(true);
           } else {
-            if (errorEl) {
-              errorEl.textContent = data.message || 'Invalid or expired email code. Please request a new one.';
-              errorEl.style.display = 'block';
-            }
+            setStepError(codeError, data.message || 'Invalid or expired code. Request a new one.');
           }
         } catch (err) {
-          if (errorEl) {
-            errorEl.textContent = 'Network error verifying email code. Please try again.';
-            errorEl.style.display = 'block';
-          }
+          setStepError(codeError, 'Network error during verification. Please try again.');
         } finally {
-          if (unlockBtn) {
-            unlockBtn.disabled = false;
-            unlockBtn.textContent = 'Open Studio Manager →';
+          if (verifyBtn) {
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = VERIFY_LABEL;
           }
         }
       });
@@ -1861,9 +2512,78 @@
   }
 
   // ----------------------------------------------------------------------------
+  // 13. DYNAMIC TENANT BRANDING
+  // ----------------------------------------------------------------------------
+  /** Styles the security-gate card. Empty id renders the neutral login view. */
+  function applyLoginBranding(tenantId) {
+    const card = document.getElementById('admin-login-card');
+    const heading = document.getElementById('login-studio-name');
+    const subtitle = document.getElementById('login-subtitle');
+    const badge = document.getElementById('admin-login-badge');
+    const logoImg = document.getElementById('admin-login-logo');
+    const profile = tenantId ? tenantProfileById(tenantId) : null;
+
+    if (profile) {
+      if (heading) heading.textContent = profile.fullName || profile.name || tenantId;
+      if (card) card.setAttribute('data-tenant', tenantId);
+      // Cross-fade the squircle badge from the "A.G" mark to the studio logo.
+      if (logoImg) {
+        logoImg.setAttribute('src', profile.logoUrl || '');
+        logoImg.setAttribute('alt', profile.name || '');
+      }
+      if (badge) badge.classList.add('is-resolved');
+    } else {
+      if (heading) heading.textContent = 'Login';
+      if (card) card.removeAttribute('data-tenant');
+      if (badge) badge.classList.remove('is-resolved');
+    }
+    // Subtitle stays constant per the two-tone login design.
+    if (subtitle) subtitle.textContent = 'Log in to manage appointments';
+  }
+
+  function applyTenantBranding() {
+    const name = (TENANT_PROFILE && TENANT_PROFILE.name) || TENANT_ID;
+    const fullName = (TENANT_PROFILE && TENANT_PROFILE.fullName) || name;
+    const subtitle = (TENANT_PROFILE && TENANT_PROFILE.subtitle) || '';
+    const logo = (TENANT_PROFILE && TENANT_PROFILE.logoUrl) || '';
+
+    document.title = `${name} Studio Manager · Executive Portal`;
+
+    const brandEl = document.getElementById('studio-brand-name');
+    if (brandEl) brandEl.textContent = name;
+
+    const subEl = document.querySelector('.studio-subtext');
+    if (subEl && subtitle) subEl.textContent = subtitle;
+
+    if (logo) {
+      document
+        .querySelectorAll('.canopy-logo-img, .canopy-watermark-img, .sheet-watermark-img')
+        .forEach((img) => {
+          img.setAttribute('src', logo);
+          if (img.getAttribute('alt')) img.setAttribute('alt', name);
+        });
+    }
+
+    // Login gate is branded only when a tenant was explicitly requested; the
+    // email handlers repaint it once an owner email resolves a tenant.
+    applyLoginBranding(HAS_TENANT_PARAM ? TENANT_ID : '');
+
+    const loginEmailInput = document.getElementById('admin-login-email');
+    if (loginEmailInput && !loginEmailInput.value && HAS_TENANT_PARAM && TENANT_PROFILE) {
+      loginEmailInput.value = TENANT_PROFILE.studioEmail || '';
+    }
+
+    if (TENANT_PROFILE) {
+      const nameInput = document.getElementById('studio-name-input');
+      if (nameInput && !nameInput._userEdited && !nameInput.value) nameInput.value = fullName;
+    }
+  }
+
+  // ----------------------------------------------------------------------------
   // INITIALIZE ON DOM READY
   // ----------------------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', () => {
+    applyTenantBranding();
     initTouchGestures();
     initNavigation();
     initModals();

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
+      return NextResponse.json({ error: "unauthorized", message: "Missing login." }, { status: 401 });
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (!tenant_id || !customer_name || !customer_phone || !start_utc) {
       return NextResponse.json(
-        { error: "missing_fields", message: "Navn, telefon og tidspunkt er påkrevd." },
+        { error: "missing_fields", message: "Name, phone and time are required." },
         { status: 400 }
       );
     }
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (insertErr || !booking) {
       console.error("Failed to insert manual booking:", insertErr);
-      return NextResponse.json({ error: "insert_failed", message: "Kunne ikke opprette avtale." }, { status: 500 });
+      return NextResponse.json({ error: "insert_failed", message: "Could not create the appointment." }, { status: 500 });
     }
 
     // 3. Send confirmation email if email provided
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         const ics = generateIcsCalendar({
           ref: booking.ref,
           title: `${serviceName} - ${tenant.name}`,
-          description: `Timebestilling for ${booking.customer_name}`,
+          description: `Booking for ${booking.customer_name}`,
           tenantName: tenant.name,
           startUtc: booking.start_utc,
           endUtc: booking.end_utc,

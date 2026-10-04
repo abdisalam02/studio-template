@@ -5,8 +5,9 @@ import {
   generateSecureToken,
   hashToken,
 } from "@/lib/tokens";
-import { sendOwnerAlert, sendCustomerReceipt } from "@/lib/email";
+import { sendOwnerAlert, sendCustomerReceipt, type Tenant } from "@/lib/email";
 import { getEngineBaseUrl } from "@/lib/url";
+import { getTenantConfig } from "@/config/tenant.config";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -99,6 +100,91 @@ function normalizePhone(rawPhone: unknown): string {
   return clean;
 }
 
+/**
+ * Development-only safety net.
+ *
+ * A studio can be fully configured in `tenant.config.ts` before its Supabase
+ * rows exist. In development we seed the tenant, its services and a standard
+ * Mon–Sat 10:00–18:00 opening window so the atomic booking RPC and the
+ * server-side schedule validation can run end-to-end. This never executes in
+ * production, so the normal 404 contract is preserved there.
+ */
+async function provisionDevTenant(slug: string): Promise<Tenant | null> {
+  if (process.env.NODE_ENV === "production" || !supabaseAdmin) return null;
+
+  const config = getTenantConfig(slug);
+  if (config.id !== slug) return null; // unknown slug -> genuine 404
+
+  const prefix =
+    (config.name || "BKG")
+      .replace(/[^A-Za-z]/g, "")
+      .slice(0, 3)
+      .toUpperCase() || "BKG";
+
+  await supabaseAdmin.from("tenants").upsert(
+    {
+      id: config.id,
+      name: config.name,
+      owner_email: config.contact.ownerEmail,
+      ref_prefix: prefix,
+      timezone: config.rules.timezone,
+      allowed_origins: [],
+      buffer_min: config.rules.bufferMin,
+      slot_step_min: config.rules.slotStepMin,
+      min_notice_min: config.rules.minNoticeMin,
+      max_days_ahead: config.rules.maxDaysAhead,
+      pending_hold_min: config.rules.pendingHoldMin,
+      active: true,
+    },
+    { onConflict: "id" }
+  );
+
+  const { data: existingServices } = await supabaseAdmin
+    .from("services")
+    .select("id")
+    .eq("tenant_id", config.id)
+    .limit(1);
+
+  if (!existingServices || existingServices.length === 0) {
+    const serviceRows = config.services.map((service, index) => ({
+      tenant_id: config.id,
+      name: service.name,
+      duration_min: service.durationMin,
+      price_nok: service.priceNok,
+      buffer_min: service.bufferMin ?? config.rules.bufferMin,
+      active: service.active ?? true,
+      sort: service.sort ?? index + 1,
+    }));
+    if (serviceRows.length > 0) {
+      await supabaseAdmin.from("services").insert(serviceRows);
+    }
+  }
+
+  const { data: existingHours } = await supabaseAdmin
+    .from("hours")
+    .select("weekday")
+    .eq("tenant_id", config.id)
+    .limit(1);
+
+  if (!existingHours || existingHours.length === 0) {
+    const hourRows = [0, 1, 2, 3, 4, 5].map((weekday) => ({
+      tenant_id: config.id,
+      weekday,
+      open_min: 600,
+      close_min: 1080,
+    }));
+    await supabaseAdmin.from("hours").insert(hourRows);
+  }
+
+  const { data: tenant } = await supabaseAdmin
+    .from("tenants")
+    .select("*")
+    .eq("id", config.id)
+    .maybeSingle();
+
+  return tenant ?? null;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -147,12 +233,19 @@ export async function POST(
       );
     }
 
-    const { data: tenant, error: tenantErr } = await supabaseAdmin
+    let { data: tenant, error: tenantErr } = await supabaseAdmin
       .from("tenants")
       .select("*")
       .eq("id", slug)
       .eq("active", true)
-      .single();
+      .maybeSingle();
+
+    // Development convenience: seed a centrally-configured studio that has no
+    // Supabase rows yet so the atomic booking RPC and email dispatch can run.
+    if ((tenantErr || !tenant) && process.env.NODE_ENV !== "production") {
+      tenant = await provisionDevTenant(slug);
+      tenantErr = null;
+    }
 
     if (tenantErr || !tenant) {
       return NextResponse.json({ error: "tenant_not_found" }, { status: 404, headers: CORS_HEADERS });
@@ -179,6 +272,30 @@ export async function POST(
       const searchName = String(service_name || service_summary || "").toLowerCase();
       const matched = tenantServices.find((s) => searchName && s.name.toLowerCase().includes(searchName));
       resolvedServiceIds = [matched ? matched.id : tenantServices[0].id];
+    }
+
+    // When a studio was auto-provisioned in development, its services receive
+    // generated identity ids that differ from the static config ids. Re-align
+    // the incoming ids by name so the query and the atomic RPC reference real
+    // rows, without altering the rest of the validation flow.
+    if (
+      tenantServices &&
+      tenantServices.length > 0 &&
+      resolvedServiceIds.length > 0 &&
+      resolvedServiceIds.some((id) => !tenantServices.some((s) => s.id === id))
+    ) {
+      const config = getTenantConfig(slug);
+      const idByName = new Map(tenantServices.map((s) => [s.name, s.id] as const));
+      const remapped = resolvedServiceIds
+        .map((id) => {
+          const configService = config.services.find((s) => Number(s.id) === id);
+          return configService ? idByName.get(configService.name) ?? null : null;
+        })
+        .filter((id): id is number => id !== null);
+
+      if (remapped.length > 0) {
+        resolvedServiceIds = remapped;
+      }
     }
 
     // 3. Normalize start_utc

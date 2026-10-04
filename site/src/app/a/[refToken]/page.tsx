@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { supabaseAdmin } from "@/lib/supabase";
 import { parseRefToken, verifyToken } from "@/lib/tokens";
 import { getTenantConfig, type TenantColors } from "@/config/tenant.config";
+import { resolveBrandLogo } from "@/lib/brandAsset";
 import { ActionButtons } from "./ActionButtons";
 
 interface PageProps {
@@ -39,6 +40,34 @@ function themeStyle(colors: TenantColors): CSSProperties {
     "--c-red": colors.red,
     "--c-warning": colors.warning,
   } as CSSProperties;
+}
+
+/**
+ * Resolves the effective logo and whether it can actually be displayed.
+ * Remote/data URLs are trusted; local (/img/...) logos are validated against
+ * the public/img directory so a missing asset falls back to the monogram.
+ * Mirrors the disk check used by the email renderer.
+ */
+function resolveLogoAsset(
+  source: string | null | undefined,
+  fallback: string
+): { src: string; hasLogo: boolean } {
+  const candidate = (source || fallback || "").trim();
+  if (!candidate) return { src: "", hasLogo: false };
+
+  // Hosted / inline logos are trusted as-is.
+  if (/^(https?:|data:)/i.test(candidate)) {
+    return { src: candidate, hasLogo: true };
+  }
+
+  // Resolve local assets against public/img with URL-encoding and Unicode
+  // tolerance, returning the actual stored path when a match exists.
+  const resolved = resolveBrandLogo(candidate);
+  if (resolved) {
+    return { src: resolved.src, hasLogo: true };
+  }
+
+  return { src: candidate, hasLogo: false };
 }
 
 function DetailRow({
@@ -205,6 +234,8 @@ export default async function OwnerReviewPage({ params }: PageProps) {
 
   const timeString = formatOsloDateTime(booking.start_utc);
   const logoSrc = tenant?.logo_url || config.theme.logoUrl;
+  const { src: resolvedLogoSrc, hasLogo } = resolveLogoAsset(logoSrc, config.theme.logoUrl);
+  const monogram = (config.theme.monogram || studioName.slice(0, 2) || "•").toUpperCase();
 
   return (
     <main
@@ -217,13 +248,25 @@ export default async function OwnerReviewPage({ params }: PageProps) {
           style={{ borderColor: colors.border, backgroundColor: colors.card }}
         >
           {/* Logo watermark */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            aria-hidden="true"
-            alt=""
-            src={logoSrc}
-            className="pointer-events-none absolute left-1/2 top-1/2 h-[560px] w-[560px] max-w-none -translate-x-1/2 -translate-y-1/2 select-none opacity-[0.05]"
-          />
+          {hasLogo ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                aria-hidden="true"
+                alt=""
+                src={resolvedLogoSrc}
+                className="pointer-events-none absolute left-1/2 top-1/2 h-[560px] w-[560px] max-w-none -translate-x-1/2 -translate-y-1/2 select-none opacity-[0.05]"
+              />
+            </>
+          ) : (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-[10rem] font-black uppercase leading-none tracking-tighter opacity-[0.045]"
+              style={{ color: colors.value }}
+            >
+              {monogram}
+            </span>
+          )}
           <div className="relative">
           {/* Branding header */}
           <header
@@ -232,14 +275,30 @@ export default async function OwnerReviewPage({ params }: PageProps) {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={logoSrc}
-                  alt={studioName}
-                  width={44}
-                  height={44}
-                  className="h-11 w-11 shrink-0 object-contain"
-                />
+                {hasLogo ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={resolvedLogoSrc}
+                      alt={studioName}
+                      width={44}
+                      height={44}
+                      className="h-11 w-11 shrink-0 object-contain"
+                    />
+                  </>
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[13px] font-bold tracking-[0.04em]"
+                    style={{
+                      borderColor: colors.borderStrong,
+                      backgroundColor: colors.recessed,
+                      color: colors.accent,
+                    }}
+                  >
+                    {monogram}
+                  </div>
+                )}
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-[var(--c-label)]" style={{ color: colors.label }}>
                     {studioName}

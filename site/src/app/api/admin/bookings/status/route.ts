@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
+      return NextResponse.json({ error: "unauthorized", message: "Missing login." }, { status: 401 });
     }
     const userEmail = auth.email || "niwache12@gmail.com";
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     if (!bookingId || (status !== "confirmed" && status !== "declined" && status !== "cancelled")) {
       return NextResponse.json(
-        { error: "invalid_payload", message: "booking_id/id/ref og status ('confirmed' | 'declined' | 'cancelled') er påkrevd." },
+        { error: "invalid_payload", message: "booking_id/id/ref and status ('confirmed' | 'declined' | 'cancelled') are required." },
         { status: 400 }
       );
     }
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const isOwner = Boolean(tenant?.owner_email && tenant.owner_email.toLowerCase() === userEmail?.toLowerCase());
 
     if (!allowBypass && !isOwner && !isAllowedAdmin) {
-      return NextResponse.json({ error: "forbidden", message: "Du har ikke tilgang til denne salongen." }, { status: 403 });
+      return NextResponse.json({ error: "forbidden", message: "You do not have access to this studio." }, { status: 403 });
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         const icsContent = generateIcsCalendar({
           ref: booking.ref,
           title: `${service.name} - ${tenant.name}`,
-          description: `Timebestilling for ${booking.customer_name}. Referanse: ${booking.ref}.`,
+          description: `Booking for ${booking.customer_name}. Reference: ${booking.ref}.`,
           startUtc: booking.start_utc,
           endUtc: booking.end_utc,
           tenantName: tenant.name,

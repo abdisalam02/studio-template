@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
-      return NextResponse.json({ error: "unauthorized", message: "Mangler innlogging." }, { status: 401 });
+      return NextResponse.json({ error: "unauthorized", message: "Missing login." }, { status: 401 });
     }
 
     if (!supabaseAdmin) {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     if (!bookingId || !startUtc) {
       return NextResponse.json(
-        { error: "missing_fields", message: "booking_id/ref og start_utc/date+time er påkrevd." },
+        { error: "missing_fields", message: "booking_id/ref and start_utc/date+time are required." },
         { status: 400 }
       );
     }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (fetchErr || !booking) {
-      return NextResponse.json({ error: "not_found", message: "Avtale ikke funnet." }, { status: 404 });
+      return NextResponse.json({ error: "not_found", message: "Booking not found." }, { status: 404 });
     }
 
     const tenant = booking.tenants as unknown as Tenant;
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (updateErr || !updated) {
-      return NextResponse.json({ error: "update_failed", message: "Kunne ikke oppdatere tidspunkt." }, { status: 500 });
+      return NextResponse.json({ error: "update_failed", message: "Could not update the time." }, { status: 500 });
     }
 
     // 3. Dispatch updated ICS and notification email to customer
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
         const ics = generateIcsCalendar({
           ref: updated.ref,
           title: `${serviceName} - ${tenant.name}`,
-          description: `Flyttet timebestilling for ${updated.customer_name}`,
+          description: `Rescheduled booking for ${updated.customer_name}`,
           tenantName: tenant.name,
           startUtc: updated.start_utc,
           endUtc: updated.end_utc,

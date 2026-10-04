@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     if (booking.status === "declined") {
       return NextResponse.json(
-        { error: "booking_already_declined", message: "Timen er allerede avslått." },
+        { error: "booking_already_declined", message: "The appointment is already declined." },
         { status: 400 }
       );
     }
