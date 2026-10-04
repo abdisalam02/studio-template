@@ -51,9 +51,9 @@ function buildBookingFixture(tenant: Tenant, slug: string): BookingDetails {
   const startUtc = Math.floor(Date.now() / 1000) + 2 * 86400;
 
   return {
-    ref: "GNG-PREVIEW",
+    ref: `${tenant.ref_prefix}-PREVIEW`,
     customer_name: "Testkunde Eksempel",
-    customer_email: config.contact.ownerEmail,
+    customer_email: tenant.owner_email,
     customer_phone: config.contact.phone,
     service_name: service?.name ?? "Behandling",
     price_nok: service?.priceNok ?? 0,

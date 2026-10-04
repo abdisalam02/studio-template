@@ -1,5 +1,12 @@
+import type { CSSProperties } from "react";
 import { supabaseAdmin } from "@/lib/supabase";
-import { getTenantConfig } from "@/config/tenants";
+import {
+  getTenantConfig,
+  DEFAULT_TENANT_SLUG,
+  TENANTS,
+  type TenantConfig,
+  type TenantService,
+} from "@/config/tenant.config";
 import { BookingWidget } from "@/components/booking/BookingWidget";
 import { EditorialImage } from "@/components/ui/EditorialImage";
 import { FiMapPin, FiClock, FiInstagram, FiShield, FiCheckCircle } from "react-icons/fi";
@@ -21,163 +28,84 @@ interface StudioData {
   services: ServiceRow[];
 }
 
-const FALLBACK_GANGINA: StudioData = {
-  id: "gangina",
-  name: "Gangina Gems",
-  tagline: "Eksklusiv tannsmykking og grillz i Oslo. Sertifisert bonding og presisjonsplassering.",
-  niche: "Tannsmykker & Grillz",
-  location: "Bygdøy Allé, Oslo Sentrum",
-  transit: "Kollektiv transport rett til døren",
-  hours: "Mandag til Lørdag 10:00 - 18:00",
-  phone: "+47 400 00 000",
-  email: "post@gangina.no",
-  orgNumber: "999 888 777",
-  mvaStatus: "MVA-registrert",
-  instagram: "@gangina.gems",
-  services: [
-    {
-      id: 5,
-      tenant_id: "gangina",
-      name: "Single Gem",
-      duration_min: 20,
-      price_nok: 350,
-      buffer_min: 10,
-      active: true,
-      sort: 1,
-    },
-    {
-      id: 6,
-      tenant_id: "gangina",
-      name: "Iridescent Opal Gem",
-      duration_min: 25,
-      price_nok: 450,
-      buffer_min: 10,
-      active: true,
-      sort: 2,
-    },
-    {
-      id: 7,
-      tenant_id: "gangina",
-      name: "Custom Shape (Butterfly, Star)",
-      duration_min: 35,
-      price_nok: 550,
-      buffer_min: 10,
-      active: true,
-      sort: 3,
-    },
-    {
-      id: 8,
-      tenant_id: "gangina",
-      name: "Custom Grillz Konsultasjon",
-      duration_min: 30,
-      price_nok: 0,
-      buffer_min: 10,
-      active: true,
-      sort: 4,
-    },
-  ],
-};
+const DEFAULT_SERVICE_IMAGE = "/demo/nails/pin-biab.jpg";
 
-const FALLBACK_STUDIO_KLO: StudioData = {
-  id: "studio-klo",
-  name: "STUDIO KLŌ",
-  tagline: "Japansk strukturgelé & organisk neglekunst i Oslo. Naturlig neglehelse og skånsom pleie.",
-  niche: "Japansk Strukturgelé & Neglekunst",
-  location: "Frognerveien, Oslo Sentrum",
-  transit: "Trikk 12 til Frogner plass",
-  hours: "Tirsdag til Lørdag 10:00 - 19:00",
-  phone: "+47 411 22 333",
-  email: "hello@studioklo.no",
-  orgNumber: "998 776 554",
-  mvaStatus: "MVA-registrert",
-  instagram: "@studio.klo",
-  services: [
-    {
-      id: 101,
-      tenant_id: "studio-klo",
-      name: "Japansk Strukturgelé - Nytt Sett",
-      duration_min: 60,
-      price_nok: 750,
-      buffer_min: 10,
-      active: true,
-      sort: 1,
-    },
-    {
-      id: 102,
-      tenant_id: "studio-klo",
-      name: "Nail Art - Tier 2 (Organisk/Abstrakt)",
-      duration_min: 30,
-      price_nok: 350,
-      buffer_min: 10,
-      active: true,
-      sort: 2,
-    },
-    {
-      id: 103,
-      tenant_id: "studio-klo",
-      name: "Skånsom Fjerning av Gammel Gelé",
-      duration_min: 20,
-      price_nok: 200,
-      buffer_min: 10,
-      active: true,
-      sort: 3,
-    },
-  ],
-};
+/**
+ * Maps a central TenantService into the DB `services` row shape that the
+ * booking drawer components consume. This lets the page render from config
+ * even when Supabase is unavailable.
+ */
+function serviceToRow(
+  service: TenantService,
+  tenantId: string,
+  index: number
+): ServiceRow {
+  return {
+    id: typeof service.id === "number" ? service.id : Number(service.id) || index + 1,
+    tenant_id: tenantId,
+    name: service.name,
+    duration_min: service.durationMin,
+    price_nok: service.priceNok,
+    buffer_min: service.bufferMin ?? null,
+    active: service.active ?? true,
+    sort: service.sort ?? index,
+  };
+}
 
-const SERVICE_IMAGES: Record<string, string> = {
-  "Single Gem": "/demo/nails/pin-biab.jpg",
-  "Iridescent Opal Gem": "/demo/nails/pin-glazed-donut.jpg",
-  "Custom Shape (Butterfly, Flower, Star)": "/demo/nails/pin-glass-french.jpg",
-  "Custom Shape (Butterfly, Star)": "/demo/nails/pin-glass-french.jpg",
-  "Custom Grillz Consultation & Impression": "/demo/nails/pin-russian-prep.jpg",
-  "Custom Grillz Konsultasjon": "/demo/nails/pin-russian-prep.jpg",
-  "Japansk Strukturgelé - Nytt Sett": "/demo/nails/pin-biab.jpg",
-  "Nail Art - Tier 2 (Organisk/Abstrakt)": "/demo/nails/nail-1.jpg",
-  "Skånsom Fjerning av Gammel Gelé": "/demo/nails/pin-russian-prep.jpg",
-  "Signature Pleie & Form": "/demo/nails/pin-biab.jpg",
-  "Ekspress Touch-up": "/demo/nails/pin-glazed-donut.jpg",
-  "Deluxe Studio Ritual": "/demo/nails/nail-2.jpg",
-};
+/** Builds the page's studio view entirely from the central tenant config. */
+function configToStudioData(config: TenantConfig): StudioData {
+  return {
+    id: config.id,
+    name: config.name,
+    tagline: config.tagline,
+    niche: config.niche,
+    location: config.contact.address,
+    transit: config.contact.transit,
+    hours: config.contact.hours,
+    phone: config.contact.phone,
+    email: config.contact.email,
+    orgNumber: config.contact.orgNumber,
+    mvaStatus: config.contact.mvaStatus,
+    instagram: config.contact.instagram,
+    services: config.services.map((service, index) =>
+      serviceToRow(service, config.id, index)
+    ),
+  };
+}
 
-async function getStudioData(slug: string): Promise<StudioData> {
-  const fallback = slug === "studio-klo" ? FALLBACK_STUDIO_KLO : FALLBACK_GANGINA;
-  if (!supabaseAdmin) return fallback;
+/**
+ * Overlays live Supabase data (tenant name, owner email and active services)
+ * on top of the config-derived defaults. Falls back cleanly when the DB is
+ * unreachable or a studio has not been seeded yet.
+ */
+async function getStudioData(config: TenantConfig): Promise<StudioData> {
+  const base = configToStudioData(config);
+  if (!supabaseAdmin) return base;
 
   try {
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
       .select("*")
-      .eq("id", slug)
-      .single();
+      .eq("id", config.id)
+      .maybeSingle();
 
     const { data: services } = await supabaseAdmin
       .from("services")
       .select("*")
-      .eq("tenant_id", slug)
+      .eq("tenant_id", config.id)
       .eq("active", true)
       .order("sort", { ascending: true });
 
-    if (!tenant) return fallback;
-
     return {
-      id: tenant.id,
-      name: tenant.name || fallback.name,
-      tagline: fallback.tagline,
-      niche: fallback.niche,
-      location: fallback.location,
-      transit: fallback.transit,
-      hours: fallback.hours,
-      phone: fallback.phone,
-      email: tenant.owner_email || fallback.email,
-      orgNumber: fallback.orgNumber,
-      mvaStatus: fallback.mvaStatus,
-      instagram: fallback.instagram,
-      services: services && services.length > 0 ? services : fallback.services,
+      ...base,
+      name: tenant?.name || base.name,
+      email: tenant?.owner_email || base.email,
+      services:
+        services && services.length > 0 ? (services as ServiceRow[]) : base.services,
     };
   } catch (err) {
     console.error("Error fetching studio data:", err);
-    return fallback;
+    return base;
   }
 }
 
@@ -187,85 +115,94 @@ interface PageProps {
 
 export default async function StudioHomePage(props: PageProps) {
   const searchParams = await props.searchParams;
-  const slug = searchParams?.tenant || "gangina";
-  const tenantConfig = getTenantConfig(slug);
-  const studio = await getStudioData(slug);
+  const activeSlug = searchParams?.tenant || DEFAULT_TENANT_SLUG;
+  const config = getTenantConfig(activeSlug);
+  const studio = await getStudioData(config);
+  const c = config.theme.colors;
 
-  const themeColors = tenantConfig.theme?.colors || {
-    bg: "#ece8e1",
-    surface: "#ffffff",
-    text: "#1a1a1a",
-    muted: "#8a8a8a",
-    border: "#e2ded7",
-    accent: "#d4af37",
-  };
+  // Optional per-service artwork comes straight from the tenant config.
+  const serviceImages: Record<string, string> = {};
+  for (const service of config.services) {
+    if (service.photo) serviceImages[service.name] = service.photo;
+  }
+
+  // Expose the active palette to any CSS that reads the brand variables
+  // (e.g. booking.css trigger bar) so the whole page re-skins per tenant.
+  const themeVars = {
+    "--brand-bg": c.canvas,
+    "--brand-surface": c.card,
+    "--brand-text": c.value,
+    "--brand-muted": c.label,
+    "--brand-border": c.border,
+    "--brand-accent": c.accent,
+    "--studio-bg": c.canvas,
+    "--studio-text": c.value,
+    "--studio-card": c.card,
+    "--studio-border": c.border,
+    "--studio-muted": c.label,
+    "--studio-accent": c.accent,
+  } as CSSProperties;
 
   return (
     <div
       className="min-h-dvh relative"
-      style={{
-        backgroundColor: themeColors.bg,
-        color: themeColors.text,
-      }}
+      data-tenant={config.id}
+      style={{ backgroundColor: c.canvas, color: c.value, ...themeVars }}
     >
       {/* Background Subtle Watermark */}
       <div
-        className="fixed inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden opacity-[0.03] z-0"
+        className="fixed inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-0"
         aria-hidden="true"
       >
-        <span className="text-[25vw] font-black uppercase tracking-tighter">
-          {tenantConfig.theme?.watermarkText || studio.name}
+        <span
+          className="text-[25vw] font-black uppercase tracking-tighter opacity-[0.05]"
+          style={{ color: c.watermark }}
+        >
+          {config.theme.watermarkText || config.name}
         </span>
       </div>
 
       <div className="relative z-10">
         {/* 1. Top Editorial Navigation */}
         <nav
-          className="border-b sticky top-0 z-30"
-          style={{
-            borderColor: themeColors.border,
-            backgroundColor: themeColors.bg,
-          }}
+          className="border-b sticky top-0 z-30 backdrop-blur"
+          style={{ borderColor: c.border, backgroundColor: c.band }}
         >
           <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="font-bold tracking-tight uppercase text-sm">
+              <span className="font-bold tracking-tight uppercase text-sm" style={{ color: c.value }}>
                 {studio.name}
               </span>
               <span
                 className="hidden sm:inline-block text-[11px] border-l pl-3"
-                style={{ borderColor: themeColors.border, color: themeColors.muted }}
+                style={{ borderColor: c.border, color: c.soft }}
               >
                 {studio.location}
               </span>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Tenant switcher for preview */}
+              {/* Tenant switcher, driven by the central registry */}
               <div
-                className="flex items-center border rounded-full bg-white overflow-hidden text-[10px] font-semibold"
-                style={{ borderColor: themeColors.border }}
+                className="flex items-center border rounded-full overflow-hidden text-[10px] font-semibold"
+                style={{ borderColor: c.border, backgroundColor: c.recessed }}
               >
-                <a
-                  href="/?tenant=gangina"
-                  className={`px-2 py-0.5 transition-colors ${
-                    slug === "gangina"
-                      ? "bg-[#1a1a1a] text-white"
-                      : "text-[#8a8a8a] hover:text-[#1a1a1a]"
-                  }`}
-                >
-                  Gangina
-                </a>
-                <a
-                  href="/?tenant=studio-klo"
-                  className={`px-2 py-0.5 transition-colors ${
-                    slug === "studio-klo"
-                      ? "bg-[#4a5848] text-white"
-                      : "text-[#8a8a8a] hover:text-[#1a1a1a]"
-                  }`}
-                >
-                  Klō
-                </a>
+                {Object.values(TENANTS).map((tenant) => {
+                  const isActive = tenant.id === config.id;
+                  return (
+                    <a
+                      key={tenant.id}
+                      href={`/?tenant=${tenant.id}`}
+                      className="px-2 py-0.5 transition-colors"
+                      style={{
+                        backgroundColor: isActive ? tenant.theme.colors.accent : "transparent",
+                        color: isActive ? tenant.theme.colors.valueText : c.label,
+                      }}
+                    >
+                      {tenant.shortName}
+                    </a>
+                  );
+                })}
               </div>
 
               <a
@@ -273,15 +210,15 @@ export default async function StudioHomePage(props: PageProps) {
                 target="_blank"
                 rel="noreferrer"
                 className="hover:opacity-80 transition-opacity text-xs flex items-center gap-1"
-                style={{ color: themeColors.muted }}
+                style={{ color: c.label }}
               >
                 <FiInstagram />
                 <span className="hidden sm:inline">{studio.instagram}</span>
               </a>
               <a
                 href="#book"
-                className="py-1.5 px-3.5 rounded-full text-white text-xs font-semibold hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: themeColors.accent || "#1a1a1a" }}
+                className="py-1.5 px-3.5 rounded-full text-xs font-semibold hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: c.accent, color: c.valueText }}
               >
                 Bestill time
               </a>
@@ -293,31 +230,32 @@ export default async function StudioHomePage(props: PageProps) {
           {/* 2. Hero Presentation */}
           <section className="space-y-5">
             <div
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs bg-white"
-              style={{ borderColor: themeColors.border }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs"
+              style={{ borderColor: c.border, backgroundColor: c.recessed, color: c.label }}
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-              <span className="font-medium">
-                Neste ledige time: I dag 16:30
-              </span>
+              <span
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: c.green }}
+              />
+              <span className="font-medium">Neste ledige time: I dag 16:30</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl font-black tracking-tight uppercase leading-[0.95]">
+            <h1
+              className="text-4xl sm:text-5xl font-black tracking-tight uppercase leading-[0.95]"
+              style={{ color: c.value }}
+            >
               {studio.name}
             </h1>
 
-            <p
-              className="text-base leading-relaxed max-w-lg"
-              style={{ color: themeColors.muted }}
-            >
+            <p className="text-base leading-relaxed max-w-lg" style={{ color: c.label }}>
               {studio.tagline}
             </p>
 
             <div className="pt-2">
               <a
                 href="#book"
-                className="inline-block py-3 px-6 rounded-full text-white text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: themeColors.accent || "#1a1a1a" }}
+                className="inline-block py-3 px-6 rounded-full text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: c.accent, color: c.valueText }}
               >
                 Se ledige timer
               </a>
@@ -328,34 +266,33 @@ export default async function StudioHomePage(props: PageProps) {
           <section className="space-y-6">
             <div
               className="border-b pb-3 flex justify-between items-end"
-              style={{ borderColor: themeColors.border }}
+              style={{ borderColor: c.border }}
             >
               <div>
                 <span
                   className="text-[10px] uppercase font-bold tracking-widest block"
-                  style={{ color: themeColors.muted }}
+                  style={{ color: c.soft }}
                 >
                   Meny & Priser
                 </span>
-                <h2 className="text-xl font-bold tracking-tight">
+                <h2 className="text-xl font-bold tracking-tight" style={{ color: c.value }}>
                   Behandlinger
                 </h2>
               </div>
-              <span className="text-xs" style={{ color: themeColors.muted }}>
+              <span className="text-xs" style={{ color: c.soft }}>
                 {studio.services.length} tilgjengelige valg
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {studio.services.map((item) => {
-                const imageSrc =
-                  SERVICE_IMAGES[item.name] || "/demo/nails/pin-biab.jpg";
+                const imageSrc = serviceImages[item.name] || DEFAULT_SERVICE_IMAGE;
 
                 return (
                   <div
                     key={item.id}
-                    className="rounded-2xl border bg-white overflow-hidden flex flex-col justify-between shadow-sm hover:border-[#1a1a1a] transition-colors"
-                    style={{ borderColor: themeColors.border }}
+                    className="rounded-2xl border overflow-hidden flex flex-col justify-between"
+                    style={{ borderColor: c.border, backgroundColor: c.card }}
                   >
                     <EditorialImage
                       src={imageSrc}
@@ -367,25 +304,24 @@ export default async function StudioHomePage(props: PageProps) {
                     <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
                       <div>
                         <div className="flex justify-between items-start gap-2">
-                          <h3 className="font-bold text-sm">
+                          <h3 className="font-bold text-sm" style={{ color: c.value }}>
                             {item.name}
                           </h3>
-                          <span className="font-bold text-sm shrink-0">
-                            {item.price_nok > 0 ? `${item.price_nok} ${tenantConfig.currency}` : "Gratis"}
+                          <span className="font-bold text-sm shrink-0" style={{ color: c.accent }}>
+                            {item.price_nok > 0
+                              ? `${item.price_nok} ${config.rules.currency}`
+                              : "Gratis"}
                           </span>
                         </div>
-                        <div
-                          className="text-xs pt-1"
-                          style={{ color: themeColors.muted }}
-                        >
+                        <div className="text-xs pt-1" style={{ color: c.soft }}>
                           Varighet: {item.duration_min} minutter
                         </div>
                       </div>
 
                       <a
                         href="#book"
-                        className="w-full text-center py-2 px-3 rounded-xl border text-xs font-semibold hover:bg-neutral-50 transition-colors"
-                        style={{ borderColor: themeColors.border }}
+                        className="w-full text-center py-2 px-3 rounded-xl border text-xs font-semibold transition-colors"
+                        style={{ borderColor: c.borderStrong, color: c.value }}
                       >
                         Velg i timebestilling
                       </a>
@@ -398,43 +334,43 @@ export default async function StudioHomePage(props: PageProps) {
 
           {/* 4. Studio Standards & Hygiene Guarantee */}
           <section
-            className="rounded-2xl border bg-white p-6 space-y-5"
-            style={{ borderColor: themeColors.border }}
+            className="rounded-2xl border p-6 space-y-5"
+            style={{ borderColor: c.border, backgroundColor: c.card }}
           >
             <div className="flex items-center gap-2">
-              <FiShield className="text-lg" />
-              <h2 className="text-base font-bold uppercase tracking-wide">
+              <FiShield className="text-lg" style={{ color: c.accent }} />
+              <h2 className="text-base font-bold uppercase tracking-wide" style={{ color: c.value }}>
                 Studio Standard & Trygghet
               </h2>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-xs">
-                  <FiCheckCircle className="text-emerald-700" />
+                <div className="flex items-center gap-1.5 font-bold text-xs" style={{ color: c.value }}>
+                  <FiCheckCircle style={{ color: c.green }} />
                   Sertifiserte produkter
                 </div>
-                <p className="text-xs leading-relaxed" style={{ color: themeColors.muted }}>
+                <p className="text-xs leading-relaxed" style={{ color: c.label }}>
                   Høyeste standard for materialer og holdbarhet.
                 </p>
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-xs">
-                  <FiCheckCircle className="text-emerald-700" />
+                <div className="flex items-center gap-1.5 font-bold text-xs" style={{ color: c.value }}>
+                  <FiCheckCircle style={{ color: c.green }} />
                   Presisjonsarbeid
                 </div>
-                <p className="text-xs leading-relaxed" style={{ color: themeColors.muted }}>
+                <p className="text-xs leading-relaxed" style={{ color: c.label }}>
                   Nøye tilpasset anatomi for optimalt resultat.
                 </p>
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-xs">
-                  <FiCheckCircle className="text-emerald-700" />
+                <div className="flex items-center gap-1.5 font-bold text-xs" style={{ color: c.value }}>
+                  <FiCheckCircle style={{ color: c.green }} />
                   Enkel avbestilling
                 </div>
-                <p className="text-xs leading-relaxed" style={{ color: themeColors.muted }}>
+                <p className="text-xs leading-relaxed" style={{ color: c.label }}>
                   Avbestill selv inntil 24 timer før oppmøte med ett klikk.
                 </p>
               </div>
@@ -444,8 +380,8 @@ export default async function StudioHomePage(props: PageProps) {
           {/* 5. Sliding Booking Bottom Sheet Engine & Trigger Bar */}
           <div id="book" className="sr-only" aria-hidden="true" />
           <BookingWidget
-            tenantSlug={studio.id}
-            tenantConfig={tenantConfig}
+            tenantSlug={config.id}
+            tenantConfig={config}
             initialServices={studio.services}
             studioName={studio.name}
             studioPhone={studio.phone}
@@ -453,24 +389,28 @@ export default async function StudioHomePage(props: PageProps) {
 
           {/* 6. Location & Contact Details */}
           <section
-            className="p-5 rounded-2xl border bg-white space-y-3 text-xs"
-            style={{ borderColor: themeColors.border }}
+            className="p-5 rounded-2xl border space-y-3 text-xs"
+            style={{ borderColor: c.border, backgroundColor: c.card }}
           >
             <div className="flex items-start gap-3">
-              <FiMapPin className="mt-0.5 shrink-0" style={{ color: themeColors.muted }} />
+              <FiMapPin className="mt-0.5 shrink-0" style={{ color: c.accent }} />
               <div>
-                <div className="font-bold">{studio.location}</div>
-                <div className="text-[11px]" style={{ color: themeColors.muted }}>
+                <div className="font-bold" style={{ color: c.value }}>
+                  {studio.location}
+                </div>
+                <div className="text-[11px]" style={{ color: c.label }}>
                   {studio.transit}
                 </div>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <FiClock className="mt-0.5 shrink-0" style={{ color: themeColors.muted }} />
+              <FiClock className="mt-0.5 shrink-0" style={{ color: c.accent }} />
               <div>
-                <div className="font-bold">{studio.hours}</div>
-                <div className="text-[11px]" style={{ color: themeColors.muted }}>
+                <div className="font-bold" style={{ color: c.value }}>
+                  {studio.hours}
+                </div>
+                <div className="text-[11px]" style={{ color: c.label }}>
                   Drop-in etter avtale · {studio.email}
                 </div>
               </div>
@@ -480,7 +420,7 @@ export default async function StudioHomePage(props: PageProps) {
           {/* 7. Editorial Footer */}
           <footer
             className="pt-8 border-t text-xs space-y-2 text-center pb-12"
-            style={{ borderColor: themeColors.border, color: themeColors.muted }}
+            style={{ borderColor: c.border, color: c.soft }}
           >
             <div>
               {studio.name} · Org.nr. {studio.orgNumber} · {studio.mvaStatus}
@@ -489,7 +429,7 @@ export default async function StudioHomePage(props: PageProps) {
               {studio.location} · {studio.email}
             </div>
             <div className="pt-2 flex items-center justify-center gap-3 text-[11px]">
-              <a href={`/admin?tenant=${slug}`} className="hover:underline">
+              <a href={`/admin?tenant=${config.id}`} className="hover:underline">
                 Admin Portal
               </a>
               <span>·</span>

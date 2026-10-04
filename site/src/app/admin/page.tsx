@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
-import { getTenantConfig } from "@/config/tenants";
+import { getTenantConfig } from "@/config/tenant.config";
 import { ClientDrawer, type AdminBooking } from "@/components/admin/ClientDrawer";
 import { RescheduleModal } from "@/components/admin/RescheduleModal";
 import { ManualBookingModal } from "@/components/admin/ManualBookingModal";

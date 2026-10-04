@@ -5,8 +5,11 @@ import { Step1Services, type ServiceRow } from "./Step1Services";
 import { Step2DateTime } from "./Step2DateTime";
 import { Step3Details, type CustomerDetails } from "./Step3Details";
 import { Step4Confirmed } from "./Step4Confirmed";
-import type { TenantConfig } from "@/config/tenants/types";
-import { GANGINA_CONFIG } from "@/config/tenants/gangina";
+import {
+  getTenantConfig,
+  DEFAULT_TENANT_SLUG,
+  type TenantConfig,
+} from "@/config/tenant.config";
 
 interface BookingWidgetProps {
   tenantSlug?: string;
@@ -47,12 +50,24 @@ function formatDockSlot(slotIso: string): string {
 }
 
 export function BookingWidget({
-  tenantSlug = "gangina",
-  tenantConfig = GANGINA_CONFIG,
+  tenantSlug = DEFAULT_TENANT_SLUG,
+  tenantConfig = getTenantConfig(tenantSlug),
   initialServices = [],
-  studioName = "GANGINA BEAUTY",
-  studioPhone = "+4740000000",
+  studioName,
+  studioPhone,
 }: BookingWidgetProps) {
+  // All display defaults resolve from the active tenant config; callers may
+  // still override explicitly (e.g. with a live DB tenant name).
+  const resolvedStudioName = studioName ?? tenantConfig.name;
+  const resolvedStudioPhone = studioPhone ?? tenantConfig.contact.phone;
+
+  // Expose the active accent to the booking stylesheet (booking.css reads
+  // var(--brand-accent)) so the trigger bar and drawer re-skin per tenant.
+  const themeVars = {
+    "--brand-accent": tenantConfig.theme.colors.accent,
+    "--studio-accent": tenantConfig.theme.colors.accent,
+  } as React.CSSProperties;
+
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [services, setServices] = useState<ServiceRow[]>(initialServices);
@@ -161,58 +176,29 @@ export function BookingWidget({
     };
   }, [tenantSlug, initialServices]);
 
-  // Fallback defaults if table is empty
+  // Fallback defaults pulled from the active tenant config if the DB table is empty
   useEffect(() => {
     if (!servicesLoading && services.length === 0) {
-      const fallback: ServiceRow[] = [
-        {
-          id: 1,
-          tenant_id: tenantSlug,
-          name: "BIAB Forsterkning & Manikyr",
-          duration_min: 60,
-          price_nok: 750,
-          buffer_min: 10,
-          active: true,
-          sort: 0,
-        },
-        {
-          id: 2,
-          tenant_id: tenantSlug,
-          name: "Glazed Donut & Krom Finish",
-          duration_min: 45,
-          price_nok: 600,
-          buffer_min: 10,
-          active: true,
-          sort: 1,
-        },
-        {
-          id: 3,
-          tenant_id: tenantSlug,
-          name: "Håndmalt Nail Art & Design",
-          duration_min: 75,
-          price_nok: 850,
-          buffer_min: 10,
-          active: true,
-          sort: 2,
-        },
-        {
-          id: 4,
-          tenant_id: tenantSlug,
-          name: "Pedikyr & Geleforming",
-          duration_min: 60,
-          price_nok: 700,
-          buffer_min: 10,
-          active: true,
-          sort: 3,
-        },
-      ];
-      setServices(fallback);
-      setSelectedServiceIds([fallback[0].id]);
+      const fallback: ServiceRow[] = tenantConfig.services.map((service, index) => ({
+        id: typeof service.id === "number" ? service.id : Number(service.id) || index + 1,
+        tenant_id: tenantSlug,
+        name: service.name,
+        duration_min: service.durationMin,
+        price_nok: service.priceNok,
+        buffer_min: service.bufferMin ?? null,
+        active: service.active ?? true,
+        sort: service.sort ?? index,
+      }));
+
+      if (fallback.length > 0) {
+        setServices(fallback);
+        setSelectedServiceIds([fallback[0].id]);
+      }
     }
-  }, [servicesLoading, services.length, tenantSlug]);
+  }, [servicesLoading, services.length, tenantSlug, tenantConfig]);
 
   const handleToggleService = (service: ServiceRow) => {
-    if (tenantConfig.allowMultiSelect) {
+    if (tenantConfig.rules.allowMultiSelect) {
       if (selectedServiceIds.includes(service.id)) {
         if (selectedServiceIds.length > 1) {
           setSelectedServiceIds(selectedServiceIds.filter((id) => id !== service.id));
@@ -368,9 +354,10 @@ export function BookingWidget({
         id="bookingTriggerBar"
         aria-label="Booking hurtighandling"
         className={`booking-trigger-bar ${isOpen ? "hidden-dock" : ""}`}
+        style={themeVars}
       >
         <div className="trigger-studio-info">
-          <span className="trigger-studio-name">{studioName}</span>
+          <span className="trigger-studio-name">{resolvedStudioName}</span>
           <div className="trigger-status-badge">
             <span className="trigger-status-dot" aria-hidden="true" />
             <span>Åpen for booking</span>
@@ -394,6 +381,7 @@ export function BookingWidget({
         role="dialog"
         aria-modal="true"
         aria-label="Bestillingsskjema"
+        style={themeVars}
         onClick={() => setIsOpen(false)}
       >
         <div
@@ -456,8 +444,8 @@ export function BookingWidget({
               <Step1Services
                 services={services}
                 selectedServiceIds={selectedServiceIds}
-                allowMultiSelect={tenantConfig.allowMultiSelect}
-                currency={tenantConfig.currency}
+                allowMultiSelect={tenantConfig.rules.allowMultiSelect}
+                currency={tenantConfig.rules.currency}
                 onToggleService={handleToggleService}
                 onContinue={() => setCurrentStep(2)}
               />
@@ -474,7 +462,7 @@ export function BookingWidget({
                     ? selectedServices.map((s) => s.name).join(" + ")
                     : primaryService.name
                 }
-                currency={tenantConfig.currency}
+                currency={tenantConfig.rules.currency}
                 selectedDate={selectedDate}
                 selectedSlotIso={selectedSlotIso}
                 onSelectDate={setSelectedDate}
@@ -486,12 +474,12 @@ export function BookingWidget({
 
             {currentStep === 3 && (
               <Step3Details
-                customFields={tenantConfig.customFields}
-                cancellationPolicyText={tenantConfig.cancellationPolicyText}
+                customFields={tenantConfig.rules.customFields}
+                cancellationPolicyText={tenantConfig.rules.cancellationPolicyText}
                 details={customerDetails}
                 selectedSlotIso={selectedSlotIso}
                 selectedServices={selectedServices}
-                currency={tenantConfig.currency}
+                currency={tenantConfig.rules.currency}
                 serviceSummary={
                   selectedServices.length > 1
                     ? selectedServices.map((s) => s.name).join(" + ")
@@ -513,9 +501,9 @@ export function BookingWidget({
                 customerName={customerDetails.name}
                 customerEmail={customerDetails.email}
                 customerPhone={customerDetails.phone}
-                tenantName={studioName}
-                studioPhone={studioPhone}
-                currency={tenantConfig.currency}
+                tenantName={resolvedStudioName}
+                studioPhone={resolvedStudioPhone}
+                currency={tenantConfig.rules.currency}
                 onReset={handleReset}
                 onClose={() => setIsOpen(false)}
               />
@@ -535,7 +523,7 @@ export function BookingWidget({
                 </span>
                 <span className="dock-total-price">
                   {selectedSlotIso ? `${formatDockSlot(selectedSlotIso)} · ` : ""}
-                  {totalPriceNok} {tenantConfig.currency || "kr"}
+                  {totalPriceNok} {tenantConfig.rules.currency || "kr"}
                 </span>
               </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import type { CustomField } from "@/config/tenants/types";
+import type { CustomField } from "@/config/tenant.config";
 import { getServiceImage, type ServiceRow } from "./Step1Services";
 
 export interface CustomerDetails {

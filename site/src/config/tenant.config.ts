@@ -30,6 +30,8 @@ export interface TenantContact {
   instagram: string;
   address: string;
   transit: string;
+  /** Human-readable opening hours, e.g. "Mandag til Lørdag 10:00 - 18:00". */
+  hours: string;
   orgNumber: string;
   mvaStatus: string;
 }
@@ -153,6 +155,8 @@ export interface TenantAuth {
 
 export interface TenantConfig {
   id: TenantSlug;
+  /** Compact label for switchers and tight UI (e.g. "Gangina", "Klō"). */
+  shortName: string;
   name: string;
   tagline: string;
   niche: string;
@@ -173,6 +177,7 @@ export const DEFAULT_TENANT_SLUG = "gangina";
 
 export const ganginaConfig: TenantConfig = {
   id: "gangina",
+  shortName: "Gangina",
   name: "Gangina Beauty Studio",
   tagline: "Eksklusiv tannsmykking og grillz i Oslo. Sertifisert bonding og presisjonsplassering.",
   niche: "Tannsmykker & Grillz",
@@ -185,6 +190,7 @@ export const ganginaConfig: TenantConfig = {
     instagram: "gangina.gems",
     address: "Bygdøy Allé, Oslo Sentrum",
     transit: "Kollektiv transport rett til døren",
+    hours: "Mandag til Lørdag 10:00 - 18:00",
     orgNumber: "999 888 777",
     mvaStatus: "MVA-registrert",
   },
@@ -302,18 +308,20 @@ export const ganginaConfig: TenantConfig = {
 
 export const studioKloConfig: TenantConfig = {
   id: "studio-klo",
-  name: "STUDIO KLŌ",
-  tagline: "Japansk strukturgelé & organisk neglekunst i Oslo. Naturlig neglehelse og skånsom pleie.",
+  shortName: "Klō",
+  name: "Studio Klō",
+  tagline: "Eksklusiv negledesign og skjønnhetspleie i Oslo.",
   niche: "Japansk Strukturgelé & Neglekunst",
   active: true,
   contact: {
     phone: "+4741122333",
     whatsapp: "4741122333",
-    email: "hello@studioklo.no",
-    ownerEmail: "hello@studioklo.no",
+    email: "abdisalamadam8@gmail.com",
+    ownerEmail: "abdisalamadam8@gmail.com",
     instagram: "studio.klo",
     address: "Frognerveien, Oslo Sentrum",
     transit: "Trikk 12 til Frogner plass",
+    hours: "Tirsdag til Lørdag 10:00 - 19:00",
     orgNumber: "998 776 554",
     mvaStatus: "MVA-registrert",
   },
@@ -329,7 +337,7 @@ export const studioKloConfig: TenantConfig = {
       soft: "#71717A",
       value: "#FAFAFA",
       valueText: "#18181B",
-      accent: "#4A5848",
+      accent: "#A3B18A",
       watermark: "#2E2E33",
       green: "#4ADE80",
       red: "#F87171",
@@ -401,14 +409,14 @@ export const studioKloConfig: TenantConfig = {
     },
   ],
   integrations: {
-    emailFromName: "STUDIO KLŌ",
+    emailFromName: "Studio Klō",
     emailFromAddress: "booking@agure.space",
-    replyTo: "hello@studioklo.no",
+    replyTo: "abdisalamadam8@gmail.com",
     supabaseAssetsBucket: "studio-assets",
     assetsPrefix: "studio-klo",
   },
   auth: {
-    allowedAdminEmails: ["hello@studioklo.no"],
+    allowedAdminEmails: ["abdisalamadam8@gmail.com"],
     masterOtpEnabled: false,
   },
 };
