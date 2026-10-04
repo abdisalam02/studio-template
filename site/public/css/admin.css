@@ -2598,9 +2598,11 @@ body.is-unlocked .admin-shell {
     align-items: flex-start;
     padding-top: max(48px, 12vh);
     padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
-    background-color: rgba(10, 10, 12, 0.86);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    background-color: rgba(10, 10, 12, 0.5);
+    /* One lighter blur pass keeps the frosted look; the dashboard's own blur
+       is skipped below so we never composite two full-screen blurs. */
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
     overscroll-behavior: contain;
   }
 
@@ -2623,7 +2625,7 @@ body.is-unlocked .admin-shell {
     font-size: 20px;
   }
 
-  /* The dense veil fully covers the dashboard; skip the extra blur layer. */
+  /* The veil's blur already frosts the dashboard; skip the second blur layer. */
   body.is-locked .admin-shell {
     filter: none;
   }
