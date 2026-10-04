@@ -126,15 +126,18 @@ const FALLBACK_STUDIO_KLO: StudioData = {
 };
 
 const SERVICE_IMAGES: Record<string, string> = {
-  "Single Gem": "/img/defaults/gem-single.svg",
-  "Iridescent Opal Gem": "/img/defaults/gem-opal.svg",
-  "Custom Shape (Butterfly, Flower, Star)": "/img/defaults/gem-butterfly.svg",
-  "Custom Shape (Butterfly, Star)": "/img/defaults/gem-butterfly.svg",
-  "Custom Grillz Consultation & Impression": "/img/defaults/studio-interior.svg",
-  "Custom Grillz Konsultasjon": "/img/defaults/studio-interior.svg",
-  "Japansk Strukturgelé - Nytt Sett": "/img/defaults/studio-interior.svg",
-  "Nail Art - Tier 2 (Organisk/Abstrakt)": "/img/defaults/gem-opal.svg",
-  "Skånsom Fjerning av Gammel Gelé": "/img/defaults/gem-single.svg",
+  "Single Gem": "/demo/nails/pin-biab.jpg",
+  "Iridescent Opal Gem": "/demo/nails/pin-glazed-donut.jpg",
+  "Custom Shape (Butterfly, Flower, Star)": "/demo/nails/pin-glass-french.jpg",
+  "Custom Shape (Butterfly, Star)": "/demo/nails/pin-glass-french.jpg",
+  "Custom Grillz Consultation & Impression": "/demo/nails/pin-russian-prep.jpg",
+  "Custom Grillz Konsultasjon": "/demo/nails/pin-russian-prep.jpg",
+  "Japansk Strukturgelé - Nytt Sett": "/demo/nails/pin-biab.jpg",
+  "Nail Art - Tier 2 (Organisk/Abstrakt)": "/demo/nails/nail-1.jpg",
+  "Skånsom Fjerning av Gammel Gelé": "/demo/nails/pin-russian-prep.jpg",
+  "Signature Pleie & Form": "/demo/nails/pin-biab.jpg",
+  "Ekspress Touch-up": "/demo/nails/pin-glazed-donut.jpg",
+  "Deluxe Studio Ritual": "/demo/nails/nail-2.jpg",
 };
 
 async function getStudioData(slug: string): Promise<StudioData> {
@@ -346,7 +349,7 @@ export default async function StudioHomePage(props: PageProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {studio.services.map((item) => {
                 const imageSrc =
-                  SERVICE_IMAGES[item.name] || "/img/defaults/studio-interior.svg";
+                  SERVICE_IMAGES[item.name] || "/demo/nails/pin-biab.jpg";
 
                 return (
                   <div
@@ -438,33 +441,15 @@ export default async function StudioHomePage(props: PageProps) {
             </div>
           </section>
 
-          {/* 5. Booking Engine Section */}
-          <section
-            id="book"
-            className="space-y-4 pt-6 border-t scroll-mt-20"
-            style={{ borderColor: themeColors.border }}
-          >
-            <div className="space-y-1">
-              <span
-                className="text-[10px] uppercase font-bold tracking-widest block"
-                style={{ color: themeColors.muted }}
-              >
-                Reservasjon
-              </span>
-              <h2 className="text-2xl font-black uppercase tracking-tight">
-                Bestill Time
-              </h2>
-              <p className="text-xs" style={{ color: themeColors.muted }}>
-                Velg behandlinger og finn tidspunktet som passer for deg.
-              </p>
-            </div>
-
-            <BookingWidget
-              tenantSlug={studio.id}
-              tenantConfig={tenantConfig}
-              initialServices={studio.services}
-            />
-          </section>
+          {/* 5. Sliding Booking Bottom Sheet Engine & Trigger Bar */}
+          <div id="book" className="sr-only" aria-hidden="true" />
+          <BookingWidget
+            tenantSlug={studio.id}
+            tenantConfig={tenantConfig}
+            initialServices={studio.services}
+            studioName={studio.name}
+            studioPhone={studio.phone}
+          />
 
           {/* 6. Location & Contact Details */}
           <section

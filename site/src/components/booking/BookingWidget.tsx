@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Stepper } from "./Stepper";
-import { SelectionBar } from "./SelectionBar";
+import React, { useState, useEffect, useRef } from "react";
 import { Step1Services, type ServiceRow } from "./Step1Services";
 import { Step2DateTime } from "./Step2DateTime";
 import { Step3Details, type CustomerDetails } from "./Step3Details";
@@ -14,13 +12,18 @@ interface BookingWidgetProps {
   tenantSlug?: string;
   tenantConfig?: TenantConfig;
   initialServices?: ServiceRow[];
+  studioName?: string;
+  studioPhone?: string;
 }
 
 export function BookingWidget({
-  tenantSlug = "atelier",
+  tenantSlug = "gangina",
   tenantConfig = GANGINA_CONFIG,
   initialServices = [],
+  studioName = "GANGINA BEAUTY",
+  studioPhone = "+4740000000",
 }: BookingWidgetProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [services, setServices] = useState<ServiceRow[]>(initialServices);
   const [servicesLoading, setServicesLoading] = useState(initialServices.length === 0);
@@ -41,17 +44,63 @@ export function BookingWidget({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [bookingRef, setBookingRef] = useState<string>("");
 
+  // Touch drag swipe-to-dismiss states
+  const touchStartYRef = useRef<number | null>(null);
+  const [dragOffset, setDragOffset] = useState<number>(0);
+
+  // Intercept any click to a[href="#book"] or #book in hash to open drawer
+  useEffect(() => {
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement)?.closest('a[href="#book"]');
+      if (target) {
+        e.preventDefault();
+        setIsOpen(true);
+      }
+    };
+
+    const handleHash = () => {
+      if (window.location.hash === "#book") {
+        setIsOpen(true);
+      }
+    };
+
+    document.addEventListener("click", handleAnchorClick);
+    window.addEventListener("hashchange", handleHash);
+    if (typeof window !== "undefined" && window.location.hash === "#book") {
+      setIsOpen(true);
+    }
+
+    return () => {
+      document.removeEventListener("click", handleAnchorClick);
+      window.removeEventListener("hashchange", handleHash);
+    };
+  }, []);
+
+  // Lock background scroll when open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
   // Fetch tenant services if not provided initially
   useEffect(() => {
-    if (initialServices.length > 0) return;
+    if (initialServices.length > 0) {
+      setServices(initialServices);
+      if (initialServices.length > 0 && selectedServiceIds.length === 0) {
+        setSelectedServiceIds([initialServices[0].id]);
+      }
+      return;
+    }
 
     let isCancelled = false;
     setServicesLoading(true);
 
-    fetch(`/api/v1/t/${tenantSlug}/availability?from=${new Date().toISOString().split("T")[0]}&to=${new Date().toISOString().split("T")[0]}&service_id=1`)
-      .catch(() => null);
-
-    // Fetch active services directly
     const loadServices = async () => {
       try {
         const { supabase } = await import("@/lib/supabase");
@@ -82,14 +131,14 @@ export function BookingWidget({
     };
   }, [tenantSlug, initialServices]);
 
-  // Fallback fallback mock if database services table has no rows
+  // Fallback defaults if table is empty
   useEffect(() => {
     if (!servicesLoading && services.length === 0) {
       const fallback: ServiceRow[] = [
         {
           id: 1,
           tenant_id: tenantSlug,
-          name: "Signature Pleie & Form",
+          name: "BIAB Forsterkning & Manikyr",
           duration_min: 60,
           price_nok: 750,
           buffer_min: 10,
@@ -99,9 +148,9 @@ export function BookingWidget({
         {
           id: 2,
           tenant_id: tenantSlug,
-          name: "Ekspress Touch-up",
-          duration_min: 30,
-          price_nok: 450,
+          name: "Glazed Donut & Krom Finish",
+          duration_min: 45,
+          price_nok: 600,
           buffer_min: 10,
           active: true,
           sort: 1,
@@ -109,12 +158,22 @@ export function BookingWidget({
         {
           id: 3,
           tenant_id: tenantSlug,
-          name: "Deluxe Studio Ritual",
-          duration_min: 90,
-          price_nok: 1100,
-          buffer_min: 15,
+          name: "Håndmalt Nail Art & Design",
+          duration_min: 75,
+          price_nok: 850,
+          buffer_min: 10,
           active: true,
           sort: 2,
+        },
+        {
+          id: 4,
+          tenant_id: tenantSlug,
+          name: "Pedikyr & Geleforming",
+          duration_min: 60,
+          price_nok: 700,
+          buffer_min: 10,
+          active: true,
+          sort: 3,
         },
       ];
       setServices(fallback);
@@ -141,9 +200,17 @@ export function BookingWidget({
   const totalPriceNok = selectedServices.reduce((acc, s) => acc + s.price_nok, 0);
   const totalDurationMin = selectedServices.reduce((acc, s) => acc + s.duration_min, 0);
 
-  const handleSubmitBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitBooking = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!selectedSlotIso || selectedServices.length === 0) return;
+    if (!customerDetails.name || !customerDetails.email || !customerDetails.phone) {
+      setSubmitError("Vennligst fyll ut alle obligatoriske felt.");
+      return;
+    }
+    if (!customerDetails.cancellationConsent) {
+      setSubmitError("Vennligst godkjenn avbestillingsbetingelsene.");
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -204,87 +271,271 @@ export function BookingWidget({
     setSubmitError(null);
   };
 
+  // Touch handlers for swipe to dismiss (threshold: 70px)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartYRef.current === null) return;
+    const deltaY = e.touches[0].clientY - touchStartYRef.current;
+    if (deltaY > 0) {
+      setDragOffset(deltaY);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragOffset > 70) {
+      setIsOpen(false);
+    }
+    setDragOffset(0);
+    touchStartYRef.current = null;
+  };
+
+  // Step Titles
+  const stepTitles: Record<number, string> = {
+    1: "Velg Behandling",
+    2: "Velg Tidspunkt",
+    3: "Dine Opplysninger",
+    4: "Kvittering",
+  };
+
   return (
-    <div className="w-full max-w-2xl mx-auto rounded-3xl border border-border bg-surface p-4 sm:p-8 space-y-6 shadow-sm">
-      {/* Stepper Wizard Header */}
-      <Stepper currentStep={currentStep} />
+    <>
+      {/* 1. Pre-footer Floating Trigger Bar */}
+      <aside
+        id="bookingTriggerBar"
+        aria-label="Booking hurtighandling"
+        className={`booking-trigger-bar ${isOpen ? "hidden-dock" : ""}`}
+      >
+        <div className="trigger-studio-info">
+          <span className="trigger-studio-name">{studioName}</span>
+          <div className="trigger-status-badge">
+            <span className="trigger-status-dot" aria-hidden="true" />
+            <span>Åpen for booking</span>
+          </div>
+        </div>
 
-      {/* Floating Summary Bar (Steps 1, 2, 3) */}
-      {currentStep < 4 && selectedServices.length > 0 && (
-        <SelectionBar
-          selectedNames={selectedServices.map((s) => s.name)}
-          totalPriceNok={totalPriceNok}
-          currency={tenantConfig.currency}
-        />
-      )}
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="trigger-cta-btn"
+        >
+          <span>Bestill time</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      </aside>
 
-      {/* Step 1: Services */}
-      {currentStep === 1 && (
-        <Step1Services
-          services={services}
-          selectedServiceIds={selectedServiceIds}
-          allowMultiSelect={tenantConfig.allowMultiSelect}
-          currency={tenantConfig.currency}
-          onToggleService={handleToggleService}
-          onContinue={() => setCurrentStep(2)}
-        />
-      )}
-
-      {/* Step 2: Date & Time */}
-      {currentStep === 2 && primaryService && (
-        <Step2DateTime
-          tenantSlug={tenantSlug}
-          primaryServiceId={primaryService.id}
-          totalDurationMin={totalDurationMin}
-          totalPriceNok={totalPriceNok}
-          serviceSummary={
-            selectedServices.length > 1
-              ? selectedServices.map((s) => s.name).join(" + ")
-              : primaryService.name
+      {/* 2. Sliding Bottom Sheet Drawer Modal */}
+      <div
+        id="bookingDrawerOverlay"
+        className={`booking-drawer-overlay ${isOpen ? "open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Bestillingsskjema"
+        onClick={() => setIsOpen(false)}
+      >
+        <div
+          id="bookingDrawerSheet"
+          className="booking-drawer-sheet"
+          onClick={(e) => e.stopPropagation()}
+          style={
+            dragOffset > 0
+              ? { transform: `translateY(${dragOffset}px)`, transition: "none" }
+              : undefined
           }
-          currency={tenantConfig.currency}
-          selectedDate={selectedDate}
-          selectedSlotIso={selectedSlotIso}
-          onSelectDate={setSelectedDate}
-          onSelectSlot={setSelectedSlotIso}
-          onBack={() => setCurrentStep(1)}
-          onContinue={() => setCurrentStep(3)}
-        />
-      )}
+        >
+          {/* Tactile Drag Handle (Swipe to dismiss) */}
+          <div
+            className="drawer-drag-wrap"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="drawer-drag-pill" />
+          </div>
 
-      {/* Step 3: Details & Custom Intake */}
-      {currentStep === 3 && (
-        <Step3Details
-          customFields={tenantConfig.customFields}
-          cancellationPolicyText={tenantConfig.cancellationPolicyText}
-          details={customerDetails}
-          selectedSlotIso={selectedSlotIso}
-          serviceSummary={
-            selectedServices.length > 1
-              ? selectedServices.map((s) => s.name).join(" + ")
-              : primaryService.name
-          }
-          onChangeDetails={setCustomerDetails}
-          onSubmit={handleSubmitBooking}
-          onBack={() => setCurrentStep(2)}
-          submitting={submitting}
-          submitError={submitError}
-        />
-      )}
+          {/* Minimalist Header */}
+          <header className="drawer-header">
+            {currentStep > 1 && currentStep < 4 ? (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((prev) => prev - 1)}
+                className="drawer-back-btn"
+              >
+                ← Tilbake
+              </button>
+            ) : (
+              <div className="min-w-[60px]" />
+            )}
 
-      {/* Step 4: Confirmed */}
-      {currentStep === 4 && (
-        <Step4Confirmed
-          bookingRef={bookingRef}
-          selectedServices={selectedServices}
-          selectedSlotIso={selectedSlotIso}
-          customerName={customerDetails.name}
-          customerEmail={customerDetails.email}
-          tenantName={tenantConfig.name}
-          currency={tenantConfig.currency}
-          onReset={handleReset}
-        />
-      )}
-    </div>
+            <h2 className="drawer-step-title">{stepTitles[currentStep]}</h2>
+
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="drawer-close-btn"
+              aria-label="Lukk bestillingsvindu"
+            >
+              ✕
+            </button>
+          </header>
+
+          {/* 4-Step Hairline Progress Bar */}
+          <div className="drawer-progress-track">
+            <div
+              className="drawer-progress-fill"
+              style={{ width: `${currentStep * 25}%` }}
+            />
+          </div>
+
+          {/* Scrollable Drawer Content */}
+          <div className="drawer-content-scroll">
+            {currentStep === 1 && (
+              <Step1Services
+                services={services}
+                selectedServiceIds={selectedServiceIds}
+                allowMultiSelect={tenantConfig.allowMultiSelect}
+                currency={tenantConfig.currency}
+                onToggleService={handleToggleService}
+                onContinue={() => setCurrentStep(2)}
+              />
+            )}
+
+            {currentStep === 2 && primaryService && (
+              <Step2DateTime
+                tenantSlug={tenantSlug}
+                primaryServiceId={primaryService.id}
+                totalDurationMin={totalDurationMin}
+                totalPriceNok={totalPriceNok}
+                serviceSummary={
+                  selectedServices.length > 1
+                    ? selectedServices.map((s) => s.name).join(" + ")
+                    : primaryService.name
+                }
+                currency={tenantConfig.currency}
+                selectedDate={selectedDate}
+                selectedSlotIso={selectedSlotIso}
+                onSelectDate={setSelectedDate}
+                onSelectSlot={setSelectedSlotIso}
+                onBack={() => setCurrentStep(1)}
+                onContinue={() => setCurrentStep(3)}
+              />
+            )}
+
+            {currentStep === 3 && (
+              <Step3Details
+                customFields={tenantConfig.customFields}
+                cancellationPolicyText={tenantConfig.cancellationPolicyText}
+                details={customerDetails}
+                selectedSlotIso={selectedSlotIso}
+                serviceSummary={
+                  selectedServices.length > 1
+                    ? selectedServices.map((s) => s.name).join(" + ")
+                    : primaryService.name
+                }
+                onChangeDetails={setCustomerDetails}
+                onSubmit={handleSubmitBooking}
+                onBack={() => setCurrentStep(2)}
+                submitting={submitting}
+                submitError={submitError}
+              />
+            )}
+
+            {currentStep === 4 && (
+              <Step4Confirmed
+                bookingRef={bookingRef}
+                selectedServices={selectedServices}
+                selectedSlotIso={selectedSlotIso}
+                customerName={customerDetails.name}
+                customerEmail={customerDetails.email}
+                customerPhone={customerDetails.phone}
+                tenantName={studioName}
+                studioPhone={studioPhone}
+                currency={tenantConfig.currency}
+                onReset={handleReset}
+                onClose={() => setIsOpen(false)}
+              />
+            )}
+          </div>
+
+          {/* Pinned Bottom Action Dock (Steps 1, 2, 3) */}
+          {currentStep < 4 && (
+            <div id="drawerPinnedDock" className="drawer-pinned-dock">
+              <div className="dock-summary-col">
+                <span className="dock-services-count">
+                  {selectedServices.length}{" "}
+                  {selectedServices.length === 1 ? "behandling valgt" : "behandlinger valgt"}
+                </span>
+                <span className="dock-total-price">
+                  {totalPriceNok} {tenantConfig.currency || "kr"}
+                </span>
+              </div>
+
+              {currentStep === 1 && (
+                <button
+                  type="button"
+                  disabled={selectedServices.length === 0}
+                  onClick={() => setCurrentStep(2)}
+                  className="dock-submit-btn"
+                >
+                  <span>Neste</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              )}
+
+              {currentStep === 2 && (
+                <button
+                  type="button"
+                  disabled={!selectedSlotIso}
+                  onClick={() => setCurrentStep(3)}
+                  className="dock-submit-btn"
+                >
+                  <span>Neste</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              )}
+
+              {currentStep === 3 && (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => handleSubmitBooking()}
+                  className="dock-submit-btn"
+                >
+                  {submitting ? (
+                    <span className="inline-flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8H4z"
+                        />
+                      </svg>
+                      <span>Sender...</span>
+                    </span>
+                  ) : (
+                    <span>Bekreft Bestilling</span>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

@@ -33,3 +33,5 @@ admin-screenshots/
 capture-*.js
 test-*.js
 inspect-*.js
+audit_backend.js
+studio_audit.txt

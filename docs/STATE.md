@@ -1,10 +1,10 @@
 # STATE.md: resume point (read first, keep under 30 lines)
 
-Updated: 2026-10-02
+Updated: 2026-10-04
 
 ## Now
-- Task: Real email OTP & Master Key auth, dynamic API origin, and iPhone SE small screen responsiveness
-- Status: Verified with Playwright, tsc --noEmit, and verify check pass, ready for commit and push
+- Task: Refactored in-page wizard into 92dvh sliding bottom sheet drawer with nail service images and month picker
+- Status: Verified with npm run verify and tsc --noEmit pass
 
 ## Next (max 3)
 1. User testing and approval to git push

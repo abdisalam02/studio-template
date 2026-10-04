@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { YinYangWave } from "@/components/ui/YinYangWave";
 
 interface Step2DateTimeProps {
   tenantSlug: string;
@@ -19,7 +18,7 @@ interface Step2DateTimeProps {
   onContinue: () => void;
 }
 
-const NO_WEEKDAY_INITIALS = ["S", "M", "T", "O", "T", "F", "L"];
+const NO_WEEKDAY_NAMES = ["Søn", "Man", "Tir", "Ons", "Tor", "Fre", "Lør"];
 const NO_MONTH_NAMES = [
   "Januar", "Februar", "Mars", "April", "Mai", "Juni",
   "Juli", "August", "September", "Oktober", "November", "Desember",
@@ -56,17 +55,11 @@ function formatSlotTime(slot: string): string {
 export function Step2DateTime({
   tenantSlug,
   primaryServiceId,
-  totalDurationMin,
-  totalPriceNok,
-  serviceSummary,
-  currency = "kr",
   selectedDate,
   selectedSlotIso,
-  maxDaysAhead = 30,
+  maxDaysAhead = 35,
   onSelectDate,
   onSelectSlot,
-  onBack,
-  onContinue,
 }: Step2DateTimeProps) {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     const d = new Date();
@@ -77,10 +70,10 @@ export function Step2DateTime({
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showMonthModal, setShowMonthModal] = useState(false);
 
-  // Month state for popover calendar
-  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+  // Month state for standalone 35-day grid picker
+  const [monthViewDate, setMonthViewDate] = useState<Date>(() => {
     const d = new Date();
     d.setDate(1);
     d.setHours(0, 0, 0, 0);
@@ -94,9 +87,15 @@ export function Step2DateTime({
     return formatDateString(d);
   }, [maxDaysAhead]);
 
-  // 7-Day horizontal strip
+  // 7-day horizontal scroll strip
   const daysInStrip = useMemo(() => {
-    const days: { dateStr: string; weekdayInitial: string; dayNum: number; isToday: boolean; isPast: boolean }[] = [];
+    const days: {
+      dateStr: string;
+      weekdayName: string;
+      dayNum: number;
+      isToday: boolean;
+      isPast: boolean;
+    }[] = [];
 
     for (let i = 0; i < 7; i++) {
       const cur = new Date(currentWeekStart);
@@ -104,7 +103,7 @@ export function Step2DateTime({
       const str = formatDateString(cur);
       days.push({
         dateStr: str,
-        weekdayInitial: NO_WEEKDAY_INITIALS[cur.getDay()],
+        weekdayName: NO_WEEKDAY_NAMES[cur.getDay()],
         dayNum: cur.getDate(),
         isToday: str === todayStr,
         isPast: str < todayStr,
@@ -113,7 +112,7 @@ export function Step2DateTime({
     return days;
   }, [currentWeekStart, todayStr]);
 
-  // Auto-select first available valid day
+  // Auto-select first valid day in strip if none selected
   useEffect(() => {
     if (!selectedDate && daysInStrip.length > 0) {
       const firstValid = daysInStrip.find((d) => !d.isPast);
@@ -123,7 +122,7 @@ export function Step2DateTime({
     }
   }, [daysInStrip, selectedDate, onSelectDate]);
 
-  // Fetch availability
+  // Fetch availability for selectedDate
   useEffect(() => {
     if (!selectedDate || !primaryServiceId) return;
 
@@ -141,7 +140,7 @@ export function Step2DateTime({
     )
       .then(async (res) => {
         if (!res.ok) {
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
           throw new Error(data.message || data.error || "Kunne ikke hente ledige timer.");
         }
         return res.json();
@@ -166,296 +165,308 @@ export function Step2DateTime({
     };
   }, [tenantSlug, primaryServiceId, selectedDate]);
 
-  // Navigation handlers
+  // Handlers for week strip navigation
   const handlePrevWeek = () => {
     const next = new Date(currentWeekStart);
-    next.setDate(next.getDate() - 7);
-    setCurrentWeekStart(next);
+    next.setDate(currentWeekStart.getDate() - 7);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (next < today) {
+      setCurrentWeekStart(today);
+    } else {
+      setCurrentWeekStart(next);
+    }
   };
 
   const handleNextWeek = () => {
     const next = new Date(currentWeekStart);
-    next.setDate(next.getDate() + 7);
+    next.setDate(currentWeekStart.getDate() + 7);
     setCurrentWeekStart(next);
   };
 
-  // Month Carousel names
-  const curMonthIdx = currentWeekStart.getMonth();
-  const prevMonthName = NO_MONTH_NAMES[(curMonthIdx + 11) % 12];
-  const currentMonthName = NO_MONTH_NAMES[curMonthIdx];
-  const nextMonthName = NO_MONTH_NAMES[(curMonthIdx + 1) % 12];
-  const currentYear = currentWeekStart.getFullYear();
+  // Month navigation for modal
+  const handlePrevMonth = () => {
+    const prev = new Date(monthViewDate);
+    prev.setMonth(monthViewDate.getMonth() - 1);
+    setMonthViewDate(prev);
+  };
 
-  // Selected slot formatting
-  const isSlotSelected = !!selectedSlotIso;
-  const selectedSlotFormattedTime = isSlotSelected ? formatSlotTime(selectedSlotIso) : "";
+  const handleNextMonth = () => {
+    const next = new Date(monthViewDate);
+    next.setMonth(monthViewDate.getMonth() + 1);
+    setMonthViewDate(next);
+  };
+
+  // 35-day grid generator (5 weeks x 7 days)
+  const monthGridDays = useMemo(() => {
+    const year = monthViewDate.getFullYear();
+    const month = monthViewDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    // Norwegian calendar: Monday is 1, Sunday is 7
+    let dayOfWeek = firstDay.getDay(); // 0 is Sunday
+    if (dayOfWeek === 0) dayOfWeek = 7;
+    const offset = dayOfWeek - 1;
+
+    const startDate = new Date(year, month, 1 - offset);
+    const cells: {
+      dateStr: string;
+      dayNum: number;
+      isCurrentMonth: boolean;
+      isDisabled: boolean;
+      isSelected: boolean;
+    }[] = [];
+
+    for (let i = 0; i < 35; i++) {
+      const cur = new Date(startDate);
+      cur.setDate(startDate.getDate() + i);
+      const str = formatDateString(cur);
+      const isPast = str < todayStr;
+      const isBeyondMax = str > maxDateStr;
+
+      cells.push({
+        dateStr: str,
+        dayNum: cur.getDate(),
+        isCurrentMonth: cur.getMonth() === month,
+        isDisabled: isPast || isBeyondMax,
+        isSelected: selectedDate === str,
+      });
+    }
+
+    return cells;
+  }, [monthViewDate, todayStr, maxDateStr, selectedDate]);
+
+  const activeMonthLabel = useMemo(() => {
+    const m = NO_MONTH_NAMES[currentWeekStart.getMonth()];
+    const y = currentWeekStart.getFullYear();
+    return `${m} ${y}`;
+  }, [currentWeekStart]);
+
+  const modalMonthLabel = useMemo(() => {
+    const m = NO_MONTH_NAMES[monthViewDate.getMonth()];
+    const y = monthViewDate.getFullYear();
+    return `${m} ${y}`;
+  }, [monthViewDate]);
 
   return (
-    <div className="w-full rounded-[32px] overflow-hidden border border-[#EAE6E1] bg-white shadow-sm font-sans">
-      {/* 1. TOP WHITE CANVAS: CHEVRON, MONTH CAROUSEL & 7-DAY STRIP */}
-      <div className="p-5 sm:p-7 space-y-6 bg-white text-[#0D0D0D]">
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onBack}
-            className="w-9 h-9 rounded-full border border-[#EAE6E1] flex items-center justify-center text-sm font-bold hover:bg-neutral-100 transition-colors cursor-pointer"
-            aria-label="Tilbake til behandlinger"
-          >
-            ‹
-          </button>
-
-          <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-[#8a8a8a]">
-            Tidsvelger
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setShowCalendarModal(true)}
-            className="w-9 h-9 rounded-full bg-[#0D0D0D] text-white flex items-center justify-center text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer"
-            title="Åpne full kalender"
-          >
-            📅
-          </button>
-        </div>
-
-        {/* Horizontal Month Carousel */}
-        <div className="flex items-center justify-between px-1 select-none">
+    <section aria-labelledby="step2-heading" className="space-y-5">
+      {/* 1. Header with Month Label & "Velg dato 📅" Trigger */}
+      <div className="month-trigger-row">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handlePrevWeek}
-            className="text-xs font-medium text-neutral-300 hover:text-neutral-600 transition-colors cursor-pointer"
+            className="w-7 h-7 rounded-full border border-neutral-200 flex items-center justify-center text-xs font-bold hover:bg-neutral-100 transition-colors"
+            aria-label="Forrige uke"
           >
-            {prevMonthName}
+            ‹
           </button>
-
-          <h3 className="text-xl sm:text-2xl font-black tracking-tight text-[#0D0D0D]">
-            {currentMonthName} <span className="text-neutral-400 font-normal text-base">{currentYear}</span>
-          </h3>
-
+          <span className="font-extrabold text-sm text-[#18181b] tracking-tight">
+            {activeMonthLabel}
+          </span>
           <button
             type="button"
             onClick={handleNextWeek}
-            className="text-xs font-medium text-neutral-300 hover:text-neutral-600 transition-colors cursor-pointer"
+            className="w-7 h-7 rounded-full border border-neutral-200 flex items-center justify-center text-xs font-bold hover:bg-neutral-100 transition-colors"
+            aria-label="Neste uke"
           >
-            {nextMonthName}
+            ›
           </button>
         </div>
 
-        {/* Horizontal 7-Day Strip with Active Day Capsule */}
-        <div className="flex items-center justify-between gap-1 sm:gap-2 pt-1 overflow-x-auto pb-1 no-scrollbar">
-          {daysInStrip.map((d) => {
-            const isSelected = selectedDate === d.dateStr;
-            return (
-              <button
-                key={d.dateStr}
-                type="button"
-                disabled={d.isPast}
-                onClick={() => {
-                  onSelectDate(d.dateStr);
-                  onSelectSlot(""); // Reset slot when date changes
-                }}
-                className={`transition-all flex flex-col items-center justify-center cursor-pointer shrink-0 ${
-                  isSelected
-                    ? "bg-[#0D0D0D] text-white rounded-full w-11 py-3.5 shadow-lg scale-105"
-                    : d.isPast
-                    ? "opacity-25 cursor-not-allowed w-10 py-2.5 text-[#8a8a8a]"
-                    : "hover:bg-neutral-100 rounded-full w-10 py-2.5 text-[#0D0D0D]"
-                }`}
-              >
-                <span className="text-[10px] uppercase font-bold tracking-wider opacity-70">
-                  {d.weekdayInitial}
-                </span>
-                <span className="text-sm font-extrabold mt-1">
-                  {d.dayNum}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (selectedDate) {
+              const d = parseLocalDate(selectedDate);
+              d.setDate(1);
+              setMonthViewDate(d);
+            }
+            setShowMonthModal(true);
+          }}
+          className="btn-open-month-grid"
+        >
+          <span>Velg dato</span>
+          <span aria-hidden="true">📅</span>
+        </button>
       </div>
 
-      {/* 2. THE ASYMMETRICAL WAVE S-CURVE TRANSITION */}
-      <YinYangWave fill="#0D0D0D" direction="down" />
+      {/* 2. 7-Day Horizontal Strip */}
+      <div className="days-horizontal-reel" role="radiogroup" aria-label="Velg dag">
+        {daysInStrip.map((day) => {
+          const isSelected = selectedDate === day.dateStr;
+          return (
+            <button
+              key={day.dateStr}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              disabled={day.isPast}
+              onClick={() => {
+                onSelectDate(day.dateStr);
+                onSelectSlot("");
+              }}
+              className={`day-pill-vert ${isSelected ? "selected" : ""} ${
+                day.isPast ? "disabled" : ""
+              }`}
+            >
+              <span className="day-pill-weekday">{day.weekdayName}</span>
+              <span className="day-pill-num">{day.dayNum}</span>
+            </button>
+          );
+        })}
+      </div>
 
-      {/* 3. BOTTOM BLACK CANVAS: TIMELINE & INVERTED ACTIVE CARD */}
-      <div className="bg-[#0D0D0D] text-white p-6 sm:p-8 space-y-6 -mt-1">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div>
-            <h4 className="text-base font-bold text-white tracking-tight">
-              Ledige tidspunkter
-            </h4>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              {selectedDate
-                ? parseLocalDate(selectedDate).toLocaleDateString("no-NO", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                  })
-                : "Velg dato ovenfor"}
-            </p>
-          </div>
-          <span className="text-[11px] font-mono text-[#C5A880]">
-            {availableSlots.length} ledige
+      {/* 3. Available Time Slots Matrix */}
+      <div className="pt-2">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+            Ledige Tidspunkter
           </span>
+          {selectedSlotIso && (
+            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Valgt: {formatSlotTime(selectedSlotIso)}
+            </span>
+          )}
         </div>
 
-        {/* Loading / Error states */}
-        {loading && (
-          <div className="py-8 text-center text-xs text-neutral-400 animate-pulse">
-            Beregner ledige tidspunkter...
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-2 text-neutral-400">
+            <svg
+              className="animate-spin h-5 w-5 text-neutral-800"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
+            </svg>
+            <span className="text-xs">Henter ledige timer...</span>
           </div>
-        )}
-
-        {error && (
-          <div className="p-3.5 rounded-2xl bg-red-950/60 border border-red-800/40 text-red-300 text-xs">
+        ) : error ? (
+          <div className="py-8 text-center text-xs text-rose-600">
             {error}
           </div>
-        )}
-
-        {/* Vertical Timeline Track */}
-        {!loading && !error && availableSlots.length === 0 && (
-          <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center text-xs text-neutral-400">
-            Ingen ledige timer denne dagen. Prøv en annen dato i kalenderen.
+        ) : availableSlots.length === 0 ? (
+          <div className="py-10 text-center text-neutral-400 text-xs">
+            Ingen ledige timer funnet på denne datoen. Vennligst velg en annen dag i kalenderen.
           </div>
-        )}
+        ) : (
+          <div className="time-slots-matrix">
+            {availableSlots.map((slot) => {
+              const formatted = formatSlotTime(slot);
+              const isSelected = selectedSlotIso === slot;
 
-        {!loading && availableSlots.length > 0 && (
-          <div className="space-y-4">
-            {/* Slot pills along timeline */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-              {availableSlots.map((slot) => {
-                const isSelected =
-                  selectedSlotIso === slot ||
-                  selectedSlotIso === `${selectedDate}T${slot}:00` ||
-                  selectedSlotIso === `${selectedDate}T${slot}:00.000Z` ||
-                  selectedSlotIso.includes(`T${slot}`);
-
-                const slotValue = slot.includes("T")
-                  ? slot
-                  : `${selectedDate}T${slot}:00`;
-
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => onSelectSlot(slotValue)}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold tracking-tight transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-[#C5A880] text-[#0D0D0D] shadow-md scale-105"
-                        : "bg-white/10 text-white hover:bg-white/20 border border-white/5"
-                    }`}
-                  >
-                    {slot}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Inverted Active Card State */}
-            {isSlotSelected && (
-              <div className="mt-6 bg-white text-[#0D0D0D] rounded-2xl p-5 shadow-2xl space-y-4 border-l-4 border-[#C5A880] animate-in fade-in duration-200">
-                <div className="flex justify-between items-start gap-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-[#8a8a8a] block">
-                      Valgt tidspunkt
-                    </span>
-                    <h5 className="text-base font-extrabold text-[#0D0D0D] mt-0.5">
-                      {serviceSummary || "Behandling"}
-                    </h5>
-                    <p className="text-xs text-neutral-600 mt-1 flex items-center gap-1.5">
-                      <span className="font-bold text-[#0D0D0D]">Kl. {selectedSlotFormattedTime}</span>
-                      <span>·</span>
-                      <span>{totalDurationMin} min</span>
-                    </p>
-                  </div>
-
-                  {totalPriceNok != null && (
-                    <div className="text-right">
-                      <span className="text-base font-black text-[#0D0D0D]">
-                        {totalPriceNok > 0 ? `${totalPriceNok} ${currency}` : "Gratis"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
+              return (
                 <button
+                  key={slot}
                   type="button"
-                  onClick={onContinue}
-                  className="w-full py-3.5 px-5 rounded-full bg-[#0D0D0D] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer text-center"
+                  onClick={() => onSelectSlot(slot)}
+                  className={`time-slot-btn ${isSelected ? "active" : ""}`}
                 >
-                  Gå videre til detaljer →
+                  {formatted}
                 </button>
-              </div>
-            )}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* 30-Day Calendar Popover Modal */}
-      {showCalendarModal && (
+      {/* 4. Standalone 35-Day Month Grid Picker Dialog */}
+      <div
+        id="monthModalBackdrop"
+        className={`month-modal-backdrop ${showMonthModal ? "open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Full månedskalender"
+        onClick={() => setShowMonthModal(false)}
+      >
         <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 font-sans"
-          onClick={() => setShowCalendarModal(false)}
+          className="month-modal-card"
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="w-full max-w-sm rounded-3xl bg-white border border-[#EAE6E1] p-6 space-y-4 shadow-2xl text-[#0D0D0D]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#EAE6E1] pb-3">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-[#0D0D0D]">
-                Velg dato (30 dager)
-              </h4>
+          {/* Modal Header */}
+          <div className="month-modal-head">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center text-sm font-bold hover:bg-neutral-100"
+              aria-label="Forrige måned"
+            >
+              ‹
+            </button>
+            <span className="font-bold text-sm text-[#18181b]">
+              {modalMonthLabel}
+            </span>
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setShowCalendarModal(false)}
-                className="text-neutral-400 hover:text-black text-sm cursor-pointer p-1"
+                onClick={handleNextMonth}
+                className="w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center text-sm font-bold hover:bg-neutral-100"
+                aria-label="Neste måned"
+              >
+                ›
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMonthModal(false)}
+                className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 hover:text-black flex items-center justify-center text-xs ml-1"
+                aria-label="Lukk kalender"
               >
                 ✕
               </button>
             </div>
+          </div>
 
-            <div className="space-y-3">
-              {/* Next 30 days quick list */}
-              <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto p-1 text-xs">
-                {Array.from({ length: maxDaysAhead }).map((_, i) => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + i);
-                  const str = formatDateString(d);
-                  const isSelected = selectedDate === str;
-                  const dayName = NO_WEEKDAY_INITIALS[d.getDay()];
+          {/* Weekday initials header (M T O T F L S) */}
+          <div className="grid grid-cols-7 gap-1 text-center mb-1 text-[10px] font-bold uppercase text-neutral-400">
+            <div>M</div>
+            <div>T</div>
+            <div>O</div>
+            <div>T</div>
+            <div>F</div>
+            <div>L</div>
+            <div>S</div>
+          </div>
 
-                  return (
-                    <button
-                      key={str}
-                      type="button"
-                      onClick={() => {
-                        onSelectDate(str);
-                        onSelectSlot("");
-                        const weekStart = new Date(d);
-                        weekStart.setDate(d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1));
-                        setCurrentWeekStart(weekStart);
-                        setShowCalendarModal(false);
-                      }}
-                      className={`p-2 rounded-xl text-center transition-colors cursor-pointer ${
-                        isSelected
-                          ? "bg-[#0D0D0D] text-white font-bold"
-                          : "bg-neutral-100 hover:bg-neutral-200 text-[#0D0D0D]"
-                      }`}
-                    >
-                      <div className="text-[9px] uppercase opacity-70">{dayName}</div>
-                      <div className="font-extrabold">{d.getDate()}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          {/* 35 Grid Cells */}
+          <div className="month-grid-cells">
+            {monthGridDays.map((cell) => (
+              <button
+                key={cell.dateStr}
+                type="button"
+                disabled={cell.isDisabled}
+                onClick={() => {
+                  onSelectDate(cell.dateStr);
+                  onSelectSlot("");
+                  // Center the 7-day strip on this week
+                  const d = parseLocalDate(cell.dateStr);
+                  let dayOfWeek = d.getDay();
+                  if (dayOfWeek === 0) dayOfWeek = 7;
+                  d.setDate(d.getDate() - dayOfWeek + 1);
+                  setCurrentWeekStart(d);
+                  setShowMonthModal(false);
+                }}
+                className={`month-day-cell ${cell.isSelected ? "selected" : ""} ${
+                  cell.isDisabled ? "disabled" : ""
+                } ${!cell.isCurrentMonth ? "opacity-30" : ""}`}
+              >
+                {cell.dayNum}
+              </button>
+            ))}
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
