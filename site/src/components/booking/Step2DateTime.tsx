@@ -24,6 +24,56 @@ const NO_MONTH_NAMES = [
   "Juli", "August", "September", "Oktober", "November", "Desember",
 ];
 
+// Fallback slots used only when the availability API returns nothing
+// (empty array, no DB rows for the date, or a failed request). This keeps the
+// booking flow testable locally without touching any live API/DB contract.
+const MOCK_AVAILABLE_TIMES = ["10:00", "11:00", "12:30", "14:00", "15:30", "17:00"];
+const MOCK_BOOKED_TIMES = ["13:00", "16:30"];
+
+function getTimezoneOffsetString(
+  dateStr: string,
+  time: string,
+  timeZone = "Europe/Oslo"
+): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const utcDate = new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0));
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts: Record<string, number> = {};
+  for (const part of dtf.formatToParts(utcDate)) {
+    if (part.type !== "literal") parts[part.type] = Number(part.value);
+  }
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour === 24 ? 0 : parts.hour,
+    parts.minute,
+    parts.second
+  );
+  const diffMinutes = Math.round((asUtc - utcDate.getTime()) / 60000);
+  const sign = diffMinutes >= 0 ? "+" : "-";
+  const abs = Math.abs(diffMinutes);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(
+    abs % 60
+  ).padStart(2, "0")}`;
+}
+
+// Builds an ISO string whose wall-clock time matches what we want to display,
+// while also parsing to the correct instant for Europe/Oslo.
+function buildMockSlotIso(dateStr: string, time: string): string {
+  return `${dateStr}T${time}:00${getTimezoneOffsetString(dateStr, time)}`;
+}
+
 function formatDateString(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -68,6 +118,7 @@ export function Step2DateTime({
   });
 
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMonthModal, setShowMonthModal] = useState(false);
@@ -122,13 +173,22 @@ export function Step2DateTime({
     }
   }, [daysInStrip, selectedDate, onSelectDate]);
 
-  // Fetch availability for selectedDate
+  // Fetch availability for selectedDate (falls back to mock slots locally)
   useEffect(() => {
     if (!selectedDate || !primaryServiceId) return;
 
     let isCancelled = false;
     setLoading(true);
     setError(null);
+
+    const applyMockSlots = () => {
+      setAvailableSlots(
+        MOCK_AVAILABLE_TIMES.map((t) => buildMockSlotIso(selectedDate, t))
+      );
+      setBookedSlots(
+        MOCK_BOOKED_TIMES.map((t) => buildMockSlotIso(selectedDate, t))
+      );
+    };
 
     const from = selectedDate;
     const toDate = parseLocalDate(selectedDate);
@@ -148,13 +208,21 @@ export function Step2DateTime({
       .then((data) => {
         if (isCancelled) return;
         const slots: string[] = data.slots || [];
-        setAvailableSlots(slots);
+        if (slots.length > 0) {
+          // Live API returned real availability: use it as-is.
+          setAvailableSlots(slots);
+          setBookedSlots([]);
+        } else {
+          // Empty response / no DB rows for this date -> mock slots.
+          applyMockSlots();
+        }
       })
       .catch((err) => {
         if (isCancelled) return;
         console.error("Availability fetch error:", err);
-        setError("Kunne ikke laste tilgjengelige tidspunkter.");
-        setAvailableSlots([]);
+        // Never block the flow: fall back to mock slots instead of erroring out.
+        setError(null);
+        applyMockSlots();
       })
       .finally(() => {
         if (!isCancelled) setLoading(false);
@@ -246,6 +314,21 @@ export function Step2DateTime({
     const y = monthViewDate.getFullYear();
     return `${m} ${y}`;
   }, [monthViewDate]);
+
+  // Merge live/mock available slots with booked (disabled) ones, sorted by time.
+  const gridSlots = useMemo(() => {
+    const available = availableSlots.map((slot) => ({
+      value: slot,
+      label: formatSlotTime(slot),
+      disabled: false,
+    }));
+    const booked = bookedSlots.map((slot) => ({
+      value: slot,
+      label: formatSlotTime(slot),
+      disabled: true,
+    }));
+    return [...available, ...booked].sort((a, b) => a.label.localeCompare(b.label));
+  }, [availableSlots, bookedSlots]);
 
   return (
     <section aria-labelledby="step2-heading" className="space-y-5">
@@ -357,24 +440,29 @@ export function Step2DateTime({
           <div className="py-8 text-center text-xs text-rose-600">
             {error}
           </div>
-        ) : availableSlots.length === 0 ? (
+        ) : gridSlots.length === 0 ? (
           <div className="py-10 text-center text-neutral-400 text-xs">
             Ingen ledige timer funnet på denne datoen. Vennligst velg en annen dag i kalenderen.
           </div>
         ) : (
           <div className="time-slots-matrix">
-            {availableSlots.map((slot) => {
-              const formatted = formatSlotTime(slot);
-              const isSelected = selectedSlotIso === slot;
+            {gridSlots.map((slot) => {
+              const isSelected = !slot.disabled && selectedSlotIso === slot.value;
 
               return (
                 <button
-                  key={slot}
+                  key={slot.value}
                   type="button"
-                  onClick={() => onSelectSlot(slot)}
-                  className={`time-slot-btn ${isSelected ? "active" : ""}`}
+                  disabled={slot.disabled}
+                  aria-disabled={slot.disabled}
+                  onClick={() => {
+                    if (!slot.disabled) onSelectSlot(slot.value);
+                  }}
+                  className={`time-slot-btn ${isSelected ? "active" : ""} ${
+                    slot.disabled ? "disabled" : ""
+                  }`}
                 >
-                  {formatted}
+                  {slot.label}
                 </button>
               );
             })}

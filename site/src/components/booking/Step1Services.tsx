@@ -48,7 +48,7 @@ function getServiceCategory(service: ServiceRow): Category {
   return "BIAB & Gel";
 }
 
-function getServiceImage(service: ServiceRow, index: number): string {
+export function getServiceImage(service: ServiceRow, index: number): string {
   const name = service.name.toLowerCase();
   if (name.includes("biab") || name.includes("struktur")) return "/demo/nails/pin-biab.jpg";
   if (name.includes("chrome") || name.includes("glazed")) return "/demo/nails/pin-glazed-donut.jpg";

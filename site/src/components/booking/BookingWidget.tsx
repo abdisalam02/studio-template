@@ -16,6 +16,36 @@ interface BookingWidgetProps {
   studioPhone?: string;
 }
 
+// Local testing mode: lets you preview the full flow (including the
+// confirmation receipt) without typing customer details or needing a working
+// backend. Automatically disabled in production builds.
+const DEMO_BOOKING = process.env.NODE_ENV !== "production";
+
+function makeDemoBookingRef(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 6; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `DEMO-${out}`;
+}
+
+function formatDockSlot(slotIso: string): string {
+  if (!slotIso) return "";
+  const d = new Date(slotIso);
+  if (isNaN(d.getTime())) return "";
+  const weekday = d.toLocaleDateString("no-NO", {
+    timeZone: "Europe/Oslo",
+    weekday: "short",
+  });
+  const time = d.toLocaleTimeString("no-NO", {
+    timeZone: "Europe/Oslo",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${weekday} ${time}`;
+}
+
 export function BookingWidget({
   tenantSlug = "gangina",
   tenantConfig = GANGINA_CONFIG,
@@ -203,13 +233,31 @@ export function BookingWidget({
   const handleSubmitBooking = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!selectedSlotIso || selectedServices.length === 0) return;
-    if (!customerDetails.name || !customerDetails.email || !customerDetails.phone) {
-      setSubmitError("Vennligst fyll ut alle obligatoriske felt.");
-      return;
-    }
-    if (!customerDetails.cancellationConsent) {
-      setSubmitError("Vennligst godkjenn avbestillingsbetingelsene.");
-      return;
+
+    // In demo/testing mode, allow submitting with placeholder details so the
+    // confirmation step can be previewed without typing anything.
+    const effectiveDetails: CustomerDetails = DEMO_BOOKING
+      ? {
+          ...customerDetails,
+          name: customerDetails.name || "Testkunde",
+          email: customerDetails.email || "test@example.com",
+          phone: customerDetails.phone || "+4700000000",
+          cancellationConsent: true,
+        }
+      : customerDetails;
+
+    if (!DEMO_BOOKING) {
+      if (!customerDetails.name || !customerDetails.email || !customerDetails.phone) {
+        setSubmitError("Vennligst fyll ut alle obligatoriske felt.");
+        return;
+      }
+      if (!customerDetails.cancellationConsent) {
+        setSubmitError("Vennligst godkjenn avbestillingsbetingelsene.");
+        return;
+      }
+    } else if (effectiveDetails !== customerDetails) {
+      // Reflect the placeholders so Step 4 shows something meaningful.
+      setCustomerDetails(effectiveDetails);
     }
 
     setSubmitting(true);
@@ -230,18 +278,23 @@ export function BookingWidget({
           service_ids: selectedServiceIds,
           service_summary: serviceSummary,
           start_utc: startUtc,
-          customer_name: customerDetails.name,
-          customer_email: customerDetails.email,
-          customer_phone: customerDetails.phone,
-          notes: customerDetails.notes,
-          custom_fields: customerDetails.customFields,
+          customer_name: effectiveDetails.name,
+          customer_email: effectiveDetails.email,
+          customer_phone: effectiveDetails.phone,
+          notes: effectiveDetails.notes,
+          custom_fields: effectiveDetails.customFields,
           consent: true,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.status === 409) {
+        if (DEMO_BOOKING) {
+          setBookingRef(makeDemoBookingRef());
+          setCurrentStep(4);
+          return;
+        }
         setSubmitError(
           "Beklager, dette tidspunktet ble akkurat reservert av en annen kunde. Vennligst gå tilbake og velg et annet tidspunkt."
         );
@@ -252,9 +305,17 @@ export function BookingWidget({
         throw new Error(data.message || data.error || "Kunne ikke opprette timebestilling.");
       }
 
-      setBookingRef(data.ref);
+      setBookingRef(data.ref || makeDemoBookingRef());
       setCurrentStep(4);
     } catch (err: unknown) {
+      if (DEMO_BOOKING) {
+        // Live API unavailable / date closed: simulate a confirmation so the
+        // receipt step can still be tested locally.
+        console.warn("Demo booking fallback:", err);
+        setBookingRef(makeDemoBookingRef());
+        setCurrentStep(4);
+        return;
+      }
       console.error("Booking submission error:", err);
       const msg =
         err instanceof Error ? err.message : "Det oppstod en feil ved registrering.";
@@ -429,6 +490,8 @@ export function BookingWidget({
                 cancellationPolicyText={tenantConfig.cancellationPolicyText}
                 details={customerDetails}
                 selectedSlotIso={selectedSlotIso}
+                selectedServices={selectedServices}
+                currency={tenantConfig.currency}
                 serviceSummary={
                   selectedServices.length > 1
                     ? selectedServices.map((s) => s.name).join(" + ")
@@ -463,11 +526,15 @@ export function BookingWidget({
           {currentStep < 4 && (
             <div id="drawerPinnedDock" className="drawer-pinned-dock">
               <div className="dock-summary-col">
-                <span className="dock-services-count">
-                  {selectedServices.length}{" "}
-                  {selectedServices.length === 1 ? "behandling valgt" : "behandlinger valgt"}
+                <span className="dock-services-count" title={selectedServices.map((s) => s.name).join(" + ")}>
+                  {selectedServices.length === 0
+                    ? "Ingen behandling valgt"
+                    : selectedServices.length === 1
+                    ? selectedServices[0].name
+                    : `${selectedServices[0].name} +${selectedServices.length - 1}`}
                 </span>
                 <span className="dock-total-price">
+                  {selectedSlotIso ? `${formatDockSlot(selectedSlotIso)} · ` : ""}
                   {totalPriceNok} {tenantConfig.currency || "kr"}
                 </span>
               </div>

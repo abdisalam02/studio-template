@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
 interface EditorialImageProps {
@@ -28,8 +28,19 @@ export function EditorialImage({
 }: EditorialImageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   const activeSrc = hasError || !src ? fallbackSrc : src;
+
+  // Fast, already-cached images can finish loading before React attaches the
+  // onLoad handler, so the load event never fires and the image would stay at
+  // opacity-0 forever. Reconcile against the DOM node after mount too.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setIsLoading(false);
+    }
+  }, [activeSrc]);
 
   return (
     <div
@@ -40,6 +51,7 @@ export function EditorialImage({
         <div className="absolute inset-0 bg-neutral-200/70 animate-pulse pointer-events-none" />
       )}
       <Image
+        ref={imgRef}
         src={activeSrc}
         alt={alt}
         fill={fill}

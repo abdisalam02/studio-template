@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import type { CustomField } from "@/config/tenants/types";
+import { getServiceImage, type ServiceRow } from "./Step1Services";
 
 export interface CustomerDetails {
   name: string;
@@ -17,7 +18,9 @@ interface Step3DetailsProps {
   cancellationPolicyText: string;
   details: CustomerDetails;
   selectedSlotIso?: string;
+  selectedServices?: ServiceRow[];
   serviceSummary?: string;
+  currency?: string;
   onChangeDetails: (details: CustomerDetails) => void;
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
@@ -44,7 +47,9 @@ export function Step3Details({
   cancellationPolicyText,
   details,
   selectedSlotIso,
+  selectedServices = [],
   serviceSummary,
+  currency = "kr",
   onChangeDetails,
   onSubmit,
   submitError,
@@ -73,6 +78,13 @@ export function Step3Details({
 
   const formattedTime = formatSlotDateTime(selectedSlotIso);
 
+  const primaryService = selectedServices[0];
+  const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration_min, 0);
+  const totalPrice = selectedServices.reduce((acc, s) => acc + s.price_nok, 0);
+  const summaryText =
+    serviceSummary || selectedServices.map((s) => s.name).join(" + ") || "Valgt behandling";
+  const imageSrc = primaryService ? getServiceImage(primaryService, 0) : null;
+
   return (
     <form
       id="bookingDetailsForm"
@@ -80,13 +92,45 @@ export function Step3Details({
       aria-labelledby="step3-heading"
       className="space-y-4"
     >
-      {/* Appointment Snapshot Header */}
-      <div className="p-3.5 rounded-2xl bg-[#faf9f6] border border-[#f0eeea] space-y-1">
-        <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">
-          Valgt reservasjon
+      {/* Appointment Snapshot Card */}
+      <div className="booking-summary-card">
+        <div className="booking-summary-top">
+          {imageSrc && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageSrc}
+              alt={primaryService ? primaryService.name : "Valgt behandling"}
+              className="booking-summary-thumb"
+              width={64}
+              height={64}
+              loading="lazy"
+            />
+          )}
+
+          <div className="booking-summary-info">
+            <div className="booking-summary-eyebrow">Din reservasjon</div>
+            <div className="booking-summary-title">{summaryText}</div>
+            <div className="booking-summary-meta">
+              {totalDuration > 0 && (
+                <span className="service-duration-pill">⏱ {totalDuration} min</span>
+              )}
+              {totalPrice > 0 && (
+                <span className="service-price-tag">
+                  {totalPrice} {currency}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="font-bold text-xs text-[#18181b]">{serviceSummary}</div>
-        <div className="text-[11px] text-neutral-600 capitalize">{formattedTime}</div>
+
+        {formattedTime && (
+          <div className="booking-summary-time-row">
+            <span className="booking-summary-time-icon" aria-hidden="true">
+              🗓
+            </span>
+            <span className="booking-summary-time-text capitalize">{formattedTime}</span>
+          </div>
+        )}
       </div>
 
       {submitError && (

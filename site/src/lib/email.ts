@@ -1,6 +1,13 @@
 import { Resend } from "resend";
+import fs from "fs";
+import path from "path";
 import type { Database } from "@/types/database";
 import { getEngineBaseUrl } from "@/lib/url";
+import {
+  getTenantConfig,
+  type TenantConfig,
+  type TenantColors,
+} from "@/config/tenant.config";
 
 export type Tenant = Database["public"]["Tables"]["tenants"]["Row"];
 
@@ -23,20 +30,109 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const defaultFromName = process.env.EMAIL_FROM_NAME || "Agure Booking";
 const defaultReplyTo = process.env.EMAIL_REPLY_TO || "support@agure.space";
 
-function getSenderInfo(tenant?: Tenant | null) {
-  const displayName = tenant?.name ? tenant.name.replace(/["<>]/g, "").trim() : defaultFromName;
-  const replyToAddress = tenant?.owner_email || defaultReplyTo;
-  const from = `${displayName || defaultFromName} <booking@agure.space>`;
+type ResendEmailPayload = Parameters<NonNullable<typeof resend>["emails"]["send"]>[0];
+type ResendEmailAttachment = NonNullable<ResendEmailPayload["attachments"]>[number];
+
+/* -------------------------------------------------------------------------- */
+/*  Studio brand assets (embedded inline so they always render)               */
+/* -------------------------------------------------------------------------- */
+
+const STUDIO_LOGO_CID = "studio-brand-logo";
+const STUDIO_LOGO_FALLBACK_PUBLIC_PATH = "/img/logo-chrome.png";
+const STUDIO_LOGO_FALLBACK_FILENAME = "logo-chrome.png";
+const STUDIO_WATERMARK_FALLBACK_PUBLIC_PATH = "/img/logo-watermark.png";
+const DEFAULT_EMAIL_FROM_ADDRESS = "booking@agure.space";
+
+/** Resolves the active tenant config from a DB tenant row (graceful fallback). */
+function resolveConfig(tenant?: Tenant | null): TenantConfig {
+  return getTenantConfig(tenant?.id);
+}
+
+/**
+ * Builds the hosted watermark URL for the email background.
+ * Prefers Supabase Storage (reachable by Gmail) and falls back to the
+ * site-hosted asset.
+ */
+function getWatermarkUrl(config: TenantConfig): string {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  const bucket = config.integrations.supabaseAssetsBucket;
+  const prefix = config.integrations.assetsPrefix;
+
+  if (supabaseUrl && bucket && prefix) {
+    return `${supabaseUrl}/storage/v1/object/public/${bucket}/${prefix}/logo-watermark.png`;
+  }
+
+  const configured = config.theme.watermarkUrl;
+  if (configured && configured.startsWith("http")) {
+    return configured;
+  }
+
+  return `${getEngineBaseUrl()}${configured || STUDIO_WATERMARK_FALLBACK_PUBLIC_PATH}`;
+}
+
+const logoAssetCache = new Map<
+  string,
+  { src: string; attachment: ResendEmailAttachment | null }
+>();
+
+function getLogoAsset(config: TenantConfig): {
+  src: string;
+  attachment: ResendEmailAttachment | null;
+} {
+  const logoUrl = config.theme.logoUrl || STUDIO_LOGO_FALLBACK_PUBLIC_PATH;
+  const cached = logoAssetCache.get(logoUrl);
+  if (cached) return cached;
+
+  try {
+    const filename = path.basename(logoUrl) || STUDIO_LOGO_FALLBACK_FILENAME;
+    const filePath = path.join(process.cwd(), "public", "img", filename);
+    const buffer = fs.readFileSync(filePath);
+    const asset = {
+      src: `cid:${STUDIO_LOGO_CID}`,
+      attachment: {
+        filename,
+        content: buffer,
+        contentType: "image/png",
+        contentId: STUDIO_LOGO_CID,
+      },
+    };
+    logoAssetCache.set(logoUrl, asset);
+    return asset;
+  } catch (err) {
+    console.warn(
+      "Studio logo could not be read for inline embedding; falling back to hosted URL.",
+      err
+    );
+    const src = logoUrl.startsWith("http")
+      ? logoUrl
+      : `${getEngineBaseUrl()}${logoUrl}`;
+    const asset = { src, attachment: null };
+    logoAssetCache.set(logoUrl, asset);
+    return asset;
+  }
+}
+
+function getSenderInfo(tenant: Tenant | null | undefined, config: TenantConfig) {
+  const rawName = tenant?.name || config.integrations.emailFromName || defaultFromName;
+  const displayName = rawName.replace(/["<>]/g, "").trim();
+  const replyToAddress =
+    tenant?.owner_email || config.integrations.replyTo || defaultReplyTo;
+  const fromAddress = config.integrations.emailFromAddress || DEFAULT_EMAIL_FROM_ADDRESS;
+  const from = `${displayName || defaultFromName} <${fromAddress}>`;
   return { from, replyTo: replyToAddress };
 }
 
-async function sendEmailSafely(payload: Parameters<NonNullable<typeof resend>["emails"]["send"]>[0]) {
+async function sendEmailSafely(config: TenantConfig, payload: ResendEmailPayload) {
   if (!resend) {
     console.warn("RESEND_API_KEY is not set. Skipping email dispatch.");
     return { data: null, error: { name: "missing_api_key", message: "RESEND_API_KEY is not set" } };
   }
+  const logo = getLogoAsset(config);
+  const finalPayload: ResendEmailPayload = logo.attachment
+    ? { ...payload, attachments: [...(payload.attachments ?? []), logo.attachment] }
+    : payload;
   try {
-    const res = await resend.emails.send(payload);
+    const res = await resend.emails.send(finalPayload);
     if (res.error) {
       console.error("RESEND SEND ERROR:", res.error);
     }
@@ -69,6 +165,208 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#039;");
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Luxury studio email design system                                          */
+/*  All styling is inline, table-based and safe for Gmail, Apple Mail, Outlook. */
+/* -------------------------------------------------------------------------- */
+
+const EMAIL_FONT =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
+interface EmailDetailInput {
+  label: string;
+  value: string;
+  numeric?: boolean;
+}
+
+function emailDetailRow(
+  palette: TenantColors,
+  label: string,
+  value: string,
+  options: { first?: boolean; numeric?: boolean } = {}
+): string {
+  const { first = false, numeric = false } = options;
+  const divider = first ? "" : `border-top:1px solid ${palette.border};`;
+  const numericStyle = numeric ? "font-variant-numeric:tabular-nums;" : "";
+  return `<tr>
+    <td width="40%" valign="top" style="padding:11px 12px 11px 0;${divider}font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;letter-spacing:0.01em;color:${palette.label};">${escapeHtml(label)}</td>
+    <td valign="top" align="right" style="padding:11px 0;${divider}font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;font-weight:600;color:${palette.value};text-align:right;${numericStyle}">${escapeHtml(value)}</td>
+  </tr>`;
+}
+
+function emailDetailRows(palette: TenantColors, rows: EmailDetailInput[]): string {
+  return rows
+    .map((row, index) =>
+      emailDetailRow(palette, row.label, row.value, {
+        first: index === 0,
+        numeric: row.numeric,
+      })
+    )
+    .join("");
+}
+
+function emailButton(palette: TenantColors, href: string, label: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:26px auto 2px auto;">
+    <tr>
+      <td align="center" bgcolor="${palette.value}" style="border-radius:9999px;border:1px solid ${palette.value};">
+        <a href="${href}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 30px;font-family:${EMAIL_FONT};font-size:14px;line-height:1;font-weight:600;color:${palette.valueText};text-decoration:none;border-radius:9999px;">${escapeHtml(label)}</a>
+      </td>
+    </tr>
+  </table>`;
+}
+
+function emailTextLink(palette: TenantColors, href: string, label: string): string {
+  return `<a href="${href}" target="_blank" rel="noopener" style="color:${palette.value};text-decoration:underline;text-underline-offset:3px;font-weight:600;">${escapeHtml(label)}</a>`;
+}
+
+function emailNoteBox(palette: TenantColors, html: string): string {
+  return `<div style="margin-top:22px;padding:14px 16px;border:1px solid ${palette.border};border-radius:14px;background-color:${palette.recessed};font-family:${EMAIL_FONT};font-size:12px;line-height:1.65;color:${palette.label};">${html}</div>`;
+}
+
+interface EmailShellParams {
+  config: TenantConfig;
+  tenantName: string;
+  subtitle: string;
+  eyebrow: string;
+  title: string;
+  titleColor?: string;
+  introHtml: string;
+  detailsHtml: string;
+  actionHtml?: string;
+  footerHtml?: string;
+  maxWidth?: number;
+}
+
+function renderEmailShell(params: EmailShellParams): string {
+  const config = params.config;
+  const palette = config.theme.colors;
+  const studioName = params.tenantName || config.name || defaultFromName;
+  const watermarkUrl = getWatermarkUrl(config);
+  const maxWidth = params.maxWidth ?? 560;
+  const titleColor = params.titleColor || palette.value;
+  const logo = getLogoAsset(config);
+
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<meta name="supported-color-schemes" content="dark light" />
+<title>${escapeHtml(studioName)}</title>
+</head>
+<body style="margin:0;padding:0;width:100%;background-color:${palette.canvas};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<!-- design-ok -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${palette.canvas}" style="width:100%;background-color:${palette.canvas};">
+  <tr>
+    <td align="center" style="padding:36px 16px;">
+      <table role="presentation" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${maxWidth}px;">
+        <tr>
+          <td align="center" style="padding-bottom:22px;">
+            <img src="${logo.src}" alt="${escapeHtml(studioName)}" width="88" height="88" style="display:block;width:88px;height:88px;max-width:88px;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;" />
+            <div style="font-family:${EMAIL_FONT};font-size:13px;line-height:1.4;letter-spacing:0.34em;text-transform:uppercase;font-weight:700;color:${palette.value};">${escapeHtml(studioName)}</div>
+            <div style="font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${palette.soft};margin-top:7px;">${escapeHtml(params.subtitle)}</div>
+          </td>
+        </tr>
+        <tr>
+          <td bgcolor="${palette.card}" style="background-color:${palette.card};border:1px solid ${palette.border};border-radius:16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td bgcolor="${palette.band}" style="padding:24px 26px 20px 26px;border-bottom:1px solid ${palette.border};background-color:${palette.band};border-radius:16px 16px 0 0;">
+                  <div style="font-family:${EMAIL_FONT};font-size:10px;line-height:1.4;letter-spacing:0.22em;text-transform:uppercase;font-weight:700;color:${palette.accent};">${escapeHtml(params.eyebrow)}</div>
+                  <div style="font-family:${EMAIL_FONT};font-size:20px;line-height:1.35;font-weight:700;color:${titleColor};margin-top:7px;">${escapeHtml(params.title)}</div>
+                </td>
+              </tr>
+              <tr>
+                <td bgcolor="${palette.card}" style="padding:24px 26px 28px 26px;background-color:${palette.card};background-image:url('${watermarkUrl}');background-repeat:no-repeat;background-position:center center;background-size:320px 320px;">
+                  <div style="font-family:${EMAIL_FONT};font-size:14px;line-height:1.65;color:${palette.label};">${params.introHtml}</div>
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
+                    ${params.detailsHtml}
+                  </table>
+                  ${params.actionHtml || ""}
+                </td>
+              </tr>
+              ${
+                params.footerHtml
+                  ? `<tr>
+                <td bgcolor="${palette.band}" style="padding:16px 26px 20px 26px;border-top:1px solid ${palette.border};background-color:${palette.band};border-radius:0 0 16px 16px;">
+                  <div style="font-family:${EMAIL_FONT};font-size:11px;line-height:1.7;color:${palette.soft};text-align:center;">${params.footerHtml}</div>
+                </td>
+              </tr>`
+                  : ""
+              }
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+}
+
+function studioNameOf(tenant: Tenant, config: TenantConfig): string {
+  return tenant.name || config.name || defaultFromName;
+}
+
+function strongValue(palette: TenantColors, text: string): string {
+  return `<strong style="color:${palette.value};font-weight:600;">${escapeHtml(text)}</strong>`;
+}
+
+function currencyOf(config: TenantConfig): string {
+  return config.rules.currency || "kr";
+}
+
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+}
+
+/**
+ * Builds (but does not send) the owner "New booking" alert email.
+ * Used by sendOwnerAlert and by the dev-only email preview route.
+ */
+export function renderOwnerAlertEmail(
+  tenant: Tenant,
+  booking: BookingDetails,
+  actionUrl?: string
+): RenderedEmail {
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
+  const osloTime = formatOsloDateTime(booking.start_utc);
+  const subject = `Ny timebestilling: ${booking.customer_name} - ${booking.service_name}`;
+  const adminBaseUrl = getEngineBaseUrl();
+  const reviewUrl = actionUrl || `${adminBaseUrl}/admin?ref=${encodeURIComponent(booking.ref)}`;
+
+  const rows: EmailDetailInput[] = [
+    { label: "Kunde", value: booking.customer_name },
+    { label: "Telefon", value: booking.customer_phone },
+    { label: "E-post", value: booking.customer_email },
+    { label: "Behandling", value: booking.service_name },
+    { label: "Tidspunkt", value: osloTime },
+    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+  ];
+  if (booking.notes) {
+    rows.push({ label: "Notat", value: booking.notes });
+  }
+
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Ny bestilling",
+    eyebrow: "Timeforespørsel",
+    title: "Ny timebestilling mottatt",
+    introHtml: `En ny reservasjon venter på vurdering for ${strongValue(palette, studioName)}.`,
+    detailsHtml: emailDetailRows(palette, rows),
+    actionHtml: emailButton(palette, reviewUrl, "Vurder bestilling →"),
+    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+  });
+
+  return { subject, html };
+}
+
 export async function sendOwnerAlert(
   tenant: Tenant,
   booking: BookingDetails,
@@ -79,67 +377,11 @@ export async function sendOwnerAlert(
     return { success: false, reason: "missing_api_key" };
   }
 
-  const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Ny timebestilling: ${booking.customer_name} - ${booking.service_name}`;
-  const adminBaseUrl = getEngineBaseUrl();
-  const reviewUrl = actionUrl || `${adminBaseUrl}/admin?ref=${encodeURIComponent(booking.ref)}`;
+  const config = resolveConfig(tenant);
+  const { subject, html } = renderOwnerAlertEmail(tenant, booking, actionUrl);
+  const { from, replyTo } = getSenderInfo(tenant, config);
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5; padding: 24px 16px;">
-      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">${escapeHtml(tenant.name || defaultFromName).toUpperCase()}</h1><!-- design-ok -->
-      <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 16px; text-align: center;">Ny timebestilling mottatt</h2>
-      <p style="margin-bottom: 24px; color: #525252; text-align: center;">En ny reservasjon venter på vurdering for <strong>${escapeHtml(tenant.name)}</strong>.</p>
-      
-      <div style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Kunde:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.customer_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Telefon:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.customer_phone)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">E-post:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.customer_email)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Behandling:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.service_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Tidspunkt:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(osloTime)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Pris:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${booking.price_nok} kr</td>
-          </tr>
-          ${
-            booking.notes
-              ? `<tr>
-                  <td style="padding: 6px 0; color: #737373; vertical-align: top;">Notat:</td>
-                  <td style="padding: 6px 0; font-weight: 500; text-align: right;">${escapeHtml(booking.notes)}</td>
-                </tr>`
-              : ""
-          }
-        </table>
-      </div>
-
-      <div style="text-align: center; margin: 32px 0;">
-        <a href="${reviewUrl}" style="background-color: #171717; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 9999px; font-weight: 600; font-size: 14px; display: inline-block;">
-          Vurder bestilling
-        </a>
-      </div>
-      
-      <p style="font-size: 12px; color: #a3a3a3; text-align: center;">Referanse: ${escapeHtml(booking.ref)}</p>
-    </div>
-  `;
-
-  const { from, replyTo } = getSenderInfo(tenant);
-
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from,
     replyTo,
     to: [tenant.owner_email],
@@ -158,56 +400,90 @@ export async function sendCustomerReceipt(
     return { success: false, reason: "missing_api_key" };
   }
 
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Mottatt timeforespørsel hos ${tenant.name}`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5; padding: 24px 16px;">
-      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">${escapeHtml(tenant.name || defaultFromName).toUpperCase()}</h1><!-- design-ok -->
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Takk for din forespørsel</h2>
-      <p style="margin-bottom: 24px; color: #525252;">Vi har mottatt din timeforespørsel hos <strong>${escapeHtml(tenant.name)}</strong>. Forespørselen vurderes nå av studioet, og du mottar en bekreftelse så snart timen er godkjent.</p>
-      
-      <div style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Referanse:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.ref)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Behandling:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.service_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Ønsket tid:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(osloTime)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Pris:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${booking.price_nok} kr</td>
-          </tr>
-        </table>
-      </div>
+  const rows: EmailDetailInput[] = [
+    { label: "Referanse", value: booking.ref },
+    { label: "Behandling", value: booking.service_name },
+    { label: "Ønsket tid", value: osloTime },
+    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+  ];
 
-      <p style="font-size: 13px; color: #525252; margin-bottom: 20px;">
-        Du kan administrere eller se status på din reservasjon her:<br/>
-        <a href="${manageUrl}" style="color: #171717; text-decoration: underline; font-weight: 600;">Administrer din reservasjon</a>
-      </p>
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Timeforespørsel mottatt",
+    eyebrow: "Forespørsel",
+    title: "Takk for din forespørsel",
+    introHtml: `Vi har mottatt din timeforespørsel hos ${strongValue(
+      palette,
+      studioName
+    )}. Forespørselen vurderes nå av studioet, og du mottar en bekreftelse så snart timen er godkjent.`,
+    detailsHtml: emailDetailRows(palette, rows),
+    actionHtml: `<div style="text-align:center;margin-top:24px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.6;color:${palette.label};">${emailTextLink(
+      palette,
+      manageUrl,
+      "Administrer din reservasjon"
+    )}</div>`,
+    footerHtml: "Ikke deg? Ignorer denne e-posten.",
+  });
 
-      <p style="font-size: 12px; color: #a3a3a3; border-top: 1px solid #e5e5e5; padding-top: 16px;">
-        Ikke deg? Ignorer denne e-posten.
-      </p>
-    </div>
-  `;
+  const { from, replyTo } = getSenderInfo(tenant, config);
 
-  const { from, replyTo } = getSenderInfo(tenant);
-
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from,
     replyTo,
     to: [booking.customer_email],
     subject,
     html,
   });
+}
+
+/**
+ * Builds (but does not send) the customer "time confirmed" receipt email.
+ * Used by sendCustomerConfirmation and by the dev-only email preview route.
+ */
+export function renderCustomerConfirmationEmail(
+  tenant: Tenant,
+  booking: BookingDetails
+): RenderedEmail {
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
+  const osloTime = formatOsloDateTime(booking.start_utc);
+  const subject = `Bekreftet: Din time hos ${tenant.name}`;
+
+  const rows: EmailDetailInput[] = [
+    { label: "Referanse", value: booking.ref },
+    { label: "Behandling", value: booking.service_name },
+    { label: "Tidspunkt", value: osloTime },
+    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+  ];
+
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Time bekreftet",
+    eyebrow: "Bekreftelse",
+    title: "Din time er bekreftet",
+    titleColor: palette.green,
+    introHtml: `Din time er bekreftet! Vi gleder oss til å se deg hos ${strongValue(
+      palette,
+      studioName
+    )}.`,
+    detailsHtml: emailDetailRows(palette, rows),
+    actionHtml: emailNoteBox(
+      palette,
+      "Kalenderfil (.ics) er lagt ved denne e-posten slik at du enkelt kan legge avtalen til i kalenderen din."
+    ),
+    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+  });
+
+  return { subject, html };
 }
 
 export async function sendCustomerConfirmation(
@@ -220,43 +496,15 @@ export async function sendCustomerConfirmation(
     return { success: false, reason: "missing_api_key" };
   }
 
-  const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Bekreftet: Din time hos ${tenant.name}`;
+  const config = resolveConfig(tenant);
+  const { subject, html } = renderCustomerConfirmationEmail(tenant, booking);
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5; padding: 24px 16px;">
-      <h1 style="letter-spacing: 0.35em; font-size: 16px; text-transform: uppercase; font-weight: 700; color: #111113; margin: 0 auto 20px auto; text-align: center;">${escapeHtml(tenant.name || defaultFromName).toUpperCase()}</h1><!-- design-ok -->
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #15803d;">Din time er bekreftet</h2>
-      <p style="margin-bottom: 24px; color: #525252;">Din time er bekreftet! Vi gleder oss til å se deg hos <strong>${escapeHtml(tenant.name)}</strong>.</p>
-      
-      <div style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Referanse:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.ref)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Behandling:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.service_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Tidspunkt:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(osloTime)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Pris:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${booking.price_nok} kr</td>
-          </tr>
-        </table>
-      </div>
+  const { from: confirmationFrom, replyTo: confirmationReplyTo } = getSenderInfo(
+    tenant,
+    config
+  );
 
-      <p style="font-size: 13px; color: #525252;">Kalenderfil (.ics) er lagt ved denne e-posten slik at du enkelt kan legge avtalen til i kalenderen din.</p>
-    </div>
-  `;
-
-  const { from: confirmationFrom, replyTo: confirmationReplyTo } = getSenderInfo(tenant);
-
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from: confirmationFrom,
     replyTo: confirmationReplyTo,
     to: [booking.customer_email],
@@ -281,33 +529,32 @@ export async function sendCustomerDeclined(
     return { success: false, reason: "missing_api_key" };
   }
 
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
   const subject = `Oppdatering angående din time hos ${tenant.name}`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5;">
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Oppdatering om din timeforespørsel</h2>
-      <p style="margin-bottom: 24px; color: #525252;">Forespørselen din kunne dessverre ikke bekreftes denne gangen. Besøk vår nettside for å velge et annet tidspunkt.</p>
-      
-      <div style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Referanse:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.ref)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Behandling:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.service_name)}</td>
-          </tr>
-        </table>
-      </div>
+  const rows: EmailDetailInput[] = [
+    { label: "Referanse", value: booking.ref },
+    { label: "Behandling", value: booking.service_name },
+  ];
 
-      <p style="font-size: 13px; color: #525252;">Ta gjerne kontakt med oss dersom du har spørsmål.</p>
-    </div>
-  `;
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Oppdatering",
+    eyebrow: "Timeforespørsel",
+    title: "Forespørselen kunne ikke bekreftes",
+    titleColor: palette.red,
+    introHtml:
+      "Forespørselen din kunne dessverre ikke bekreftes denne gangen. Besøk vår nettside for å velge et annet tidspunkt.",
+    detailsHtml: emailDetailRows(palette, rows),
+    footerHtml: "Ta gjerne kontakt med oss dersom du har spørsmål.",
+  });
 
-  const { from, replyTo } = getSenderInfo(tenant);
+  const { from, replyTo } = getSenderInfo(tenant, config);
 
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from,
     replyTo,
     to: [booking.customer_email],
@@ -325,46 +572,35 @@ export async function sendOwnerCancellationAlert(
     return { success: false, reason: "missing_api_key" };
   }
 
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Avbestilling: ${booking.customer_name} - ${booking.service_name}`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5;">
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #dc2626;">Kunde har avbestilt time</h2>
-      <p style="margin-bottom: 24px; color: #525252;">En kunde har avbestilt sin time hos <strong>${escapeHtml(tenant.name)}</strong>.</p>
-      
-      <div style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Referanse:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.ref)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Kunde:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.customer_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Telefon:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.customer_phone)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Behandling:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.service_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Opprinnelig tid:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(osloTime)}</td>
-          </tr>
-        </table>
-      </div>
+  const rows: EmailDetailInput[] = [
+    { label: "Referanse", value: booking.ref },
+    { label: "Kunde", value: booking.customer_name },
+    { label: "Telefon", value: booking.customer_phone },
+    { label: "Behandling", value: booking.service_name },
+    { label: "Opprinnelig tid", value: osloTime },
+  ];
 
-      <p style="font-size: 13px; color: #525252;">Tidspunktet er nå frigjort i kalenderen.</p>
-    </div>
-  `;
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Avbestilling",
+    eyebrow: "Kansellering",
+    title: "Kunden har avbestilt timen",
+    titleColor: palette.red,
+    introHtml: `En kunde har avbestilt sin time hos ${strongValue(palette, studioName)}.`,
+    detailsHtml: emailDetailRows(palette, rows),
+    footerHtml: "Tidspunktet er nå frigjort i kalenderen.",
+  });
 
-  const { from, replyTo } = getSenderInfo(tenant);
+  const { from, replyTo } = getSenderInfo(tenant, config);
 
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from,
     replyTo,
     to: [tenant.owner_email],
@@ -379,21 +615,29 @@ export async function sendOwnerOtpEmail(email: string, code: string) {
     return { success: false, reason: "missing_api_key" };
   }
 
+  const config = getTenantConfig();
+  const palette = config.theme.colors;
   const subject = `Din verifiseringskode: ${code}`;
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; color: #111113; line-height: 1.6; padding: 24px;">
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Studio Administrasjon</h2>
-      <p style="font-size: 14px; color: #666; margin-bottom: 24px;">Bruk følgende 6-sifrede kode for å logge inn på ditt kontrollpanel. Koden er gyldig i 15 minutter.</p>
-      <div style="background: #f4f2ee; border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 24px;">
-        <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #111113; font-family: monospace;">${code}</span>
-      </div>
-      <p style="font-size: 12px; color: #999;">Dersom du ikke har bedt om denne koden, kan du trygt se bort fra denne e-posten.</p>
-    </div>
-  `;
+  const html = renderEmailShell({
+    config,
+    tenantName: config.integrations.emailFromName || config.name,
+    subtitle: "Sikker innlogging",
+    eyebrow: "Verifiseringskode",
+    title: "Din innloggingskode",
+    introHtml:
+      "Bruk følgende 6-sifrede kode for å logge inn på ditt kontrollpanel. Koden er gyldig i 15 minutter.",
+    detailsHtml: `<tr>
+      <td align="center" style="padding-top:6px;">
+        <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:22px 16px;font-family:${EMAIL_FONT};font-size:30px;line-height:1;font-weight:800;letter-spacing:0.34em;color:${palette.value};font-variant-numeric:tabular-nums;">${escapeHtml(code)}</div>
+      </td>
+    </tr>`,
+    footerHtml: "Dersom du ikke har bedt om denne koden, kan du trygt se bort fra denne e-posten.",
+    maxWidth: 480,
+  });
 
   try {
-    const { from, replyTo } = getSenderInfo(null);
-    const result = await sendEmailSafely({
+    const { from, replyTo } = getSenderInfo(null, config);
+    const result = await sendEmailSafely(config, {
       from,
       replyTo,
       to: [email],
@@ -420,42 +664,40 @@ export async function sendCustomerRescheduleConfirmation(
     return { success: false, reason: "missing_api_key" };
   }
 
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Nytt tidspunkt bekreftet hos ${tenant.name}`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #171717; line-height: 1.5;">
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Timen din har fått nytt tidspunkt</h2>
-      <p style="margin-bottom: 24px; color: #525252;">Dette er en bekreftelse på at din time hos <strong>${escapeHtml(tenant.name)}</strong> har blitt flyttet.</p>
-      
-      <div style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Referanse:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.ref)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Behandling:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(booking.service_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Nytt tidspunkt:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${escapeHtml(osloTime)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #737373;">Pris:</td>
-            <td style="padding: 6px 0; font-weight: 600; text-align: right;">${booking.price_nok} kr</td>
-          </tr>
-        </table>
-      </div>
+  const rows: EmailDetailInput[] = [
+    { label: "Referanse", value: booking.ref },
+    { label: "Behandling", value: booking.service_name },
+    { label: "Nytt tidspunkt", value: osloTime },
+    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+  ];
 
-      <p style="font-size: 13px; color: #525252;">Oppdatert kalenderfil (.ics) er lagt ved denne e-posten.</p>
-    </div>
-  `;
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Nytt tidspunkt",
+    eyebrow: "Endring",
+    title: "Timen har fått nytt tidspunkt",
+    introHtml: `Dette er en bekreftelse på at din time hos ${strongValue(
+      palette,
+      studioName
+    )} har blitt flyttet.`,
+    detailsHtml: emailDetailRows(palette, rows),
+    actionHtml: emailNoteBox(
+      palette,
+      "Oppdatert kalenderfil (.ics) er lagt ved denne e-posten."
+    ),
+    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+  });
 
-  const { from, replyTo } = getSenderInfo(tenant);
+  const { from, replyTo } = getSenderInfo(tenant, config);
 
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from,
     replyTo,
     to: [booking.customer_email],
@@ -477,20 +719,31 @@ export async function sendTestNotificationEmail(tenant: Tenant, recipientEmail: 
     return { success: false, reason: "missing_api_key" };
   }
 
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
   const subject = `Testvarsel fra ${tenant.name}`;
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; color: #171717; line-height: 1.6; padding: 24px;">
-      <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">Test av e-postvarsling</h2>
-      <p style="font-size: 14px; color: #525252; margin-bottom: 16px;">Dette er et testvarsel sendt fra ditt kontrollpanel for <strong>${escapeHtml(tenant.name)}</strong>.</p>
-      <div style="background: #f4f2ee; border-radius: 8px; padding: 14px; font-size: 13px; color: #333;">
-        Status: E-postintegrasjon via Resend fungerer som forventet.
-      </div>
-    </div>
-  `;
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "Testvarsel",
+    eyebrow: "Systemtest",
+    title: "Test av e-postvarsling",
+    introHtml: `Dette er et testvarsel sendt fra ditt kontrollpanel for ${strongValue(
+      palette,
+      studioName
+    )}.`,
+    detailsHtml: `<tr>
+      <td style="padding-top:6px;">
+        <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:16px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.65;color:${palette.value};">Status: E-postintegrasjon via Resend fungerer som forventet.</div>
+      </td>
+    </tr>`,
+    maxWidth: 500,
+  });
 
-  const { from, replyTo } = getSenderInfo(tenant);
+  const { from, replyTo } = getSenderInfo(tenant, config);
 
-  return sendEmailSafely({
+  return sendEmailSafely(config, {
     from,
     replyTo,
     to: [recipientEmail],
@@ -498,4 +751,3 @@ export async function sendTestNotificationEmail(tenant: Tenant, recipientEmail: 
     html,
   });
 }
-
