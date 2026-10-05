@@ -44,6 +44,10 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // Build output directory. Defaults to `.next`; override with
+  // `NEXT_DIST_DIR` when a running dev server holds the default directory
+  // (e.g. Windows file locks during a local `next build`).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   images: {
     unoptimized: true,
   },
