@@ -71,6 +71,22 @@ export interface TenantColors {
   red: string;
   /** Warning / caution. */
   warning: string;
+  /* ---------------------------------------------------------------------- */
+  /*  Optional theme aliases                                                */
+  /*  Newer tenant themes may use these semantic keys. Consumers that       */
+  /*  predate them keep reading the canonical keys above, so both styles    */
+  /*  stay type-safe and render identically.                                */
+  /* ---------------------------------------------------------------------- */
+  /** Muted surface (alias of `recessed`). */
+  cardMuted?: string;
+  /** Translucent accent wash (e.g. hover/selected backgrounds). */
+  accentLight?: string;
+  /** Accent hover state. */
+  accentHover?: string;
+  /** Primary foreground text (alias of `value`). */
+  text?: string;
+  /** Muted foreground text (alias of `label`). */
+  textMuted?: string;
 }
 
 export interface TenantTheme {
@@ -124,6 +140,11 @@ export interface TenantBookingRules {
   pendingHoldMin: number;
   cancellationPolicyText: string;
   customFields: CustomField[];
+  /**
+   * Optional opening weekdays (0 = Monday … 6 = Sunday) used by dev
+   * auto-provisioning to seed `hours`. Defaults to Mon–Sat when omitted.
+   */
+  openWeekdays?: number[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -141,6 +162,12 @@ export interface TenantIntegrations {
   supabaseAssetsBucket?: string;
   /** Path prefix inside the assets bucket, e.g. "gangina". */
   assetsPrefix?: string;
+  /**
+   * Booking reference prefix (e.g. "NOI"). When present, dev auto-provisioning
+   * uses it verbatim for the tenant row's `ref_prefix`; when absent the prefix
+   * is derived from the studio name as before.
+   */
+  refPrefix?: string;
 }
 
 export interface TenantAuth {
@@ -421,6 +448,117 @@ export const studioKloConfig: TenantConfig = {
   },
 };
 
+export const noireConfig: TenantConfig = {
+  id: "noire",
+  shortName: "Noire",
+  name: "Atelier Noire",
+  tagline: "Eksklusiv skjønnhetspleie & estetiske behandlinger.",
+  niche: "Haute Esthétique",
+  active: true,
+  contact: {
+    phone: "+4740000000",
+    whatsapp: "4740000000",
+    email: "abdisalamadam8@gmail.com",
+    ownerEmail: "abdisalamadam8@gmail.com",
+    instagram: "atelier.noire",
+    address: "Oslo Sentrum",
+    transit: "Kollektiv transport rett til døren",
+    hours: "Mandag til Fredag 10:00 - 18:00",
+    orgNumber: "999 888 777",
+    mvaStatus: "MVA-registrert",
+  },
+  theme: {
+    colors: {
+      canvas: "#08080A",
+      card: "#121215",
+      band: "#0D0D10",
+      recessed: "#18181C",
+      border: "#27272A",
+      borderStrong: "#3F3F46",
+      label: "#A1A1AA",
+      soft: "#71717A",
+      value: "#FAFAFA",
+      valueText: "#08080A",
+      accent: "#D4AF37",
+      watermark: "#2E2E33",
+      green: "#4ADE80",
+      red: "#F87171",
+      warning: "#FBBF24",
+      cardMuted: "#18181C",
+      accentLight: "rgba(212, 175, 55, 0.12)",
+      accentHover: "#E5C158",
+      text: "#FAFAFA",
+      textMuted: "#A1A1AA",
+    },
+    logoUrl: "/img/logo-noire.png",
+    watermarkUrl: "/img/logo-watermark.png",
+    monogram: "NOI",
+    watermarkText: "NOIRE",
+  },
+  rules: {
+    timezone: "Europe/Oslo",
+    currency: "kr",
+    allowMultiSelect: true,
+    minNoticeMin: 120,
+    bufferMin: 10,
+    slotStepMin: 30,
+    maxDaysAhead: 60,
+    pendingHoldMin: 1440,
+    cancellationPolicyText:
+      "Timer må avbestilles senest 24 timer før oppmøte. Uteblivelse eller for sen avbestilling belastes med 50% av behandlingen.",
+    customFields: [],
+    openWeekdays: [0, 1, 2, 3, 4],
+  },
+  services: [
+    {
+      id: 201,
+      name: "Signature Treatment",
+      durationMin: 75,
+      priceNok: 950,
+      bufferMin: 10,
+      active: true,
+      sort: 1,
+      category: "Signature",
+      photo: "/demo/nails/pin-biab.jpg",
+      description: "Vår signaturbehandling med grundig konsultasjon og skreddersydd finish.",
+    },
+    {
+      id: 202,
+      name: "Express Touch-Up",
+      durationMin: 30,
+      priceNok: 450,
+      bufferMin: 10,
+      active: true,
+      sort: 2,
+      category: "Express",
+      photo: "/demo/nails/pin-glazed-donut.jpg",
+      description: "Rask oppfriskning for deg som vil se polert ut på under en time.",
+    },
+    {
+      id: 203,
+      name: "Radiance Ritual",
+      durationMin: 50,
+      priceNok: 750,
+      bufferMin: 10,
+      active: true,
+      sort: 3,
+      category: "Signature",
+      photo: "/demo/nails/pin-glass-french.jpg",
+      description: "Vitaliserende rituale som gir jevn struktur og naturlig glød.",
+    },
+  ],
+  integrations: {
+    emailFromName: "Atelier Noire",
+    emailFromAddress: "booking@agure.space",
+    replyTo: "abdisalamadam8@gmail.com",
+    refPrefix: "NOI",
+  },
+  auth: {
+    allowedAdminEmails: ["abdisalamadam8@gmail.com"],
+    masterOtpEnabled: false,
+  },
+};
+
 /* -------------------------------------------------------------------------- */
 /*  Registry & resolver                                                       */
 /* -------------------------------------------------------------------------- */
@@ -428,6 +566,7 @@ export const studioKloConfig: TenantConfig = {
 export const TENANTS: Record<TenantSlug, TenantConfig> = {
   gangina: ganginaConfig,
   "studio-klo": studioKloConfig,
+  noire: noireConfig,
 };
 
 /**
