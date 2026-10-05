@@ -115,11 +115,20 @@ async function provisionDevTenant(slug: string): Promise<Tenant | null> {
   const config = getTenantConfig(slug);
   if (config.id !== slug) return null; // unknown slug -> genuine 404
 
+  // Prefer an explicitly configured booking reference prefix (e.g. "NOI").
+  // Tenants that do not set one keep the historical name-derived prefix, so
+  // Gangina ("GAN") and Studio Klō are behaviourally unchanged.
+  const configuredPrefix = (config.integrations.refPrefix || "")
+    .replace(/[^A-Za-z]/g, "")
+    .slice(0, 3)
+    .toUpperCase();
   const prefix =
+    configuredPrefix ||
     (config.name || "BKG")
       .replace(/[^A-Za-z]/g, "")
       .slice(0, 3)
-      .toUpperCase() || "BKG";
+      .toUpperCase() ||
+    "BKG";
 
   await supabaseAdmin.from("tenants").upsert(
     {
@@ -167,7 +176,10 @@ async function provisionDevTenant(slug: string): Promise<Tenant | null> {
     .limit(1);
 
   if (!existingHours || existingHours.length === 0) {
-    const hourRows = [0, 1, 2, 3, 4, 5].map((weekday) => ({
+    // Tenants may narrow their opening weekdays (e.g. Noire = Mon–Fri);
+    // otherwise the historical Mon–Sat default is preserved.
+    const openWeekdays = config.rules.openWeekdays ?? [0, 1, 2, 3, 4, 5];
+    const hourRows = openWeekdays.map((weekday) => ({
       tenant_id: config.id,
       weekday,
       open_min: 600,
