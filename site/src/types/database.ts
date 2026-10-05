@@ -23,6 +23,8 @@ export interface Database {
           id: string;
           name: string;
           owner_email: string;
+          phone: string | null;
+          profile: Json | null;
           ref_prefix: string;
           timezone: string;
           allowed_origins: Json;
@@ -38,6 +40,8 @@ export interface Database {
           id: string;
           name: string;
           owner_email: string;
+          phone?: string | null;
+          profile?: Json | null;
           ref_prefix?: string;
           timezone?: string;
           allowed_origins?: Json;
@@ -48,11 +52,14 @@ export interface Database {
           pending_hold_min?: number;
           active?: boolean;
           created_at?: number;
+          updated_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
           owner_email?: string;
+          phone?: string | null;
+          profile?: Json | null;
           ref_prefix?: string;
           timezone?: string;
           allowed_origins?: Json;
@@ -63,6 +70,7 @@ export interface Database {
           pending_hold_min?: number;
           active?: boolean;
           created_at?: number;
+          updated_at?: string;
         };
         Relationships: [];
       };

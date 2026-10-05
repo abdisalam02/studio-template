@@ -33,6 +33,8 @@ function buildTenantFixture(slug: string): Tenant {
     id: config.id,
     name: config.name,
     owner_email: config.contact.ownerEmail,
+    phone: config.contact.phone || null,
+    profile: null,
     ref_prefix: prefix,
     timezone: config.rules.timezone,
     allowed_origins: [],

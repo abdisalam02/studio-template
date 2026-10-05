@@ -432,6 +432,8 @@ function AdminPageContent() {
           id: "gangina",
           name: "Gangina Beauty Studio",
           owner_email: email,
+          phone: null,
+          profile: null,
           ref_prefix: "GNG",
           timezone: "Europe/Oslo",
           allowed_origins: [],

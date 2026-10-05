@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyApprovalToken } from "@/lib/onboarding-token";
-import { getTenantConfig } from "@/config/tenant.config";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // design-ok
@@ -52,11 +51,28 @@ function normalizeSlug(value: string): string {
     .slice(0, 48);
 }
 
-/** Derives a booking reference prefix ("NOI") from explicit value, config, or name. */
-function buildRefPrefix(explicit: string, slug: string, brandName: string): string {
-  const source = explicit || brandName || slug;
-  const cleaned = source.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
+/** Derives a booking reference prefix ("NOI") from a brand / studio name. */
+function buildRefPrefix(name: string): string {
+  const cleaned = (name || "").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
   return cleaned || "STU";
+}
+
+/**
+ * Upserts a tenant. If the environment hasn't added the optional `updated_at`
+ * column yet, retries without it so the approval still lands.
+ */
+async function upsertTenantRow(
+  client: NonNullable<typeof supabaseAdmin>,
+  row: TenantInsert
+): Promise<{ error: { message?: string } | null }> {
+  const first = await client.from("tenants").upsert(row, { onConflict: "id" });
+  if (first.error && /updated_at/i.test(first.error.message || "")) {
+    console.warn("tenants.updated_at column is unavailable; writing without it.");
+    const fallback: TenantInsert = { ...row };
+    delete fallback.updated_at;
+    return client.from("tenants").upsert(fallback, { onConflict: "id" });
+  }
+  return first;
 }
 
 function escapeHtml(value: string): string {
@@ -146,31 +162,35 @@ export async function GET(req: NextRequest) {
   }
 
   const brandName =
-    firstText(identity.brandName, identity.studioName, identity.businessName, identity.name) ||
-    slug;
+    firstText(
+      identity.brandName,
+      identity.legalName,
+      identity.studioName,
+      identity.businessName,
+      identity.name
+    ) || "Studio";
   const ownerEmail =
-    firstText(contact.email, identity.email, contact.ownerEmail, identity.ownerEmail) ||
+    firstText(contact.email, contact.ownerEmail, identity.email, identity.ownerEmail) ||
     "booking@agure.space";
-
-  // Prefer the tenant's declared prefix when one is registered for this slug,
-  // then any explicit value in the submission, then the brand name.
-  const registered = getTenantConfig(slug);
-  const configuredPrefix = registered.id === slug ? registered.integrations.refPrefix : "";
-  const refPrefix = buildRefPrefix(
-    firstText(identity.refPrefix, contact.refPrefix, configuredPrefix),
-    slug,
-    brandName
-  );
+  const phone = firstText(contact.phone, contact.whatsapp, contact.whatsApp) || null;
+  const refPrefix =
+    firstText(identity.monogram, identity.refPrefix) || buildRefPrefix(brandName);
 
   const minNoticeMin =
-    policies.cancellationHours !== undefined
-      ? Math.round(asNumber(policies.cancellationHours, 24) * 60)
+    policies.cancellationHours !== undefined || policies.cancellationWindowHours !== undefined
+      ? Math.round(
+          asNumber(policies.cancellationHours ?? policies.cancellationWindowHours, 24) * 60
+        )
       : asNumber(policies.minNoticeMin, 120);
 
   const row: TenantInsert = {
     id: slug,
     name: brandName,
     owner_email: ownerEmail,
+    phone,
+    // The full rich onboarding submission (identity, location, contact,
+    // social, policies, submittedAt) is preserved verbatim in `profile`.
+    profile: data as unknown as Json,
     ref_prefix: refPrefix,
     timezone: firstText(policies.timezone, identity.timezone) || "Europe/Oslo",
     allowed_origins: [],
@@ -180,11 +200,10 @@ export async function GET(req: NextRequest) {
     max_days_ahead: Math.max(1, Math.round(asNumber(policies.maxDaysAhead, 60))),
     pending_hold_min: Math.max(1, Math.round(asNumber(policies.pendingHoldMin, 1440))),
     active: true,
+    updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabaseAdmin
-    .from("tenants")
-    .upsert(row, { onConflict: "id" });
+  const { error } = await upsertTenantRow(supabaseAdmin, row);
 
   if (error) {
     console.error("ONBOARD APPROVE ERROR:", error);
