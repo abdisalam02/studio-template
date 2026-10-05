@@ -11,7 +11,9 @@ import type { NextRequest } from "next/server";
  *   - answers preflight OPTIONS with 204 + the requisite headers,
  *   - echoes the concrete origin (never `*`) so credentialed requests work,
  *   - authorises known production domains, same-origin requests and the
- *     common localhost development ports.
+ *     common localhost development ports,
+ *   - lets self-authenticated routes (a signed token, no session cookie, e.g.
+ *     the onboarding approval link) pass straight through.
  *
  * Extend the production allow-list without a code change by setting
  * `CORS_ALLOWED_ORIGINS` to a comma-separated list of full origins.
@@ -33,6 +35,17 @@ const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 const ALLOWED_METHODS = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
 const ALLOWED_HEADERS =
   "Content-Type, Authorization, X-Requested-With, Accept, X-CSRF-Token, x-admin-key, x-admin-token";
+
+/**
+ * API prefixes that authenticate themselves (a signed token in the URL/body)
+ * rather than with an admin session cookie. They must always bypass any
+ * session gate. Keep this list as small as possible.
+ */
+const SELF_AUTHENTICATED_API_PREFIXES = ["/api/admin/onboard/approve"];
+
+function isSelfAuthenticatedRequest(pathname: string): boolean {
+  return SELF_AUTHENTICATED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 /** Full origins supplied at runtime via a comma-separated env variable. */
 function configuredOrigins(): string[] {
@@ -98,6 +111,13 @@ function applyCorsHeaders(response: NextResponse, origin: string, allowed: boole
 export function middleware(request: NextRequest) {
   // Only API requests participate in CORS.
   if (!request.nextUrl.pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
+  // The onboarding approval link is opened straight from an email and is
+  // authenticated by its own HMAC token, so it must never be gated by an
+  // admin session cookie (and needs no CORS — it is a top-level navigation).
+  if (isSelfAuthenticatedRequest(request.nextUrl.pathname)) {
     return NextResponse.next();
   }
 

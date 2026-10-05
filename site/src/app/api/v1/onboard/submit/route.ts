@@ -114,47 +114,246 @@ function escapeHtml(value: string): string {
 const REVIEW_RECIPIENT = "niwache15@gmail.com";
 const REVIEW_FROM = "Studio Intake <booking@agure.space>";
 
+/**
+ * Canonical, non-redirecting base for emailed approval links.
+ *
+ * Always `https://www.abdisalam.space`: the apex domain issues a Vercel
+ * redirect, and a redirect on an emailed GET can drop the `?token=` query
+ * string. Only an explicit localhost URL (local development) overrides it so
+ * the round-trip remains testable on the dev machine.
+ */
+const CANONICAL_BASE_URL = "https://www.abdisalam.space";
+
+function resolveCanonicalBaseUrl(): string {
+  const configured = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "");
+  if (configured && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(configured)) {
+    return configured;
+  }
+  return CANONICAL_BASE_URL;
+}
+
 interface SubmissionSummary {
-  brandName: string;
-  orgNumber: string;
-  phone: string;
-  address: string;
   slug: string;
-  contactEmail: string;
+  brandName: string;
+  shortName: string;
+  legalEntity: string;
+  orgNumber: string;
+  mvaStatus: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  address: string;
+  mapsUrl: string;
+  instagram: string;
+  instagramUrl: string;
+  tiktok: string;
+  tiktokUrl: string;
+  cancellationWindow: string;
+  noShowFee: string;
+  acceptedPayments: string;
+  submittedAt: string;
+}
+
+/* --- value formatters ----------------------------------------------------- */
+
+function formatDuration(value: unknown): string {
+  const raw = asText(value);
+  if (!raw) return "";
+  const n = Number(raw);
+  if (Number.isFinite(n)) return `${n} ${n === 1 ? "hour" : "hours"}`;
+  return raw;
+}
+
+function formatPercent(value: unknown): string {
+  const raw = asText(value);
+  if (!raw) return "";
+  const n = Number(raw);
+  if (Number.isFinite(n)) return `${n}%`;
+  return raw;
+}
+
+function formatList(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((entry) => asText(entry)).filter(Boolean).join(", ");
+  }
+  return asText(value);
+}
+
+/** Normalises a social profile into a display handle + canonical URL. */
+function socialProfile(value: string, domain: string): { label: string; url: string } {
+  const raw = value.trim();
+  if (!raw) return { label: "", url: "" };
+  if (/^https?:\/\//i.test(raw)) {
+    const match = raw.match(new RegExp(`${domain}/(?:@)?([^/?#]+)`, "i"));
+    return { label: match ? `@${match[1]}` : raw, url: raw };
+  }
+  const handle = raw.replace(/^@/, "");
+  return { label: `@${handle}`, url: `https://${domain}/${handle}` };
+}
+
+function buildMapsUrl(explicit: string, address: string): string {
+  if (explicit) return explicit;
+  if (!address) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+function formatSubmittedAt(value: number): string {
+  try {
+    return `${new Date(value).toLocaleString("en-GB", {
+      timeZone: "Europe/Oslo",
+      dateStyle: "long",
+      timeStyle: "short",
+    })} (Europe/Oslo)`;
+  } catch {
+    return new Date(value).toISOString();
+  }
+}
+
+/* --- email HTML ----------------------------------------------------------- */
+
+const EMAIL_FONT =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const NOT_PROVIDED = '<span style="color:#A1A1AA;">Not provided</span>';
+
+interface EmailRow {
+  label: string;
+  /** Pre-escaped, email-safe HTML. */
+  value: string;
+}
+
+function plainValue(value: string): string {
+  return value ? escapeHtml(value) : NOT_PROVIDED;
+}
+
+function linkValue(href: string, text: string): string {
+  if (!href) return NOT_PROVIDED;
+  return `<a href="${escapeHtml(href)}" style="color:#0C0D0E;text-decoration:underline;">${escapeHtml(
+    text || href
+  )}</a>`;
+}
+
+function emailSection(title: string, rows: EmailRow[]): string {
+  const body = rows
+    .map(
+      (row) => `
+            <tr>
+              <td style="padding:12px 16px 12px 0;border-bottom:1px solid #E4E4E7;font-size:13px;line-height:1.5;color:#71717A;vertical-align:top;white-space:nowrap;">${escapeHtml(
+                row.label
+              )}</td>
+              <td style="padding:12px 0;border-bottom:1px solid #E4E4E7;font-size:14px;line-height:1.5;color:#0C0D0E;font-weight:600;text-align:right;vertical-align:top;word-break:break-word;">${
+                row.value
+              }</td>
+            </tr>`
+    )
+    .join("");
+
+  return `
+        <h2 style="margin:0 0 2px;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#71717A;">${escapeHtml(
+          title
+        )}</h2>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 26px;">
+          ${body}
+        </table>`;
+}
+
+/** Bulletproof (VML + anchor) dark approval button, centered. */
+function emailApprovalButton(reviewLink: string): string {
+  const href = escapeHtml(reviewLink);
+  const label = "Approve &amp; Apply to Live Studio &#8594;";
+  return `
+        <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:28px auto;">
+          <tr>
+            <td align="center" bgcolor="#0C0D0E" style="border-radius:6px;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:46px;v-text-anchor:middle;width:360px;" arcsize="13%" stroke="f" fillcolor="#0C0D0E">
+                <w:anchorlock/>
+                <center style="color:#FFFFFF;font-family:${EMAIL_FONT};font-size:15px;font-weight:600;letter-spacing:0.5px;">${label}</center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-- -->
+              <a href="${href}" style="display:inline-block;background:#0C0D0E;color:#FFFFFF;font-size:15px;font-weight:600;letter-spacing:0.5px;text-decoration:none;padding:14px 28px;border-radius:6px;">${label}</a>
+              <!--<![endif]-->
+            </td>
+          </tr>
+        </table>`;
 }
 
 function buildReviewEmail(summary: SubmissionSummary, reviewLink: string): string {
-  const row = (label: string, value: string) => `
-    <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #1f1f24;color:#8b8b93;font-size:12px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td>
-      <td style="padding:10px 0 10px 20px;border-bottom:1px solid #1f1f24;color:#fafafa;font-size:15px;font-weight:600;">${value ? escapeHtml(value) : '<span style="color:#5b5b63;font-weight:400;">Not provided</span>'}</td>
-    </tr>`;
+  const identityRows: EmailRow[] = [
+    { label: "Brand Name", value: plainValue(summary.brandName) },
+    { label: "Short Name", value: plainValue(summary.shortName) },
+    { label: "Legal Entity", value: plainValue(summary.legalEntity) },
+    { label: "Org Number", value: plainValue(summary.orgNumber) },
+    { label: "VAT / MVA Status", value: plainValue(summary.mvaStatus) },
+  ];
+  const contactRows: EmailRow[] = [
+    {
+      label: "Email",
+      value: summary.email ? linkValue(`mailto:${summary.email}`, summary.email) : NOT_PROVIDED,
+    },
+    {
+      label: "Phone",
+      value: summary.phone
+        ? linkValue(`tel:${summary.phone.replace(/\s+/g, "")}`, summary.phone)
+        : NOT_PROVIDED,
+    },
+    { label: "WhatsApp", value: plainValue(summary.whatsapp) },
+    { label: "Address", value: plainValue(summary.address) },
+    {
+      label: "Google Maps",
+      value: summary.mapsUrl ? linkValue(summary.mapsUrl, "Open in Google Maps") : NOT_PROVIDED,
+    },
+  ];
+  const socialRows: EmailRow[] = [
+    {
+      label: "Instagram",
+      value: summary.instagramUrl
+        ? linkValue(summary.instagramUrl, summary.instagram)
+        : NOT_PROVIDED,
+    },
+    {
+      label: "TikTok",
+      value: summary.tiktokUrl ? linkValue(summary.tiktokUrl, summary.tiktok) : NOT_PROVIDED,
+    },
+  ];
+  const policyRows: EmailRow[] = [
+    { label: "Cancellation Window", value: plainValue(summary.cancellationWindow) },
+    { label: "No-Show Fee", value: plainValue(summary.noShowFee) },
+    { label: "Accepted Payments", value: plainValue(summary.acceptedPayments) },
+  ];
 
   return `<!DOCTYPE html>
 <html lang="en">
-  <body style="margin:0;padding:0;background:#08080a;">
-    <div style="max-width:600px;margin:0 auto;padding:40px 24px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-      <div style="border:1px solid #1f1f24;border-radius:18px;overflow:hidden;background:#0d0d10;">
-        <div style="padding:28px 32px;border-bottom:1px solid #1f1f24;">
-          <div style="color:#d4af37;font-size:11px;letter-spacing:.28em;text-transform:uppercase;font-weight:700;">New Studio Profile</div>
-          <div style="color:#fafafa;font-size:26px;font-weight:700;margin-top:10px;letter-spacing:-.01em;">${escapeHtml(summary.brandName)}</div>
-        </div>
-        <div style="padding:8px 32px 4px;">
-          <table style="width:100%;border-collapse:collapse;">
-            ${row("Brand name", summary.brandName)}
-            ${row("Org. number", summary.orgNumber)}
-            ${row("Phone", summary.phone)}
-            ${row("Address", summary.address)}
-            ${row("Slug", summary.slug)}
-            ${row("Contact email", summary.contactEmail)}
-          </table>
-        </div>
-        <div style="padding:28px 32px 34px;">
-          <a href="${escapeHtml(reviewLink)}" style="display:block;text-align:center;background:#d4af37;color:#08080a;text-decoration:none;font-weight:700;font-size:15px;letter-spacing:.02em;padding:16px 24px;border-radius:12px;">Approve &amp; Apply to Live</a>
-          <p style="color:#6f6f77;font-size:12px;line-height:1.6;margin:18px 0 0;text-align:center;">This link is single-purpose and expires 72 hours after submission. If you did not expect this request, you can safely ignore it.</p>
-        </div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light only" />
+    <title>Studio Onboarding Review</title>
+  </head>
+  <body style="margin:0;padding:0;background:#F4F4F5;">
+    <div style="max-width:580px;margin:0 auto;padding:32px 16px;font-family:${EMAIL_FONT};-webkit-font-smoothing:antialiased;">
+      <div style="background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;padding:32px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#71717A;">Studio Onboarding Review</div>
+        <h1 style="margin:12px 0 6px;font-size:24px;line-height:1.3;font-weight:700;color:#0C0D0E;letter-spacing:-0.01em;">${escapeHtml(
+          summary.brandName || "New Studio"
+        )}</h1>
+        <div style="font-size:12px;color:#A1A1AA;">Submitted ${escapeHtml(summary.submittedAt)}</div>
+
+        <div style="height:1px;background:#E4E4E7;margin:24px 0;"></div>
+
+        ${emailSection("Identity", identityRows)}
+        ${emailSection("Contact & Location", contactRows)}
+        ${emailSection("Social", socialRows)}
+        ${emailSection("Policies", policyRows)}
+
+        ${emailApprovalButton(reviewLink)}
+
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#71717A;">This single-use cryptographic token expires in 72 hours. Live database records will only be modified once approved.</p>
+        <p style="margin:16px 0 0;font-size:11px;line-height:1.6;color:#A1A1AA;">Button not working? Paste this link into your browser:<br /><a href="${escapeHtml(
+          reviewLink
+        )}" style="color:#A1A1AA;word-break:break-all;">${escapeHtml(reviewLink)}</a></p>
       </div>
-      <p style="color:#3f3f46;font-size:11px;text-align:center;margin:20px 0 0;letter-spacing:.06em;">AGURE STUDIO PLATFORM</p>
+      <p style="margin:20px 0 0;text-align:center;font-size:11px;color:#A1A1AA;letter-spacing:0.06em;">AGURE STUDIO PLATFORM</p>
     </div>
   </body>
 </html>`;
@@ -195,7 +394,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const submittedAt = Date.now();
+  const address = firstText(
+    location.address,
+    location.fullAddress,
+    location.street,
+    location.city
+  );
+  const instagram = socialProfile(
+    firstText(social.instagram, social.instagramUrl, social.instagramHandle),
+    "instagram.com"
+  );
+  const tiktok = socialProfile(
+    firstText(social.tiktok, social.tikTok, social.tiktokUrl),
+    "tiktok.com"
+  );
+
   const summary: SubmissionSummary = {
+    slug,
     brandName: firstText(
       identity.brandName,
       identity.studioName,
@@ -203,21 +419,52 @@ export async function POST(req: NextRequest) {
       identity.name,
       body.slug
     ),
+    shortName: firstText(
+      identity.shortName,
+      identity.brandShortName,
+      identity.short,
+      identity.abbreviation
+    ),
+    legalEntity: firstText(
+      identity.legalEntity,
+      identity.legalName,
+      identity.companyName,
+      identity.registeredName
+    ),
     orgNumber: firstText(
       identity.orgNumber,
       identity.org_number,
       contact.orgNumber,
       policies.orgNumber
     ),
+    mvaStatus: firstText(identity.mvaStatus, identity.vatStatus, identity.mva),
+    email: firstText(contact.email, identity.email, social.email),
     phone: firstText(contact.phone, identity.phone, contact.telephone),
-    address: firstText(
-      location.address,
-      location.fullAddress,
-      location.street,
-      location.city
+    whatsapp: firstText(contact.whatsapp, contact.whatsApp, identity.whatsapp),
+    address,
+    mapsUrl: buildMapsUrl(
+      firstText(
+        location.mapsUrl,
+        location.googleMaps,
+        location.mapsLink,
+        location.googleMapsLink
+      ),
+      address
     ),
-    slug,
-    contactEmail: firstText(contact.email, identity.email, social.email),
+    instagram: instagram.label,
+    instagramUrl: instagram.url,
+    tiktok: tiktok.label,
+    tiktokUrl: tiktok.url,
+    cancellationWindow: formatDuration(
+      firstText(policies.cancellationWindow) || policies.cancellationHours
+    ),
+    noShowFee: formatPercent(
+      firstText(policies.noShowFee, policies.noShowFeePercent, policies.noShowFeePct)
+    ),
+    acceptedPayments: formatList(
+      policies.acceptedPayments ?? policies.payments ?? policies.paymentMethods
+    ),
+    submittedAt: formatSubmittedAt(submittedAt),
   };
 
   // No database writes here: the submission is only captured in the signed
@@ -231,7 +478,7 @@ export async function POST(req: NextRequest) {
       contact,
       social,
       policies,
-      submittedAt: Date.now(),
+      submittedAt,
     });
   } catch {
     return NextResponse.json(
@@ -240,10 +487,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_SITE_URL || "https://abdisalam.space"
-  ).replace(/\/+$/, "");
-  const reviewLink = `${baseUrl}/api/admin/onboard/approve?token=${encodeURIComponent(token)}`;
+  const reviewLink = `${resolveCanonicalBaseUrl()}/api/admin/onboard/approve?token=${encodeURIComponent(
+    token
+  )}`;
 
   const resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey) {
@@ -252,7 +498,7 @@ export async function POST(req: NextRequest) {
       const result = await resend.emails.send({
         from: REVIEW_FROM,
         to: REVIEW_RECIPIENT,
-        replyTo: summary.contactEmail || undefined,
+        replyTo: summary.email || undefined,
         subject: `New studio profile: ${summary.brandName || "Untitled"}`,
         html: buildReviewEmail(summary, reviewLink),
       });

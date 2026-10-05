@@ -73,20 +73,38 @@ function escapeHtml(value: string): string {
 /* -------------------------------------------------------------------------- */
 
 function htmlPage(status: number, title: string, message: string, detail = ""): NextResponse {
+  const ok = status < 400;
+  const accent = ok ? "#4ADE80" : "#F87171";
+  const accentSoft = ok ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)";
+  const accentBorder = ok ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)";
+  const icon = ok ? "&#10003;" : "&#33;";
+  const badge = ok ? "Approved" : "Action needed";
+
   const body = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
+    <meta name="color-scheme" content="dark" />
     <title>${escapeHtml(title)}</title>
   </head>
-  <body style="margin:0;min-height:100vh;background:#08080a;display:flex;align-items:center;justify-content:center;padding:32px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <body style="margin:0;min-height:100vh;background:#08080A;display:flex;align-items:center;justify-content:center;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
     <div style="width:100%;max-width:520px;text-align:center;">
-      <div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:50%;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);color:#d4af37;font-size:28px;">&#10003;</div>
-      <h1 style="color:#fafafa;font-size:24px;font-weight:700;letter-spacing:-.01em;margin:24px 0 12px;">${escapeHtml(title)}</h1>
-      <p style="color:#a1a1aa;font-size:15px;line-height:1.65;margin:0;">${escapeHtml(message)}</p>
-      ${detail ? `<p style="color:#5b5b63;font-size:12px;line-height:1.6;margin:18px 0 0;">${escapeHtml(detail)}</p>` : ""}
+      <div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:50%;background:${accentSoft};border:1px solid ${accentBorder};color:${accent};font-size:28px;">${icon}</div>
+      <div style="margin:22px 0 10px;">
+        <span style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${accent};">${badge}</span>
+      </div>
+      <h1 style="color:#FAFAFA;font-size:24px;line-height:1.3;font-weight:700;letter-spacing:-0.01em;margin:0 0 12px;">${escapeHtml(
+        title
+      )}</h1>
+      <p style="color:#A1A1AA;font-size:15px;line-height:1.65;margin:0;">${escapeHtml(message)}</p>
+      ${
+        detail
+          ? `<p style="color:#52525B;font-size:12px;line-height:1.6;margin:18px 0 0;">${escapeHtml(detail)}</p>`
+          : ""
+      }
+      <p style="color:#3F3F46;font-size:11px;letter-spacing:0.06em;margin:28px 0 0;">AGURE STUDIO PLATFORM</p>
     </div>
   </body>
 </html>`;
