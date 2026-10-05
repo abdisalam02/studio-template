@@ -1,14 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generate6DigitOtp, createOtpChallenge } from "@/lib/otpStore";
 import { sendOwnerOtpEmail } from "@/lib/email";
+import { SlidingWindowRateLimiter, getClientIp } from "@/lib/rateLimit";
 import {
   getTenantConfig,
   findTenantByAdminEmail,
   DEFAULT_TENANT_SLUG,
 } from "@/config/tenant.config";
 
+export const dynamic = "force-dynamic"; // design-ok
+
+/**
+ * OTP request throttling: at most 3 codes per 10 minutes, enforced both per
+ * client IP and per target email. This blunts OTP-spam / email-bombing and
+ * slow enumeration of authorized addresses.
+ */
+const OTP_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MAX_REQUESTS = 3;
+
+const perIpLimiter = new SlidingWindowRateLimiter(OTP_MAX_REQUESTS, OTP_WINDOW_MS);
+const perEmailLimiter = new SlidingWindowRateLimiter(OTP_MAX_REQUESTS, OTP_WINDOW_MS);
+
+function rateLimitedResponse(retryAfterMs: number): NextResponse {
+  const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  return NextResponse.json(
+    {
+      error: "rate_limited",
+      message: "Too many verification codes requested. Please try again later.",
+    },
+    { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req.headers);
+
+    // Reject abusive sources before doing any tenant / email work.
+    if (perIpLimiter.isLimited(clientIp)) {
+      return rateLimitedResponse(perIpLimiter.retryAfterMs(clientIp));
+    }
+
     const body = await req.json().catch(() => ({}));
 
     const requestedTenantRaw = body.tenant_id ?? body.tenantId ?? "";
@@ -42,8 +74,14 @@ export async function POST(req: NextRequest) {
     const targetEmail =
       requestedEmail || (config.contact.ownerEmail || "").toLowerCase().trim();
 
+    // Per-email throttle applies to the resolved destination only.
+    if (targetEmail && perEmailLimiter.isLimited(targetEmail)) {
+      return rateLimitedResponse(perEmailLimiter.retryAfterMs(targetEmail));
+    }
+
     // The requested (or default owner) email must be explicitly authorized.
     if (!targetEmail || !targetEmail.includes("@") || !allowedEmails.includes(targetEmail)) {
+      perIpLimiter.record(clientIp);
       return NextResponse.json(
         {
           error: "forbidden",
@@ -52,6 +90,10 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+
+    // Count this accepted request against both budgets.
+    perIpLimiter.record(clientIp);
+    perEmailLimiter.record(targetEmail);
 
     const code = generate6DigitOtp();
     const { challengeToken, expiresAt } = createOtpChallenge(targetEmail, code);

@@ -8,12 +8,7 @@ import { verifyAdminRequest } from "@/lib/adminAuth";
 export async function POST(req: NextRequest) {
   try {
     const isDev = process.env.NODE_ENV === "development";
-    const allowBypass = Boolean(
-      isDev && (
-        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        isDev
-      )
-    );
+    const allowBypass = isDev && req.nextUrl.searchParams.get("dev_bypass") === "true";
 
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {

@@ -23,8 +23,7 @@ export async function POST(req: NextRequest) {
       isDev && (
         body?.dev_bypass === true ||
         req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        (token && token.startsWith("dev-bypass-")) ||
-        isDev
+        (token && token.startsWith("dev-bypass-"))
       )
     );
 

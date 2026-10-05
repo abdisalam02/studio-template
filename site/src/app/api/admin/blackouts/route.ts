@@ -14,8 +14,7 @@ export async function POST(req: NextRequest) {
     const allowBypass = Boolean(
       isDev && (
         req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        (token && token.startsWith("dev-bypass-")) ||
-        isDev
+        (token && token.startsWith("dev-bypass-"))
       )
     );
 
@@ -91,8 +90,7 @@ export async function DELETE(req: NextRequest) {
     const allowBypass = Boolean(
       isDev && (
         req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        (token && token.startsWith("dev-bypass-")) ||
-        isDev
+        (token && token.startsWith("dev-bypass-"))
       )
     );
 

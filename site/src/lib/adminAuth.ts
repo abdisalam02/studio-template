@@ -95,8 +95,13 @@ export async function verifyAdminRequest(
 ): Promise<AdminAuthResult> {
   const cleanToken = extractAdminToken(reqOrToken);
 
+  // Development bypasses are only ever honoured outside production, no matter
+  // what a call site passes in. This is the single source of truth so a future
+  // caller can never accidentally open an auth hole in production.
+  const devBypassEnabled = allowDevBypass && process.env.NODE_ENV !== "production";
+
   if (!cleanToken) {
-    if (allowDevBypass) {
+    if (devBypassEnabled) {
       return { authenticated: true, email: "niwache12@gmail.com", tenantId: "gangina" };
     }
     return { authenticated: false, error: "missing_token" };
@@ -136,8 +141,8 @@ export async function verifyAdminRequest(
     // Continue to next validation strategies
   }
 
-  // 2. Dev-bypass token (base64 encoded email)
-  if (cleanToken.startsWith("dev-bypass-")) {
+  // 2. Dev-bypass token (base64 encoded email) — development only.
+  if (devBypassEnabled && cleanToken.startsWith("dev-bypass-")) {
     try {
       const b64 = cleanToken.replace("dev-bypass-", "");
       const email = Buffer.from(b64, "base64").toString("utf-8").toLowerCase().trim();
@@ -173,7 +178,7 @@ export async function verifyAdminRequest(
     }
   }
 
-  if (allowDevBypass) {
+  if (devBypassEnabled) {
     return {
       authenticated: true,
       email: process.env.ADMIN_FALLBACK_EMAIL || "YOUR_TEST_EMAIL@gmail.com",

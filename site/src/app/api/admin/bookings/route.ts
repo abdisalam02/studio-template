@@ -7,17 +7,17 @@ export const dynamic = "force-dynamic"; // design-ok
 export async function GET(req: NextRequest) {
   try {
     const isDev = process.env.NODE_ENV === "development";
-    const allowBypass = Boolean(
-      isDev && (req.nextUrl.searchParams.get("dev_bypass") === "true" || isDev)
-    );
+    const allowBypass = isDev && req.nextUrl.searchParams.get("dev_bypass") === "true";
 
-    if (!supabaseAdmin) {
-      return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
-    }
-
+    // Authenticate before probing server configuration so unauthenticated
+    // callers always receive 401 and never learn whether the DB is wired up.
     const auth = await verifyAdminRequest(req, allowBypass);
     if (!auth.authenticated) {
       return NextResponse.json({ error: "unauthorized", message: "Missing or invalid login." }, { status: 401 });
+    }
+
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
     const userEmail = (auth.email || "niwache12@gmail.com").toLowerCase();

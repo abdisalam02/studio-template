@@ -66,8 +66,10 @@ function buildBookingFixture(tenant: Tenant, slug: string): BookingDetails {
 }
 
 export async function GET(req: NextRequest) {
+  // Strict production isolation: this development-only harness must be
+  // indistinguishable from a non-existent route in production.
   if (process.env.NODE_ENV === "production") {
-    return new NextResponse("Not found", { status: 404 });
+    return new Response("Not Found", { status: 404 });
   }
 
   const { searchParams } = new URL(req.url);
