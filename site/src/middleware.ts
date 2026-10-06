@@ -25,6 +25,7 @@ const PRODUCTION_ORIGINS = [
   "https://abdisalam.space",
   // External Noire intake front-end (one-click onboarding submissions).
   "https://noire.niwache12.workers.dev",
+  "https://noire-rosy.vercel.app",
 ];
 
 /** Local development ports the tenant front-ends commonly run on. */

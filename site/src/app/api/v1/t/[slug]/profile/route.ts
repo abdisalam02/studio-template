@@ -13,6 +13,7 @@ const ALLOWED_ORIGINS = [
   "https://www.abdisalam.space",
   "https://abdisalam.space",
   "https://noire.niwache12.workers.dev",
+  "https://noire-rosy.vercel.app",
 ];
 
 const DEV_PORTS = new Set(["3000", "3001", "3002", "5173"]);
@@ -79,7 +80,7 @@ export async function GET(
 ) {
   const cors = corsHeaders(req);
   const notFound = NextResponse.json(
-    { error: "Tenant profile not found" },
+    { error: "Tenant not found" },
     { status: 404, headers: cors }
   );
 
@@ -96,21 +97,27 @@ export async function GET(
 
   if (error || !tenant) return notFound;
 
-  // Merge the flat columns with the stored JSONB profile so neither older
-  // submissions nor direct column updates are lost.
-  const baseProfile = asRecord(tenant.profile);
+  // Merge the stored JSONB profile with the flat columns. Flat columns are the
+  // newest source of truth (direct updates); the profile backfills any missing
+  // values so older submissions are never lost.
+  const profile = asRecord(tenant.profile);
+  const profileIdentity = asRecord(profile.identity);
+  const profileContact = asRecord(profile.contact);
   const merged = {
-    ...baseProfile,
+    ...profile,
     slug: tenant.id,
     identity: {
-      brandName: tenant.name,
-      refPrefix: tenant.ref_prefix,
-      ...asRecord(baseProfile.identity),
+      ...profileIdentity,
+      brandName: tenant.name || profileIdentity.brandName,
+      refPrefix:
+        tenant.ref_prefix || profileIdentity.refPrefix || profileIdentity.monogram,
+      monogram:
+        tenant.ref_prefix || profileIdentity.monogram || profileIdentity.refPrefix,
     },
     contact: {
-      email: tenant.owner_email,
-      phone: tenant.phone,
-      ...asRecord(baseProfile.contact),
+      ...profileContact,
+      email: tenant.owner_email || profileContact.email,
+      phone: tenant.phone || profileContact.phone,
     },
   };
 
