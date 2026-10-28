@@ -547,114 +547,198 @@
       renderWeekStrip();
     }
 
+    const handle = document.getElementById('sheet-handle-bar');
+    if (handle) handle.setAttribute('aria-expanded', String(isCanopyExpanded));
+
     setTimeout(() => {
       isToggling = false;
     }, 350);
   }
 
   /**
-   * Continuous real-time pointer & touch drag physics for porcelain sheet.
-   * Completely prevents ghost clicks and click bleeds onto calendar underneath.
+   * Bottom-sheet gesture model, following the platform sheet pattern:
+   *  - drag from the handle, the header zone, or anywhere on the feed once it
+   *    is scrolled to the top;
+   *  - the top zone is more sensitive than the list body;
+   *  - vertical scrolling wins while the feed can still scroll, then hands
+   *    over to the sheet inside the same gesture;
+   *  - release snaps by distance or flick velocity with a short spring;
+   *  - the sheet rubber-bands past its limits instead of hard-stopping.
    */
   function initTouchGestures() {
-    const handleBar = document.getElementById('sheet-handle-bar');
     const sheet = document.getElementById('porcelain-sheet');
-    if (!handleBar || !sheet) return;
+    const scroller = document.getElementById('sheet-content-scroller');
+    const handleBar = document.getElementById('sheet-handle-bar');
+    if (!sheet || !scroller) return;
 
-    let isDragging = false;
-    let startY = 0;
-    let currentY = 0;
-    let initialExpanded = false;
+    const PEEK_HEIGHT = 250;
+    const TOP_ZONE = 136;        // handle + pulse banner: drags harder
+    const TOP_GAIN = 1.35;
+    const CONTENT_GAIN = 1;
+    const TAP_SLOP = 6;
+    const FLICK_VELOCITY = 0.55; // px per ms
+    const SNAP_MS = 320;
+
+    let gesture = null;
     let suppressClickUntil = 0;
 
-    // Capture-phase listener to swallow ghost clicks generated after drag/touch
-    document.addEventListener('click', (e) => {
-      if (Date.now() < suppressClickUntil) {
-        e.stopPropagation();
+    const isMobile = () => window.innerWidth < 960;
+    const travel = () =>
+      Math.max(140, (sheet.offsetHeight || window.innerHeight * 0.75) - PEEK_HEIGHT);
+
+    // Ghost-click guard: a drag must never press a card or a button.
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (Date.now() < suppressClickUntil) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      },
+      true
+    );
+
+    sheet.addEventListener(
+      'touchstart',
+      (e) => {
+        if (!isMobile() || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        const rect = sheet.getBoundingClientRect();
+        const offset = isCanopyExpanded ? travel() : 0;
+
+        gesture = {
+          x: touch.clientX,
+          y: touch.clientY,
+          offset,
+          currentOffset: offset,
+          gain: touch.clientY - rect.top < TOP_ZONE ? TOP_GAIN : CONTENT_GAIN,
+          active: false,
+          cancelled: false,
+          moved: false,
+          velocity: 0,
+          lastY: touch.clientY,
+          lastT: performance.now()
+        };
+      },
+      { passive: true }
+    );
+
+    sheet.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!isMobile() || !gesture || e.touches.length !== 1) return;
+        if (gesture.cancelled) return;
+
+        const touch = e.touches[0];
+        const dx = touch.clientX - gesture.x;
+        const dy = touch.clientY - gesture.y;
+
+        if (!gesture.active) {
+          // Decide the axis only once the finger has clearly moved.
+          if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) return;
+          if (Math.abs(dx) > Math.abs(dy)) {
+            gesture.cancelled = true;
+            return;
+          }
+          // The sheet is already at the end this direction would reach.
+          if (isCanopyExpanded && dy > 0) {
+            gesture.cancelled = true;
+            return;
+          }
+          if (!isCanopyExpanded && dy < 0) {
+            gesture.cancelled = true;
+            return;
+          }
+          // Let the feed scroll first; the next move hands over at scrollTop 0.
+          if (dy > 0 && scroller.scrollTop > 0) return;
+
+          gesture.active = true;
+          gesture.lastY = touch.clientY;
+          gesture.lastT = performance.now();
+          sheet.classList.add('is-dragging');
+          document.body.classList.add('is-sheet-dragging');
+        }
+
         e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    }, true);
 
-    handleBar.addEventListener('pointerdown', (e) => {
-      if (window.innerWidth >= 960) return;
-      e.preventDefault();
-      e.stopPropagation();
+        const max = travel();
+        let next = gesture.offset + dy * gesture.gain;
+        if (next < 0) next *= 0.3;
+        else if (next > max) next = max + (next - max) * 0.3;
 
-      isDragging = true;
-      startY = e.clientY;
-      currentY = e.clientY;
-      initialExpanded = isCanopyExpanded;
+        gesture.currentOffset = next;
+        gesture.moved = gesture.moved || Math.abs(dy) > TAP_SLOP;
+        sheet.style.transform = `translateY(${next}px)`;
 
-      try {
-        handleBar.setPointerCapture(e.pointerId);
-      } catch (_) {}
-
-      sheet.style.transition = 'none';
-    }, { passive: false });
-
-    const PEEK_HEIGHT = 250; // Reveals handle, review banner, metrics, and dock while calendar dates expand down
-
-    handleBar.addEventListener('pointermove', (e) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      currentY = e.clientY;
-      const deltaY = currentY - startY;
-      const sheetH = sheet.offsetHeight || 600;
-      const maxTravel = Math.max(140, sheetH - PEEK_HEIGHT);
-
-      if (!initialExpanded) {
-        // Week view (sheet expanded) -> can drag down to reveal month calendar
-        const clamped = Math.max(0, Math.min(deltaY, maxTravel));
-        sheet.style.transform = `translateY(${clamped}px)`;
-      } else {
-        // Month view (sheet collapsed) -> can drag up towards top
-        const clamped = Math.max(0, Math.min(maxTravel, maxTravel + deltaY));
-        sheet.style.transform = `translateY(${clamped}px)`;
-      }
-    }, { passive: false });
-
-    const endDrag = (e) => {
-      if (!isDragging) return;
-      isDragging = false;
-      e.preventDefault();
-      e.stopPropagation();
-
-      try {
-        handleBar.releasePointerCapture(e.pointerId);
-      } catch (_) {}
-
-      suppressClickUntil = Date.now() + 450;
-      sheet.style.transition = 'transform 0.42s cubic-bezier(0.2, 0.85, 0.25, 1)'; // design-ok
-      sheet.style.transform = '';
-
-      const deltaY = currentY - startY;
-
-      if (!initialExpanded) {
-        if (deltaY > 50 || Math.abs(deltaY) < 6) {
-          setCanopyExpanded(true); // Drag down or tap: expand calendar to month view
-        } else {
-          setCanopyExpanded(false);
+        const now = performance.now();
+        const dt = now - gesture.lastT;
+        if (dt > 0) {
+          gesture.velocity = (touch.clientY - gesture.lastY) / dt;
+          gesture.lastY = touch.clientY;
+          gesture.lastT = now;
         }
-      } else {
-        if (deltaY < -50 || Math.abs(deltaY) < 6) {
-          setCanopyExpanded(false); // Drag up or tap: collapse calendar to week view
-        } else {
-          setCanopyExpanded(true);
-        }
-      }
+      },
+      { passive: false }
+    );
+
+    const finishGesture = (e) => {
+      if (!gesture) return;
+      const state = gesture;
+      gesture = null;
+      if (!state.active) return;
+
+      if (e && e.cancelable) e.preventDefault();
+      sheet.classList.remove('is-dragging');
+      document.body.classList.remove('is-sheet-dragging');
+
+      const max = travel();
+      const flick = Math.abs(state.velocity) > FLICK_VELOCITY;
+      const collapse = flick ? state.velocity > 0 : state.currentOffset > max / 2;
+
+      // Commit the logical state while the inline transform still holds the
+      // visual position, so the hand-off back to CSS is seamless.
+      setCanopyExpanded(collapse);
+
+      const target = collapse ? max : 0;
+      sheet.style.transition = `transform ${SNAP_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+      sheet.style.transform = `translateY(${target}px)`;
+
+      window.setTimeout(() => {
+        sheet.style.transition = '';
+        sheet.style.transform = '';
+      }, SNAP_MS + 20);
+
+      if (state.moved) suppressClickUntil = Date.now() + 420;
     };
 
-    handleBar.addEventListener('pointerup', endDrag);
-    handleBar.addEventListener('pointercancel', endDrag);
+    sheet.addEventListener('touchend', finishGesture);
+    sheet.addEventListener('touchcancel', finishGesture);
 
-    // Suppress redundant click event from bubbling or hitting calendar
-    handleBar.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
+    // Mouse and keyboard: the handle still toggles on click or Enter/Space.
+    if (handleBar) {
+      handleBar.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCanopy();
+      });
+      handleBar.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleCanopy();
+        }
+      });
+    }
+
+    // Hairline shadow under the pinned search/filter bar while the feed scrolls.
+    const stickyHead = document.querySelector('.appointments-sticky-head');
+    if (stickyHead) {
+      scroller.addEventListener(
+        'scroll',
+        () => stickyHead.classList.toggle('is-stuck', scroller.scrollTop > 2),
+        { passive: true }
+      );
+    }
   }
 
   // ----------------------------------------------------------------------------
@@ -1064,25 +1148,25 @@
     };
 
     const statusMeta = statusMap[b.status] || { label: (b.status || '').toUpperCase(), class: 'confirmed' };
+    const contact = [b.clientEmail, b.clientPhone].filter(Boolean).join(' · ');
+    const emailFailedAt = ['bounced', 'failed', 'suppressed', 'complained'].includes(b.emailStatus || '');
 
     card.innerHTML = `
       <div class="booking-card-top-row">
-        <div class="client-avatar-circle">${initials}</div>
+        <div class="client-avatar-circle">${escapeActivityHtml(initials)}</div>
         <div class="client-title-info">
-          <div class="client-row-name">${b.clientName}</div>
-          ${isPending ? '<span class="pending-pulse-badge">Pending Review</span>' : ''}
+          <div class="client-row-name">${escapeActivityHtml(b.clientName)}</div>
+          <div class="client-row-service">${escapeActivityHtml(b.serviceName || 'Appointment')}</div>
         </div>
         <div class="client-status-col">
           <span class="status-pill-badge ${statusMeta.class}">${statusMeta.label}</span>
           <div class="card-price-tag">${b.price || 350} kr</div>
         </div>
       </div>
-      <div class="datetime-chips-row">
-        <span class="datetime-chip">${formatEnglishDate(b.date)}</span>
-        <span class="datetime-chip">${b.time}</span>
-        ${b.clientEmail ? `<span class="datetime-chip client-email-chip" title="${b.clientEmail}">${b.clientEmail}</span>` : ''}
-        ${b.clientPhone ? `<span class="datetime-chip">${b.clientPhone}</span>` : ''}
-        ${['bounced', 'failed', 'suppressed', 'complained'].includes(b.emailStatus || '') ? `<span class="datetime-chip email-failed-chip" title="${b.emailError || 'Confirmation was not delivered'}">Email failed</span>` : ''}
+      <div class="booking-meta-row">
+        <div class="booking-meta-primary">${formatEnglishDate(b.date)}<span class="meta-sep">·</span>${b.time}</div>
+        ${contact ? `<div class="booking-meta-secondary" title="${escapeActivityHtml(contact)}">${escapeActivityHtml(contact)}</div>` : ''}
+        ${emailFailedAt ? `<div class="booking-meta-alert" title="${escapeActivityHtml(b.emailError || 'Confirmation was not delivered')}">Email not delivered</div>` : ''}
       </div>
     `;
 

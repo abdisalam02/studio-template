@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="css/admin.css?v=3">
+  <link rel="stylesheet" href="css/admin.css?v=5">
   <link rel="icon" type="image/png" href="img/double-layer-star.png">
 </head>
 <body class="is-locked">
@@ -87,7 +87,7 @@
     <main class="porcelain-sheet" id="porcelain-sheet">
       
       <!-- Top Centered Drag Handle Pill -->
-      <div class="sheet-handle-bar" id="sheet-handle-bar" title="Drag or tap to toggle month calendar">
+      <div class="sheet-handle-bar" id="sheet-handle-bar" title="Drag up or down, or tap to toggle the month calendar" role="button" tabindex="0" aria-label="Toggle the month calendar" aria-expanded="false">
         <div class="sheet-handle-pill"></div>
       </div>
 
@@ -157,19 +157,22 @@
         <!-- ============================================================= -->
         <section class="tab-panel" id="panel-avtaler">
           
-          <!-- Search Bar -->
-          <div class="search-filter-wrap" style="position:relative;">
-            <svg class="search-icon-pos" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" id="admin-search-input" class="admin-search-input" placeholder="Search by client, phone, email, or ref...">
-          </div>
+          <!-- Sticky search + segment filters (stays pinned while the feed scrolls) -->
+          <div class="appointments-sticky-head">
+            <!-- Search Bar -->
+            <div class="search-filter-wrap" style="position:relative;">
+              <svg class="search-icon-pos" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="admin-search-input" class="admin-search-input" placeholder="Search by client, phone, email, or ref...">
+            </div>
 
-          <!-- Segment Filter Pills -->
-          <div class="filter-pills-row">
-            <button type="button" class="feed-filter-pill active" data-filter="active">Active (<span id="count-active">0</span>)</button>
-            <button type="button" class="feed-filter-pill" data-filter="pending">Pending (<span id="count-pending">0</span>)</button>
-            <button type="button" class="feed-filter-pill" data-filter="confirmed">Upcoming (<span id="count-upcoming">0</span>)</button>
-            <button type="button" class="feed-filter-pill" data-filter="archive">Archive (<span id="count-archive">0</span>)</button>
-            <button type="button" class="feed-filter-pill" data-filter="all">All (<span id="count-all">0</span>)</button>
+            <!-- Segment Filter Pills -->
+            <div class="filter-pills-row">
+              <button type="button" class="feed-filter-pill active" data-filter="active">Active (<span id="count-active">0</span>)</button>
+              <button type="button" class="feed-filter-pill" data-filter="pending">Pending (<span id="count-pending">0</span>)</button>
+              <button type="button" class="feed-filter-pill" data-filter="confirmed">Upcoming (<span id="count-upcoming">0</span>)</button>
+              <button type="button" class="feed-filter-pill" data-filter="archive">Archive (<span id="count-archive">0</span>)</button>
+              <button type="button" class="feed-filter-pill" data-filter="all">All (<span id="count-all">0</span>)</button>
+            </div>
           </div>
 
           <!-- Active Appointments Feed -->
@@ -813,6 +816,6 @@
 
   <!-- Scripts -->
   <script src="js/config.js?v=2"></script>
-  <script src="js/admin.js?v=6"></script>
+  <script src="js/admin.js?v=8"></script>
 </body>
 </html>

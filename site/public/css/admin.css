@@ -563,8 +563,22 @@ html, body {
   flex-direction: column;
   overflow: hidden;
   z-index: 10;
-  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+}
+
+/* Direct manipulation: no easing while a finger is on the sheet. */
+.porcelain-sheet.is-dragging {
+  transition: none !important;
+}
+
+body.is-sheet-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.porcelain-sheet.is-dragging .sheet-handle-pill {
+  background-color: #A1A1AA;
 }
 
 /* Mobile Collapsed State: Silky-smooth GPU transform animation design-ok */
@@ -651,7 +665,7 @@ html, body {
     height: auto;
     z-index: 10;
     transform: translateY(0);
-    transition: transform 0.42s cubic-bezier(0.2, 0.85, 0.25, 1);
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
   }
 
@@ -764,6 +778,7 @@ html, body {
   padding: 8px 20px 96px; /* 96px bottom padding for floating dock */
   z-index: 1;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 @media (min-width: 960px) {
@@ -775,11 +790,11 @@ html, body {
 /* Tab Panels */
 .tab-panel {
   display: none;
-  animation: fadeInTab 0.2s ease forwards;
 }
 
 .tab-panel.active {
   display: block;
+  animation: fadeInTab 0.2s ease;
 }
 
 @keyframes fadeInTab {
@@ -1124,15 +1139,15 @@ html, body {
   background: #FFFFFF;
   border: 1px solid var(--admin-card-border);
   border-radius: var(--admin-radius-squircle);
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
   box-shadow: var(--admin-card-shadow);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: cardFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   will-change: transform;
 }
 
@@ -1162,28 +1177,56 @@ html, body {
   border-left: 3px solid #2D5537;
 }
 
-.pending-pulse-badge {
-  background: var(--admin-pending-badge-bg);
-  color: var(--admin-pending-badge-text);
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: var(--admin-radius-full);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+/* Supporting line under the client name (treatment) */
+.client-row-service {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--admin-sheet-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.pending-pulse-badge::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #D97706;
-  box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.5);
-  animation: pendingPulse 1.6s ease-in-out infinite;
+/* Compact meta block: one strong date/time line, one muted contact line */
+.booking-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.booking-meta-primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+}
+
+.booking-meta-primary .meta-sep {
+  color: #C4C4C8;
+  font-weight: 400;
+}
+
+.booking-meta-secondary {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--admin-sheet-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.booking-meta-alert {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #9B2C2C;
+}
+
+.booking-item-card.is-pending .booking-meta-secondary {
+  color: var(--admin-pending-badge-text);
+  opacity: 0.85;
 }
 
 .booking-card-row,
@@ -1279,11 +1322,6 @@ html, body {
   text-overflow: ellipsis;
 }
 
-.booking-item-card.is-pending .datetime-chip {
-  background: rgba(138, 101, 65, 0.08);
-  color: var(--admin-pending-badge-text);
-}
-
 /* Status Badges (Understated Luxury Tones) */
 .status-pill-badge {
   font-size: 0.7rem;
@@ -1306,6 +1344,12 @@ html, body {
 }
 
 /* Green dot pulse for confirmed bookings (scoped away from count chips). */
+.booking-item-card .status-pill-badge {
+  font-size: 0.66rem;
+  padding: 3px 9px;
+  letter-spacing: 0.035em;
+}
+
 .booking-item-card .status-pill-badge.confirmed,
 .timeline-card-content .status-pill-badge.confirmed,
 #drawer-status-badge.confirmed {
@@ -1337,13 +1381,14 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .btn-triage {
   flex: 1;
-  padding: 9px 12px;
+  min-height: 42px;
+  padding: 10px 12px;
   border-radius: var(--admin-radius-full);
   font-size: 0.78rem;
   font-weight: 700;
@@ -1353,7 +1398,7 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  transition: transform 0.1s, opacity 0.15s;
+  transition: transform 0.1s, opacity 0.15s, background-color 0.15s;
 }
 
 .btn-triage:active {
@@ -1384,9 +1429,16 @@ html, body {
 }
 
 .btn-triage-details {
-  background: var(--admin-input-bg);
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--admin-sheet-muted);
+  border: none;
+  padding: 10px 6px;
+  font-weight: 600;
+}
+
+.btn-triage-details:hover {
   color: var(--admin-sheet-text);
-  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 /* Filter Pills Row */
@@ -1399,6 +1451,41 @@ html, body {
   -webkit-overflow-scrolling: touch;
   padding: 4px 0 12px;
   scrollbar-width: none;
+}
+
+/* Pinned search + segment filters for the appointments feed */
+.appointments-sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  margin: -8px -20px 0;
+  padding: 8px 20px 10px;
+  background: var(--admin-sheet-bg);
+  transition: box-shadow 0.18s ease;
+}
+
+.appointments-sticky-head.is-stuck {
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 10px 18px -14px rgba(0, 0, 0, 0.28);
+}
+
+/* Paint over the scroller's top padding, otherwise a sliver of the feed
+   scrolls through the gap between the handle and the pinned bar. */
+.appointments-sticky-head::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 28px;
+  background: var(--admin-card-bg);
+  pointer-events: none;
+}
+
+@media (min-width: 960px) {
+  .appointments-sticky-head {
+    margin: -24px -32px 0;
+    padding: 24px 32px 12px;
+  }
 }
 
 .filter-pills-row::-webkit-scrollbar {
