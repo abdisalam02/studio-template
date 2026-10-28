@@ -307,6 +307,16 @@ export interface Database {
         };
         Returns: boolean;
       };
+      reschedule_booking_atomic: {
+        Args: {
+          p_booking_id: number;
+          p_start_utc: number;
+          p_end_utc: number;
+          p_block_end_utc: number;
+          p_now: number;
+        };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;

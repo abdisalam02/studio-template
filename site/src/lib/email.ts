@@ -304,6 +304,86 @@ function escapeHtml(text: string): string {
 const EMAIL_FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
+/* -------------------------------------------------------------------------- */
+/*  Light / dark palettes                                                     */
+/*                                                                            */
+/*  Inline styles carry the LIGHT palette so clients without media-query      */
+/*  support still render a readable email. The <style> block swaps to the     */
+/*  tenant's dark palette via prefers-color-scheme and Outlook's [data-ogsc]. */
+/* -------------------------------------------------------------------------- */
+
+const LIGHT_EMAIL_COLORS: TenantColors = {
+  canvas: "#F7F4EE",
+  card: "#FFFFFF",
+  band: "#F3EEE7",
+  recessed: "#F7F3ED",
+  border: "#E6E0D6",
+  borderStrong: "#D5CCBF",
+  label: "#5E5A55",
+  soft: "#8A857E",
+  value: "#141312",
+  valueText: "#FFFFFF",
+  accent: "#8A6A3B",
+  watermark: "#D9D2C7",
+  green: "#2F6B45",
+  red: "#9B2C2C",
+  warning: "#8A6100",
+};
+
+function mixWithBlack(hex: string, amount: number): string {
+  const clean = hex.replace("#", "").trim();
+  if (clean.length !== 6 || /[^0-9a-f]/i.test(clean)) return hex;
+  const channels = [0, 2, 4].map((index) =>
+    Math.round(parseInt(clean.slice(index, index + 2), 16) * (1 - amount))
+  );
+  return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Light-mode palette for the active tenant (brand accent darkened for contrast). */
+export function lightEmailPalette(config: TenantConfig): TenantColors {
+  if (config.theme.lightColors) return config.theme.lightColors;
+  return {
+    ...LIGHT_EMAIL_COLORS,
+    accent: mixWithBlack(config.theme.colors.accent, 0.42),
+  };
+}
+
+/**
+ * Dark-mode overrides. Inline colours stay light and non-important, so these
+ * rules can win. [data-ogsc]/[data-ogsb] cover Outlook.com and the Outlook
+ * apps, which do not honour prefers-color-scheme.
+ */
+function colorSchemeStyles(dark: TenantColors, watermarkUrl: string): string {
+  const rules = (prefix = "") =>
+    [
+      `${prefix}.email-canvas{background-color:${dark.canvas}!important;}`,
+      `${prefix}.email-card{background-color:${dark.card}!important;border-color:${dark.border}!important;}`,
+      `${prefix}.email-band{background-color:${dark.band}!important;border-color:${dark.border}!important;}`,
+      `${prefix}.email-value{color:${dark.value}!important;}`,
+      `${prefix}.email-label{color:${dark.label}!important;}`,
+      `${prefix}.email-soft{color:${dark.soft}!important;}`,
+      `${prefix}.email-divider{border-top-color:${dark.border}!important;}`,
+      `${prefix}.email-border{border-color:${dark.border}!important;}`,
+      `${prefix}.email-button{background-color:${dark.value}!important;border-color:${dark.value}!important;}`,
+      `${prefix}.email-button-text{color:${dark.valueText}!important;}`,
+      `${prefix}.email-link{color:${dark.value}!important;}`,
+      `${prefix}.email-accent{color:${dark.accent}!important;}`,
+      `${prefix}.email-note{background-color:${dark.recessed}!important;border-color:${dark.border}!important;}`,
+      `${prefix}.email-content{background-image:url('${watermarkUrl}')!important;}`,
+      `${prefix}.email-logo--light{display:none!important;}`,
+      `${prefix}.email-logo--dark{display:block!important;}`,
+      `${prefix}.email-title--green{color:${dark.green}!important;}`,
+      `${prefix}.email-title--red{color:${dark.red}!important;}`,
+    ].join("");
+
+  return `<style>
+:root{color-scheme:light dark;supported-color-schemes:light dark;}
+@media (prefers-color-scheme:dark){${rules()}}
+${rules("[data-ogsc] ")}
+${rules("[data-ogsb] ")}
+</style>`;
+}
+
 interface EmailDetailInput {
   label: string;
   value: string;
@@ -318,10 +398,11 @@ function emailDetailRow(
 ): string {
   const { first = false, numeric = false } = options;
   const divider = first ? "" : `border-top:1px solid ${palette.border};`;
+  const dividerClass = first ? "" : " email-divider";
   const numericStyle = numeric ? "font-variant-numeric:tabular-nums;" : "";
   return `<tr>
-    <td width="40%" valign="top" style="padding:11px 12px 11px 0;${divider}font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;letter-spacing:0.01em;color:${palette.label};">${escapeHtml(label)}</td>
-    <td valign="top" align="right" style="padding:11px 0;${divider}font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;font-weight:600;color:${palette.value};text-align:right;${numericStyle}">${escapeHtml(value)}</td>
+    <td class="email-label${dividerClass}" width="40%" valign="top" style="padding:11px 12px 11px 0;${divider}font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;letter-spacing:0.01em;color:${palette.label};">${escapeHtml(label)}</td>
+    <td class="email-value${dividerClass}" valign="top" align="right" style="padding:11px 0;${divider}font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;font-weight:600;color:${palette.value};text-align:right;${numericStyle}">${escapeHtml(value)}</td>
   </tr>`;
 }
 
@@ -339,19 +420,19 @@ function emailDetailRows(palette: TenantColors, rows: EmailDetailInput[]): strin
 function emailButton(palette: TenantColors, href: string, label: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:26px auto 2px auto;">
     <tr>
-      <td align="center" bgcolor="${palette.value}" style="border-radius:9999px;border:1px solid ${palette.value};">
-        <a href="${href}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 30px;font-family:${EMAIL_FONT};font-size:14px;line-height:1;font-weight:600;color:${palette.valueText};text-decoration:none;border-radius:9999px;">${escapeHtml(label)}</a>
+      <td class="email-button" align="center" bgcolor="${palette.value}" style="border-radius:9999px;border:1px solid ${palette.value};background-color:${palette.value};">
+        <a class="email-button-text" href="${href}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 30px;font-family:${EMAIL_FONT};font-size:14px;line-height:1;font-weight:600;color:${palette.valueText};text-decoration:none;border-radius:9999px;">${escapeHtml(label)}</a>
       </td>
     </tr>
   </table>`;
 }
 
 function emailTextLink(palette: TenantColors, href: string, label: string): string {
-  return `<a href="${href}" target="_blank" rel="noopener" style="color:${palette.value};text-decoration:underline;text-underline-offset:3px;font-weight:600;">${escapeHtml(label)}</a>`;
+  return `<a class="email-link" href="${href}" target="_blank" rel="noopener" style="color:${palette.value};text-decoration:underline;text-underline-offset:3px;font-weight:600;">${escapeHtml(label)}</a>`;
 }
 
 function emailNoteBox(palette: TenantColors, html: string): string {
-  return `<div style="margin-top:22px;padding:14px 16px;border:1px solid ${palette.border};border-radius:14px;background-color:${palette.recessed};font-family:${EMAIL_FONT};font-size:12px;line-height:1.65;color:${palette.label};">${html}</div>`;
+  return `<div class="email-note email-border" style="margin-top:22px;padding:14px 16px;border:1px solid ${palette.border};border-radius:14px;background-color:${palette.recessed};font-family:${EMAIL_FONT};font-size:12px;line-height:1.65;color:${palette.label};">${html}</div>`;
 }
 
 interface EmailShellParams {
@@ -360,7 +441,8 @@ interface EmailShellParams {
   subtitle: string;
   eyebrow: string;
   title: string;
-  titleColor?: string;
+  /** Semantic title colour; the dark palette is applied automatically. */
+  titleTone?: "green" | "red";
   introHtml: string;
   detailsHtml: string;
   actionHtml?: string;
@@ -368,53 +450,83 @@ interface EmailShellParams {
   maxWidth?: number;
 }
 
+function monogramBadge(
+  palette: TenantColors,
+  monogram: string,
+  extraClass = "",
+  extraStyle = ""
+): string {
+  return `<div class="${extraClass}" style="${extraStyle}width:64px;height:64px;margin:0 auto 10px auto;line-height:62px;border:1px solid ${palette.borderStrong};border-radius:50%;background-color:${palette.recessed};font-family:${EMAIL_FONT};font-size:22px;font-weight:700;letter-spacing:0.04em;color:${palette.accent};text-align:center;">${escapeHtml(monogram)}</div>`;
+}
+
 function renderEmailShell(params: EmailShellParams): string {
   const config = params.config;
-  const palette = config.theme.colors;
+  const light = lightEmailPalette(config);
+  const dark = config.theme.colors;
   const studioName = params.tenantName || config.name || defaultFromName;
   const watermarkUrl = getWatermarkUrl(config);
   const maxWidth = params.maxWidth ?? 560;
-  const titleColor = params.titleColor || palette.value;
   const logo = getLogoAsset(config);
-  const monogram = (config.theme.monogram || studioName.slice(0, 2) || "•").toUpperCase();
+  const monogram = (config.theme.monogram || studioName.slice(0, 2) || "\u2022").toUpperCase();
+
+  const titleTone = params.titleTone;
+  const titleClass =
+    titleTone === "green"
+      ? "email-title--green"
+      : titleTone === "red"
+        ? "email-title--red"
+        : "email-value";
+  const titleColor =
+    titleTone === "green" ? light.green : titleTone === "red" ? light.red : light.value;
+
+  // Light mode uses the dark-ink logo on white. Dark mode shows the monogram
+  // badge instead, because the brand PNG is dark ink and would disappear on a
+  // near-black card. Clients without media-query support keep the light logo.
   const logoMarkup = logo.useMonogram
-    ? `<div style="width:64px;height:64px;margin:0 auto 10px auto;line-height:62px;border:1px solid ${palette.borderStrong};border-radius:50%;background-color:${palette.recessed};font-family:${EMAIL_FONT};font-size:22px;font-weight:700;letter-spacing:0.04em;color:${palette.accent};text-align:center;">${escapeHtml(monogram)}</div>`
-    : `<img src="${logo.src}" alt="${escapeHtml(studioName)}" width="88" height="88" style="display:block;width:88px;height:88px;max-width:88px;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;" />`;
+    ? monogramBadge(light, monogram, "email-note email-border email-accent")
+    : `<img class="email-logo--light" src="${logo.src}" alt="${escapeHtml(studioName)}" width="88" height="88" style="display:block;width:88px;height:88px;max-width:88px;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;" />` +
+      monogramBadge(
+        light,
+        monogram,
+        "email-logo--dark email-note email-border email-accent",
+        "display:none;"
+      );
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="color-scheme" content="dark light" />
-<meta name="supported-color-schemes" content="dark light" />
+<meta name="color-scheme" content="light dark" />
+<meta name="supported-color-schemes" content="light dark" />
 <title>${escapeHtml(studioName)}</title>
+${colorSchemeStyles(dark, watermarkUrl)}
 </head>
-<body style="margin:0;padding:0;width:100%;background-color:${palette.canvas};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<body class="email-canvas" style="margin:0;padding:0;width:100%;background-color:${light.canvas};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
 <!-- design-ok -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${palette.canvas}" style="width:100%;background-color:${palette.canvas};">
+<table class="email-canvas" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${light.canvas}" style="width:100%;background-color:${light.canvas};">
   <tr>
     <td align="center" style="padding:36px 16px;">
       <table role="presentation" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${maxWidth}px;">
         <tr>
           <td align="center" style="padding-bottom:22px;">
             ${logoMarkup}
-            <div style="font-family:${EMAIL_FONT};font-size:13px;line-height:1.4;letter-spacing:0.34em;text-transform:uppercase;font-weight:700;color:${palette.value};">${escapeHtml(studioName)}</div>
-            <div style="font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${palette.soft};margin-top:7px;">${escapeHtml(params.subtitle)}</div>
+            <div class="email-value" style="font-family:${EMAIL_FONT};font-size:13px;line-height:1.4;letter-spacing:0.34em;text-transform:uppercase;font-weight:700;color:${light.value};">${escapeHtml(studioName)}</div>
+            <div class="email-soft" style="font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${light.soft};margin-top:7px;">${escapeHtml(params.subtitle)}</div>
           </td>
         </tr>
         <tr>
-          <td bgcolor="${palette.card}" style="background-color:${palette.card};border:1px solid ${palette.border};border-radius:16px;">
+          <td class="email-card email-border" bgcolor="${light.card}" style="background-color:${light.card};border:1px solid ${light.border};border-radius:16px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td bgcolor="${palette.band}" style="padding:24px 26px 20px 26px;border-bottom:1px solid ${palette.border};background-color:${palette.band};border-radius:16px 16px 0 0;">
-                  <div style="font-family:${EMAIL_FONT};font-size:10px;line-height:1.4;letter-spacing:0.22em;text-transform:uppercase;font-weight:700;color:${palette.accent};">${escapeHtml(params.eyebrow)}</div>
-                  <div style="font-family:${EMAIL_FONT};font-size:20px;line-height:1.35;font-weight:700;color:${titleColor};margin-top:7px;">${escapeHtml(params.title)}</div>
+                <td class="email-band email-border" bgcolor="${light.band}" style="padding:24px 26px 20px 26px;border-bottom:1px solid ${light.border};background-color:${light.band};border-radius:16px 16px 0 0;">
+                  <div class="email-accent" style="font-family:${EMAIL_FONT};font-size:10px;line-height:1.4;letter-spacing:0.22em;text-transform:uppercase;font-weight:700;color:${light.accent};">${escapeHtml(params.eyebrow)}</div>
+                  <div class="${titleClass}" style="font-family:${EMAIL_FONT};font-size:20px;line-height:1.35;font-weight:700;color:${titleColor};margin-top:7px;">${escapeHtml(params.title)}</div>
                 </td>
               </tr>
               <tr>
-                <td bgcolor="${palette.card}" style="padding:24px 26px 28px 26px;background-color:${palette.card};background-image:url('${watermarkUrl}');background-repeat:no-repeat;background-position:center center;background-size:320px 320px;">
-                  <div style="font-family:${EMAIL_FONT};font-size:14px;line-height:1.65;color:${palette.label};">${params.introHtml}</div>
+                <td class="email-content email-card" bgcolor="${light.card}" style="padding:24px 26px 28px 26px;background-color:${light.card};background-repeat:no-repeat;background-position:center center;background-size:320px 320px;">
+                  <div class="email-label" style="font-family:${EMAIL_FONT};font-size:14px;line-height:1.65;color:${light.label};">${params.introHtml}</div>
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
                     ${params.detailsHtml}
                   </table>
@@ -424,8 +536,8 @@ function renderEmailShell(params: EmailShellParams): string {
               ${
                 params.footerHtml
                   ? `<tr>
-                <td bgcolor="${palette.band}" style="padding:16px 26px 20px 26px;border-top:1px solid ${palette.border};background-color:${palette.band};border-radius:0 0 16px 16px;">
-                  <div style="font-family:${EMAIL_FONT};font-size:11px;line-height:1.7;color:${palette.soft};text-align:center;">${params.footerHtml}</div>
+                <td class="email-band email-border" bgcolor="${light.band}" style="padding:16px 26px 20px 26px;border-top:1px solid ${light.border};background-color:${light.band};border-radius:0 0 16px 16px;">
+                  <div class="email-soft" style="font-family:${EMAIL_FONT};font-size:11px;line-height:1.7;color:${light.soft};text-align:center;">${params.footerHtml}</div>
                 </td>
               </tr>`
                   : ""
@@ -441,12 +553,13 @@ function renderEmailShell(params: EmailShellParams): string {
 </html>`;
 }
 
+
 function studioNameOf(tenant: Tenant, config: TenantConfig): string {
   return tenant.name || config.name || defaultFromName;
 }
 
 function strongValue(palette: TenantColors, text: string): string {
-  return `<strong style="color:${palette.value};font-weight:600;">${escapeHtml(text)}</strong>`;
+  return `<strong class="email-value" style="color:${palette.value};font-weight:600;">${escapeHtml(text)}</strong>`;
 }
 
 function currencyOf(config: TenantConfig): string {
@@ -468,7 +581,7 @@ export function renderOwnerAlertEmail(
   actionUrl?: string
 ): RenderedEmail {
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `New booking: ${booking.customer_name} - ${booking.service_name}`;
@@ -538,7 +651,7 @@ export async function sendCustomerReceipt(
   }
 
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Request received at ${tenant.name}`;
@@ -601,7 +714,7 @@ export async function sendOwnerEmailBounceAlert(
   }
 
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const adminBaseUrl = getEngineBaseUrl();
@@ -623,7 +736,7 @@ export async function sendOwnerEmailBounceAlert(
     subtitle: "Email alert",
     eyebrow: "Receipt not delivered",
     title: "The customer did not receive the receipt",
-    titleColor: palette.red,
+    titleTone: "red",
     introHtml:
       "We could not deliver the confirmation to the customer's email address. The address most likely does not exist. Correct it and resend the receipt from the review page, otherwise the customer has no idea the appointment was booked.",
     detailsHtml: emailDetailRows(palette, rows),
@@ -689,7 +802,7 @@ export function renderCustomerConfirmationEmail(
   booking: BookingDetails
 ): RenderedEmail {
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Confirmed: Your appointment at ${tenant.name}`;
@@ -707,7 +820,7 @@ export function renderCustomerConfirmationEmail(
     subtitle: "Appointment confirmed",
     eyebrow: "Confirmation",
     title: "Your appointment is confirmed",
-    titleColor: palette.green,
+    titleTone: "green",
     introHtml: `Your appointment is confirmed! We look forward to seeing you at ${strongValue(
       palette,
       studioName
@@ -767,7 +880,7 @@ export async function sendCustomerDeclined(
   }
 
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const subject = `Update on your appointment at ${tenant.name}`;
 
@@ -782,7 +895,7 @@ export async function sendCustomerDeclined(
     subtitle: "Update",
     eyebrow: "Booking request",
     title: "Your request could not be confirmed",
-    titleColor: palette.red,
+    titleTone: "red",
     introHtml:
       "Unfortunately your request could not be confirmed this time. Visit our website to choose another time.",
     detailsHtml: emailDetailRows(palette, rows),
@@ -810,7 +923,7 @@ export async function sendOwnerCancellationAlert(
   }
 
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `Cancellation: ${booking.customer_name} - ${booking.service_name}`;
@@ -829,7 +942,7 @@ export async function sendOwnerCancellationAlert(
     subtitle: "Cancellation",
     eyebrow: "Cancellation",
     title: "The customer cancelled the appointment",
-    titleColor: palette.red,
+    titleTone: "red",
     introHtml: `A customer has cancelled their appointment at ${strongValue(palette, studioName)}.`,
     detailsHtml: emailDetailRows(palette, rows),
     footerHtml: "The time slot is now free in the calendar.",
@@ -853,7 +966,7 @@ export async function sendOwnerOtpEmail(email: string, code: string, tenantId?: 
   }
 
   const config = getTenantConfig(tenantId);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const subject = `Your verification code: ${code}`;
   const html = renderEmailShell({
     config,
@@ -902,7 +1015,7 @@ export async function sendCustomerRescheduleConfirmation(
   }
 
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const subject = `New time confirmed at ${tenant.name}`;
@@ -957,7 +1070,7 @@ export async function sendTestNotificationEmail(tenant: Tenant, recipientEmail: 
   }
 
   const config = resolveConfig(tenant);
-  const palette = config.theme.colors;
+  const palette = lightEmailPalette(config);
   const studioName = studioNameOf(tenant, config);
   const subject = `Test alert from ${tenant.name}`;
   const html = renderEmailShell({

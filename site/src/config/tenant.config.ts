@@ -91,6 +91,8 @@ export interface TenantColors {
 
 export interface TenantTheme {
   colors: TenantColors;
+  /** Optional light-mode palette for email clients in light mode. */
+  lightColors?: TenantColors;
   /** Logo path or absolute URL used by the review page and email header. */
   logoUrl: string;
   /** Optional faint watermark logo. */

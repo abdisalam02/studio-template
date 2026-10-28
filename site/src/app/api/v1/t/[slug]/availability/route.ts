@@ -82,9 +82,10 @@ export async function GET(
     }
 
     const diffDays = Math.ceil((toDateMs - fromDateMs) / MS_PER_DAY);
-    if (diffDays > 35) {
+    // Hard sanity cap; the tenant's own horizon is enforced below.
+    if (diffDays > 366) {
       return NextResponse.json(
-        { error: "range_too_large", message: "Maximum query window is 35 days." },
+        { error: "range_too_large", message: "Maximum query window is 366 days." },
         { status: 400, headers: CORS_HEADERS }
       );
     }
@@ -109,12 +110,20 @@ export async function GET(
     }
 
     const nowUtc = Math.floor(Date.now() / 1000);
-    const maxFutureEpoch = nowUtc + (tenant.max_days_ahead * 86400);
+    const maxDaysAhead = Math.min(Math.max(tenant.max_days_ahead ?? 60, 1), 366);
+    const maxFutureEpoch = nowUtc + maxDaysAhead * 86400;
     const toUtcEpoch = Math.floor(toDateMs / 1000) + 86400;
+
+    if (diffDays > maxDaysAhead) {
+      return NextResponse.json(
+        { error: "range_too_large", message: `Maximum query window is ${maxDaysAhead} days.` },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
 
     if (Math.floor(fromDateMs / 1000) > maxFutureEpoch) {
       return NextResponse.json(
-        { error: "range_beyond_max_days", message: `Cannot book further than ${tenant.max_days_ahead} days ahead.` },
+        { error: "range_beyond_max_days", message: `Cannot book further than ${maxDaysAhead} days ahead.` },
         { status: 400, headers: CORS_HEADERS }
       );
     }
@@ -230,8 +239,8 @@ export async function GET(
       nowUtc,
     });
 
-    const minLeadTimeUtc = nowUtc + (2 * 3600);
-    const maxHorizonUtc = nowUtc + (35 * 86400);
+    const minLeadTimeUtc = nowUtc + Math.max(0, tenant.min_notice_min ?? 0) * 60;
+    const maxHorizonUtc = nowUtc + maxDaysAhead * 86400;
 
     const validIsoSlots = isoSlots.filter((iso) => {
       const slotUtc = Math.floor(new Date(iso).getTime() / 1000);

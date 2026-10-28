@@ -49,10 +49,6 @@ export function ManualBookingModal({
     setError(null);
 
     try {
-      const dateTimeString = `${date}T${time}:00`;
-      const localDate = new Date(dateTimeString);
-      const startUtc = Math.floor(localDate.getTime() / 1000);
-
       const res = await fetch("/api/admin/bookings/manual", {
         method: "POST",
         headers: {
@@ -65,7 +61,8 @@ export function ManualBookingModal({
           customer_phone: phone,
           customer_email: email,
           service_id: Number(serviceId) || null,
-          start_utc: startUtc,
+          date,
+          time,
           notes: notes || "Manuelt registrert avtale",
         }),
       });

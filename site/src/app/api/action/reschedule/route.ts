@@ -3,6 +3,12 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { verifyReviewToken } from "@/lib/tokens";
 import { generateIcsCalendar } from "@/lib/ics";
 import {
+  zonedDateTimeToUtc,
+  zonedParts,
+  validateSlot,
+  slotErrorMessage,
+} from "@/lib/bookingRules";
+import {
   sendCustomerRescheduleConfirmation,
   emailOutcome,
   classifyEmailFailure,
@@ -11,54 +17,12 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * Interprets "YYYY-MM-DD" + "HH:MM" in the tenant's timezone and returns epoch
- * seconds. Mirrors the conversion used by the public booking route.
- */
-function localToUtc(dateStr: string, timeStr: string, timeZone: string): number | null {
-  const dm = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const tm = timeStr.match(/^(\d{2}):(\d{2})$/);
-  if (!dm || !tm) return null;
-
-  const y = Number(dm[1]);
-  const mo = Number(dm[2]);
-  const d = Number(dm[3]);
-  const h = Number(tm[1]);
-  const mi = Number(tm[2]);
-  if (h > 23 || mi > 59) return null;
-
-  const target = Date.UTC(y, mo - 1, d, h, mi, 0);
-  let guess = target;
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-    hourCycle: "h23",
-  });
-
-  for (let i = 0; i < 3; i++) {
-    const parts = fmt.formatToParts(new Date(guess));
-    const p: Record<string, number> = {};
-    for (const part of parts) {
-      if (part.type !== "literal") p[part.type] = Number(part.value);
-    }
-    const local = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second || 0);
-    const diff = target - local;
-    if (diff === 0) break;
-    guess += diff;
-  }
-
-  return Math.floor(guess / 1000);
-}
-
-/**
  * Moves a booking from the owner's review page (/a/<ref>.<token>).
+ *
  * The review link is already a bearer credential for approving or declining,
- * so it also authorises rescheduling. Validates overlap and blackouts here
- * because this route does not go through the admin session.
+ * so it also authorises rescheduling. The mutation itself goes through
+ * reschedule_booking_atomic so this path shares the same lock, overlap,
+ * blackout and constraint rules as every other writer.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -101,6 +65,8 @@ export async function POST(req: NextRequest) {
       timezone?: string | null;
       buffer_min?: number | null;
       min_notice_min?: number | null;
+      max_days_ahead?: number | null;
+      slot_step_min?: number | null;
     } | null;
 
     if (!tenant) {
@@ -108,22 +74,10 @@ export async function POST(req: NextRequest) {
     }
 
     const timezone = tenant.timezone || "Europe/Oslo";
-    const startUtc = localToUtc(date, time, timezone);
+    const startUtc = zonedDateTimeToUtc(date, time, timezone);
     if (!startUtc) {
       return NextResponse.json(
         { error: "invalid_datetime", message: "Enter a valid date and time." },
-        { status: 400 }
-      );
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const minNotice = (tenant.min_notice_min ?? 120) * 60;
-    if (startUtc < now + minNotice) {
-      return NextResponse.json(
-        {
-          error: "too_soon",
-          message: "Pick a time at least two hours from now.",
-        },
         { status: 400 }
       );
     }
@@ -136,84 +90,88 @@ export async function POST(req: NextRequest) {
     const endUtc = startUtc + durationMin * 60;
     const blockEndUtc = endUtc + bufferMin * 60;
 
-    // Overlap check against every other live booking for this studio.
-    const { data: overlapping, error: overlapErr } = await supabaseAdmin
-      .from("bookings")
-      .select("id, status, expires_at")
-      .eq("tenant_id", booking.tenant_id)
-      .neq("id", booking.id)
-      .lt("start_utc", blockEndUtc)
-      .gt("block_end_utc", startUtc);
+    const nowUtc = Math.floor(Date.now() / 1000);
+    const { weekday } = zonedParts(startUtc, timezone);
 
-    if (overlapErr) {
+    const { data: shiftHours } = await supabaseAdmin
+      .from("hours")
+      .select("weekday, open_min, close_min")
+      .eq("tenant_id", booking.tenant_id)
+      .eq("weekday", weekday)
+      .maybeSingle();
+
+    const shift =
+      shiftHours &&
+      typeof shiftHours.open_min === "number" &&
+      typeof shiftHours.close_min === "number" &&
+      shiftHours.open_min < shiftHours.close_min
+        ? { open_min: shiftHours.open_min, close_min: shiftHours.close_min }
+        : null;
+
+    const rules = {
+      timezone,
+      minNoticeMin: tenant.min_notice_min ?? 120,
+      maxDaysAhead: tenant.max_days_ahead ?? 60,
+      slotStepMin: tenant.slot_step_min ?? 15,
+    };
+
+    const ruleError = validateSlot({ startUtc, durationMin, nowUtc, rules, shift });
+    if (ruleError) {
+      return NextResponse.json(
+        { error: ruleError, message: slotErrorMessage(ruleError, rules) },
+        { status: 400 }
+      );
+    }
+
+    const { data: moved, error: moveErr } = await supabaseAdmin.rpc(
+      "reschedule_booking_atomic",
+      {
+        p_booking_id: booking.id,
+        p_start_utc: startUtc,
+        p_end_utc: endUtc,
+        p_block_end_utc: blockEndUtc,
+        p_now: nowUtc,
+      }
+    );
+
+    if (moveErr) {
+      console.error("reschedule_booking_atomic failed:", moveErr);
       return NextResponse.json({ error: "database_error" }, { status: 500 });
     }
 
-    const blocking = (overlapping || []).filter((b) => {
-      if (b.status === "confirmed") return true;
-      if (b.status === "pending") return !b.expires_at || b.expires_at > now;
-      return false;
-    });
-    if (blocking.length > 0) {
+    if (!moved) {
       return NextResponse.json(
-        { error: "slot_taken", message: "That time is already booked. Choose another." },
+        { error: "slot_taken", message: "That time is already booked or blocked. Choose another." },
         { status: 409 }
       );
-    }
-
-    const { data: blackout } = await supabaseAdmin
-      .from("blackouts")
-      .select("id")
-      .eq("tenant_id", booking.tenant_id)
-      .lt("start_utc", endUtc)
-      .gt("end_utc", startUtc)
-      .limit(1)
-      .maybeSingle();
-
-    if (blackout) {
-      return NextResponse.json(
-        { error: "slot_blocked", message: "The studio is unavailable at that time." },
-        { status: 409 }
-      );
-    }
-
-    const { data: updated, error: updateErr } = await supabaseAdmin
-      .from("bookings")
-      .update({ start_utc: startUtc, end_utc: endUtc, block_end_utc: blockEndUtc })
-      .eq("id", booking.id)
-      .select("*")
-      .single();
-
-    if (updateErr || !updated) {
-      return NextResponse.json({ error: "update_failed" }, { status: 500 });
     }
 
     const serviceName =
-      (updated as typeof updated & { service_summary?: string | null }).service_summary ||
+      (booking as typeof booking & { service_summary?: string | null }).service_summary ||
       service?.name ||
       "Treatment";
 
     const ics = generateIcsCalendar({
-      ref: updated.ref,
+      ref: booking.ref,
       title: `${serviceName} - ${tenant.name}`,
-      description: `Rescheduled booking for ${updated.customer_name}. Reference: ${updated.ref}.`,
-      startUtc: updated.start_utc,
-      endUtc: updated.end_utc,
+      description: `Rescheduled booking for ${booking.customer_name}. Reference: ${booking.ref}.`,
+      startUtc,
+      endUtc,
       tenantName: tenant.name,
     });
 
     const sendResult = await sendCustomerRescheduleConfirmation(
       tenant as unknown as Parameters<typeof sendCustomerRescheduleConfirmation>[0],
       {
-        ref: updated.ref,
-        customer_name: updated.customer_name,
-        customer_email: updated.customer_email,
-        customer_phone: updated.customer_phone,
+        ref: booking.ref,
+        customer_name: booking.customer_name,
+        customer_email: booking.customer_email,
+        customer_phone: booking.customer_phone,
         service_name: serviceName,
-        price_nok: updated.price_nok,
-        start_utc: updated.start_utc,
-        end_utc: updated.end_utc,
-        notes: updated.notes,
+        price_nok: booking.price_nok,
+        start_utc: startUtc,
+        end_utc: endUtc,
+        notes: booking.notes,
       },
       ics
     );
@@ -227,15 +185,15 @@ export async function POST(req: NextRequest) {
       .update({
         resend_email_id: outcome.id,
         customer_email_status: emailStatus,
-        customer_email_status_at: now,
+        customer_email_status_at: nowUtc,
         customer_email_error: emailError,
       })
       .eq("id", booking.id);
 
     return NextResponse.json({
       success: true,
-      start_utc: updated.start_utc,
-      end_utc: updated.end_utc,
+      start_utc: startUtc,
+      end_utc: endUtc,
       email: { status: emailStatus, error: emailError },
     });
   } catch (err: unknown) {

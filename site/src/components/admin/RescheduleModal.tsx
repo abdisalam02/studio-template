@@ -40,10 +40,6 @@ export function RescheduleModal({
     setError(null);
 
     try {
-      const dateTimeString = `${date}T${time}:00`;
-      const localDate = new Date(dateTimeString);
-      const startUtc = Math.floor(localDate.getTime() / 1000);
-
       const res = await fetch("/api/admin/bookings/reschedule", {
         method: "POST",
         headers: {
@@ -52,7 +48,8 @@ export function RescheduleModal({
         },
         body: JSON.stringify({
           booking_id: booking.id,
-          start_utc: startUtc,
+          date,
+          time,
         }),
       });
 
@@ -61,7 +58,7 @@ export function RescheduleModal({
         throw new Error(data.message || "Kunne ikke flytte avtalen.");
       }
 
-      onSuccess(data.booking || { ...booking, start_utc: startUtc });
+      onSuccess(data.booking || { ...booking, start_utc: Math.floor(new Date(`${date}T${time}:00`).getTime() / 1000) });
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Feil ved oppdatering.";

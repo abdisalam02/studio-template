@@ -15,6 +15,7 @@ import {
 } from "@/lib/email";
 import { getEngineBaseUrl } from "@/lib/url";
 import { getTenantConfig } from "@/config/tenant.config";
+import { validateSlot, slotErrorMessage, zonedParts } from "@/lib/bookingRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -372,38 +373,15 @@ export async function POST(
       return NextResponse.json({ error: "service_not_found" }, { status: 404, headers: CORS_HEADERS });
     }
 
-    // 2.5. Strict Server-Side Schedule Validation: Verify date and operating hours
+    // 2.5. Strict server-side validation: mirror every rule the availability
+    // endpoint applies, so a crafted request cannot book a slot the calendar
+    // would never offer.
     const tenantTz = tenant.timezone || "Europe/Oslo";
-    const datePartsFormatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: tenantTz,
-      weekday: "short",
-      hour: "numeric",
-      minute: "numeric",
-      hourCycle: "h23",
-    });
+    const bookingTotalDuration = services.reduce((acc, s) => acc + s.duration_min, 0);
+    const nowUtc = Math.floor(Date.now() / 1000);
 
-    const parts = datePartsFormatter.formatToParts(new Date(normalizedStartUtc * 1000));
-    const partsMap: Record<string, string> = {};
-    for (const p of parts) {
-      if (p.type !== "literal") partsMap[p.type] = p.value;
-    }
+    const { weekday: localWeekday } = zonedParts(normalizedStartUtc, tenantTz);
 
-    const weekdayShort = partsMap.weekday; // "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
-    const weekdayMap: Record<string, number> = {
-      Mon: 0,
-      Tue: 1,
-      Wed: 2,
-      Thu: 3,
-      Fri: 4,
-      Sat: 5,
-      Sun: 6,
-    };
-    const localWeekday = weekdayMap[weekdayShort] ?? -1;
-    const localHour = parseInt(partsMap.hour, 10);
-    const localMinute = parseInt(partsMap.minute, 10);
-    const localTimeInMinutes = localHour * 60 + localMinute;
-
-    // Load tenant operating hours for this weekday
     const { data: shiftHours } = await supabaseAdmin
       .from("hours")
       .select("weekday, open_min, close_min")
@@ -411,25 +389,37 @@ export async function POST(
       .eq("weekday", localWeekday)
       .maybeSingle();
 
-    if (
-      !shiftHours ||
-      typeof shiftHours.open_min !== "number" ||
-      typeof shiftHours.close_min !== "number" ||
-      shiftHours.open_min >= shiftHours.close_min
-    ) {
-      return NextResponse.json(
-        { error: "schedule_closed", message: "Salon is closed on this date" },
-        { status: 400, headers: CORS_HEADERS }
-      );
-    }
+    const shift =
+      shiftHours &&
+      typeof shiftHours.open_min === "number" &&
+      typeof shiftHours.close_min === "number" &&
+      shiftHours.open_min < shiftHours.close_min
+        ? { open_min: shiftHours.open_min, close_min: shiftHours.close_min }
+        : null;
 
-    const bookingTotalDuration = services.reduce((acc, s) => acc + s.duration_min, 0);
-    if (
-      localTimeInMinutes < shiftHours.open_min ||
-      localTimeInMinutes + bookingTotalDuration > shiftHours.close_min
-    ) {
+    const slotRules = {
+      timezone: tenantTz,
+      minNoticeMin: tenant.min_notice_min ?? 120,
+      maxDaysAhead: tenant.max_days_ahead ?? 60,
+      slotStepMin: tenant.slot_step_min ?? 15,
+    };
+
+    const ruleError = validateSlot({
+      startUtc: normalizedStartUtc,
+      durationMin: bookingTotalDuration,
+      nowUtc,
+      rules: slotRules,
+      shift,
+    });
+
+    if (ruleError) {
+      // "closed"/"outside_hours" keep the historical error code used by the UI.
+      const code =
+        ruleError === "closed" || ruleError === "outside_hours"
+          ? "schedule_closed"
+          : ruleError;
       return NextResponse.json(
-        { error: "schedule_closed", message: "Requested time falls outside salon opening hours" },
+        { error: code, message: slotErrorMessage(ruleError, slotRules) },
         { status: 400, headers: CORS_HEADERS }
       );
     }
