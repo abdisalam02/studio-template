@@ -2777,6 +2777,7 @@
   // ACTIVITY LOG (admin audit trail)
   // ----------------------------------------------------------------------------
   const ACTIVITY_LABELS = {
+    'booking.confirmed': 'Approved booking',
     'booking.approved': 'Approved booking',
     'booking.declined': 'Declined booking',
     'booking.cancelled': 'Cancelled booking',
