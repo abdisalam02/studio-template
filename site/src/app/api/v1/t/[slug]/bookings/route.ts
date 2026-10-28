@@ -566,7 +566,10 @@ export async function POST(
           customer_email_status_at: Math.floor(Date.now() / 1000),
           customer_email_error: outcome.error ? outcome.error.message : null,
         })
-        .eq("ref", ref);
+        .eq("ref", ref)
+        // The delivery webhook can beat this background update. Never clobber a
+        // status it already wrote (bounced / delivered) with a stale "sent".
+        .is("customer_email_status", null);
 
       // A rejected/suppressed send produces no delivery event, so tell the
       // owner right away instead of waiting for a webhook that never comes.

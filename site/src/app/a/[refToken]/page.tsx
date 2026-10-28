@@ -5,6 +5,11 @@ import { getTenantConfig, type TenantColors } from "@/config/tenant.config";
 import { resolveBrandLogo } from "@/lib/brandAsset";
 import { ActionButtons } from "./ActionButtons";
 
+// Delivery state and booking status change outside this request (webhook,
+// approve/decline, reschedule). Never serve a cached review page.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface PageProps {
   params: Promise<{ refToken: string }>;
 }
