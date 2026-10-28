@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="css/admin.css?v=2">
+  <link rel="stylesheet" href="css/admin.css?v=3">
   <link rel="icon" type="image/png" href="img/double-layer-star.png">
 </head>
 <body class="is-locked">
@@ -374,6 +374,23 @@
               <button type="button" id="send-test-alert-btn" class="quick-action-btn" style="flex:1;">
                 Send Test Ping
               </button>
+            </div>
+          </div>
+
+          <!-- Activity log (admin audit trail) -->
+          <div class="squircle-card">
+            <div class="card-section-head">
+              <div>
+                <h3 class="card-title-main">Activity log</h3>
+                <span class="card-subtitle">Who approved, moved or emailed a booking, and when</span>
+              </div>
+              <button type="button" id="activity-refresh-btn" class="quick-action-btn" style="padding:8px 12px; white-space:nowrap;">
+                ↻ Refresh
+              </button>
+            </div>
+
+            <div id="activity-list" class="activity-list" aria-live="polite" aria-busy="false">
+              <p class="activity-empty">Open this tab to load recent activity.</p>
             </div>
           </div>
 
@@ -796,6 +813,6 @@
 
   <!-- Scripts -->
   <script src="js/config.js?v=2"></script>
-  <script src="js/admin.js?v=4"></script>
+  <script src="js/admin.js?v=5"></script>
 </body>
 </html>

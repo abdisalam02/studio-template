@@ -122,9 +122,54 @@ export async function GET(req: NextRequest) {
   await runWindow(24);
   await runWindow(2);
 
+  // ---------------------------------------------------------------------------
+  // Daily retention pass.
+  //
+  // UptimeRobot polls every few minutes, so this only runs in the first ten
+  // minutes of 03:00 UTC (once in practice) unless explicitly requested with
+  // ?retention=1. Both database functions are idempotent.
+  // ---------------------------------------------------------------------------
+  let retention: { anonymised: number; events_purged: number } | null = null;
+  const retentionDays = Number(process.env.RETENTION_DAYS || 365);
+  const utc = new Date(now * 1000);
+  const retentionDue =
+    req.nextUrl.searchParams.get("retention") === "1" ||
+    (utc.getUTCHours() === 3 && utc.getUTCMinutes() < 10);
+
+  if (retentionDue && Number.isFinite(retentionDays) && retentionDays >= 30) {
+    try {
+      const { data: anonymised, error: anonymiseError } = await supabaseAdmin.rpc(
+        "anonymize_old_bookings",
+        { p_older_than_days: retentionDays, p_tenant_id: null }
+      );
+
+      if (anonymiseError) {
+        console.error("anonymize_old_bookings failed:", anonymiseError);
+      }
+
+      // Audit trail: 12 months.
+      const { data: purged, error: purgeError } = await supabaseAdmin.rpc(
+        "purge_admin_events",
+        { p_older_than_days: 365 }
+      );
+
+      if (purgeError) {
+        console.warn("purge_admin_events failed:", purgeError);
+      }
+
+      retention = {
+        anonymised: Number(anonymised ?? 0),
+        events_purged: Number(purged ?? 0),
+      };
+    } catch (err) {
+      console.error("Retention pass failed:", err);
+    }
+  }
+
   return NextResponse.json({
     success: true,
     ...results,
+    ...(retention ? { retention } : {}),
     ...(debug ? { diagnostics } : {}),
   });
 }

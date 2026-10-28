@@ -2259,6 +2259,9 @@
         const targetPanel = document.getElementById(`panel-${activeTab}`);
         if (targetPanel) targetPanel.classList.add('active');
 
+        // The audit trail is only worth a request when it is actually on screen.
+        if (activeTab === 'settings') loadActivity(true);
+
         if (window.innerWidth < 960) {
           setCanopyExpanded(false);
         }
@@ -2771,6 +2774,127 @@
   }
 
   // ----------------------------------------------------------------------------
+  // ACTIVITY LOG (admin audit trail)
+  // ----------------------------------------------------------------------------
+  const ACTIVITY_LABELS = {
+    'booking.approved': 'Approved booking',
+    'booking.declined': 'Declined booking',
+    'booking.cancelled': 'Cancelled booking',
+    'booking.completed': 'Completed booking',
+    'booking.no_show': 'Marked no-show',
+    'booking.rescheduled': 'Rescheduled booking',
+    'booking.email_resent': 'Resent email',
+    'booking.manual_created': 'Created booking'
+  };
+
+  let activityLoaded = false;
+  let activityLoading = false;
+
+  function escapeActivityHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatActivityTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function formatActivityDetail(event) {
+    const detail = event.detail || {};
+    const parts = [];
+
+    if (event.booking_ref) parts.push(`Ref ${event.booking_ref}`);
+    if (event.actor_email) parts.push(event.actor_email);
+
+    if (detail.from && detail.to) {
+      const from = new Date(Number(detail.from) * 1000);
+      const to = new Date(Number(detail.to) * 1000);
+      if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
+        const fmt = (d) =>
+          d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        parts.push(`${fmt(from)} → ${fmt(to)}`);
+      }
+    }
+
+    if (detail.email) parts.push(detail.email);
+    if (detail.email_status) parts.push(String(detail.email_status));
+    if (detail.service) parts.push(String(detail.service));
+    if (detail.via === 'review-link') parts.push('via review link');
+
+    return parts.join(' · ');
+  }
+
+  function renderActivity(events) {
+    if (!events.length) {
+      return '<p class="activity-empty">No activity recorded yet. Approvals, declines, moves and email resends will appear here.</p>';
+    }
+
+    return events
+      .map((event) => {
+        const label = ACTIVITY_LABELS[event.action] || String(event.action || 'Activity');
+        const meta = formatActivityDetail(event);
+        return `
+          <div class="activity-row">
+            <span class="activity-action">${escapeActivityHtml(label)}</span>
+            <span class="activity-time">${escapeActivityHtml(formatActivityTime(event.created_at))}</span>
+            ${meta ? `<span class="activity-meta">${escapeActivityHtml(meta)}</span>` : ''}
+          </div>`;
+      })
+      .join('');
+  }
+
+  async function loadActivity(force = false) {
+    const listEl = document.getElementById('activity-list');
+    if (!listEl || activityLoading) return;
+    if (activityLoaded && !force) return;
+
+    activityLoading = true;
+    listEl.setAttribute('aria-busy', 'true');
+    if (force || !activityLoaded) {
+      listEl.innerHTML = '<p class="activity-empty">Loading activity…</p>';
+    }
+
+    try {
+      const endpoint = `${getApiBase()}/api/admin/audit?tenant_id=${encodeURIComponent(TENANT_ID)}`;
+      const res = await fetch(endpoint, {
+        credentials: 'include',
+        headers: getAuthHeaders({ Accept: 'application/json' })
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+      const events = Array.isArray(data.events) ? data.events : [];
+      activityLoaded = true;
+      listEl.innerHTML = renderActivity(events);
+    } catch (err) {
+      listEl.innerHTML =
+        '<p class="activity-empty">Could not load the activity log. Check that you are signed in, then refresh.</p>';
+    } finally {
+      activityLoading = false;
+      listEl.setAttribute('aria-busy', 'false');
+    }
+  }
+
+  function initActivityLog() {
+    const refreshBtn = document.getElementById('activity-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => loadActivity(true));
+    }
+  }
+
+  // ----------------------------------------------------------------------------
   // INITIALIZE ON DOM READY
   // ----------------------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', async () => {
@@ -2783,6 +2907,7 @@
     initPaletteSwitcher();
     await initSecurityGate();
     renderAllViews();
+    initActivityLog();
     // Only reach for real data when a session is already established; the locked
     // dashboard stays on its synthetic silhouettes until the owner signs in.
     if (!isGateLocked) {

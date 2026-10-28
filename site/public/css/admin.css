@@ -3549,3 +3549,59 @@ body.is-unlocked .admin-shell {
   color: #9B2C2C !important;
   font-weight: 700;
 }
+
+/* ---------------------------------------------------------------------------
+   Activity log (admin audit trail)
+   --------------------------------------------------------------------------- */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--admin-input-bg);
+  border: 1px solid var(--admin-card-border);
+}
+
+.activity-action {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+  letter-spacing: 0.01em;
+}
+
+.activity-time {
+  font-size: 10.5px;
+  color: var(--admin-sheet-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-meta {
+  grid-column: 1 / -1;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--admin-sheet-muted);
+  word-break: break-word;
+}
+
+.activity-ref {
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+}
+
+.activity-empty {
+  margin: 0;
+  padding: 14px 4px;
+  font-size: 11.5px;
+  color: var(--admin-sheet-muted);
+}
