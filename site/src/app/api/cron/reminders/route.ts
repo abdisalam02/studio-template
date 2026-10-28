@@ -31,7 +31,9 @@ export async function GET(req: NextRequest) {
 
   const now = Math.floor(Date.now() / 1000);
   const origin = getEngineBaseUrl(req);
+  const debug = req.nextUrl.searchParams.get("debug") === "1";
   const results = { sent_24h: 0, sent_2h: 0, failed: 0 };
+  const diagnostics: Array<Record<string, unknown>> = [];
 
   async function runWindow(hoursBefore: 24 | 2) {
     const column =
@@ -47,6 +49,19 @@ export async function GET(req: NextRequest) {
       .gte("start_utc", from)
       .lte("start_utc", to)
       .limit(50);
+
+    if (debug) {
+      diagnostics.push({
+        window: `${hoursBefore}h`,
+        column,
+        from,
+        to,
+        now,
+        count: bookings?.length ?? 0,
+        refs: (bookings || []).map((b) => b.ref),
+        error: error ? { message: error.message, code: error.code, details: error.details } : null,
+      });
+    }
 
     if (error) {
       console.error("Reminder query failed:", error);
@@ -107,5 +122,9 @@ export async function GET(req: NextRequest) {
   await runWindow(24);
   await runWindow(2);
 
-  return NextResponse.json({ success: true, ...results });
+  return NextResponse.json({
+    success: true,
+    ...results,
+    ...(debug ? { diagnostics } : {}),
+  });
 }
