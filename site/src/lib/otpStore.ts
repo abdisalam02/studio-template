@@ -1,72 +1,88 @@
 import crypto from "crypto";
+import { supabaseAdmin } from "@/lib/supabase";
 
-const OTP_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || "studio-template-otp-secret-key-32chars";
+/**
+ * Single-use, cross-instance OTP challenges.
+ *
+ * Only a SHA-256 of the code is stored; the challenge id is the opaque handle
+ * returned to the browser. Verification is a locked SQL function that
+ * increments attempts, enforces expiry, and burns the row on success — so an
+ * intercepted challenge cannot be replayed and a serverless restart cannot
+ * resurrect it.
+ */
 
-interface OtpEntry {
-  codeHash: string;
+const OTP_TTL_MS = 15 * 60 * 1000;
+
+function hashCode(code: string): string {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
+
+export interface OtpChallenge {
+  id: string;
+  code: string;
   expiresAt: number;
 }
 
-// In-memory cache for fast lookup
-const memoryStore = new Map<string, OtpEntry>();
-
-export function generate6DigitOtp(): string {
-  const num = 100000 + Math.floor(Math.random() * 900000);
-  return num.toString();
-}
-
-export function createOtpChallenge(email: string, code: string): { challengeToken: string; expiresAt: number } {
-  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-  const normalizedEmail = email.toLowerCase().trim();
-  const codeHash = crypto.createHash("sha256").update(code).digest("hex");
-
-  memoryStore.set(normalizedEmail, { codeHash, expiresAt });
-
-  // Create HMAC challenge token that can be verified even if memory restarts
-  const payload = `${normalizedEmail}|${code}|${expiresAt}`;
-  const signature = crypto.createHmac("sha256", OTP_SECRET).update(payload).digest("hex");
-  const challengeToken = Buffer.from(`${normalizedEmail}|${expiresAt}|${signature}`).toString("base64url");
-
-  return { challengeToken, expiresAt };
-}
-
-export function verifyOtpCode(email: string, code: string, challengeToken?: string): boolean {
-  const normalizedEmail = email.toLowerCase().trim();
-  const now = Date.now();
-
-  // 1. Check in-memory store
-  const stored = memoryStore.get(normalizedEmail);
-  if (stored) {
-    if (stored.expiresAt > now) {
-      const candidateHash = crypto.createHash("sha256").update(code).digest("hex");
-      if (crypto.timingSafeEqual(Buffer.from(candidateHash, "hex"), Buffer.from(stored.codeHash, "hex"))) {
-        memoryStore.delete(normalizedEmail);
-        return true;
-      }
-    } else {
-      memoryStore.delete(normalizedEmail);
-    }
+export async function createOtpChallenge(
+  email: string,
+  ipHash?: string
+): Promise<OtpChallenge | null> {
+  if (!supabaseAdmin) {
+    console.error("createOtpChallenge: database client unavailable.");
+    return null;
   }
 
-  // 2. Fallback to verifying HMAC challenge token if provided
-  if (challengeToken) {
-    try {
-      const decoded = Buffer.from(challengeToken, "base64url").toString("utf-8");
-      const [tokenEmail, tokenExpiresStr, tokenSignature] = decoded.split("|");
-      const tokenExpires = parseInt(tokenExpiresStr, 10);
+  const normalizedEmail = email.toLowerCase().trim();
+  // Generate a cryptographically strong 6-digit code (not Math.random).
+  const code = crypto.randomInt(100_000, 1_000_000).toString();
+  const expiresAt = Date.now() + OTP_TTL_MS;
 
-      if (tokenEmail === normalizedEmail && tokenExpires > now) {
-        const payload = `${normalizedEmail}|${code}|${tokenExpires}`;
-        const expectedSig = crypto.createHmac("sha256", OTP_SECRET).update(payload).digest("hex");
-        if (crypto.timingSafeEqual(Buffer.from(tokenSignature, "hex"), Buffer.from(expectedSig, "hex"))) {
-          memoryStore.delete(normalizedEmail);
-          return true;
-        }
-      }
-    } catch {
-      return false;
-    }
+  // Any outstanding challenge for this email becomes unusable.
+  await supabaseAdmin
+    .from("admin_otp_challenges")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("email", normalizedEmail)
+    .is("consumed_at", null);
+
+  const { data, error } = await supabaseAdmin
+    .from("admin_otp_challenges")
+    .insert({
+      email: normalizedEmail,
+      code_hash: hashCode(code),
+      expires_at: new Date(expiresAt).toISOString(),
+      ip_hash: ipHash || null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    console.error("createOtpChallenge failed:", error);
+    return null;
   }
 
-  return false;
+  return { id: data.id as string, code, expiresAt };
+}
+
+export async function verifyOtpCode(
+  email: string,
+  code: string,
+  challengeId: string
+): Promise<boolean> {
+  if (!supabaseAdmin || !email || !code || !challengeId) return false;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(challengeId)) {
+    return false;
+  }
+
+  const { data, error } = await supabaseAdmin.rpc("verify_otp_challenge", {
+    p_id: challengeId,
+    p_email: email.toLowerCase().trim(),
+    p_code_hash: hashCode(code),
+  });
+
+  if (error) {
+    console.error("verify_otp_challenge failed:", error);
+    return false;
+  }
+
+  return data === true;
 }

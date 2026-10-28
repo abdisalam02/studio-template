@@ -11,15 +11,13 @@ import {
   type Tenant,
 } from "@/lib/email";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 import type { BookingStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic"; // design-ok
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
-
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
@@ -30,16 +28,15 @@ export async function POST(req: NextRequest) {
     const allowBypass = Boolean(
       isDev && (
         body?.dev_bypass === true ||
-        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        (token && token.startsWith("dev-bypass-"))
+        req.nextUrl.searchParams.get("dev_bypass") === "true"
       )
     );
 
     const auth = await verifyAdminRequest(req, allowBypass);
-    if (!auth.authenticated) {
+    if (!auth.authenticated || !auth.email) {
       return NextResponse.json({ error: "unauthorized", message: "Missing login." }, { status: 401 });
     }
-    const userEmail = auth.email || "niwache12@gmail.com";
+    const userEmail = auth.email.toLowerCase();
 
     let bookingId = body.id || body.booking_id;
     if (!bookingId && body.ref) {
@@ -70,15 +67,7 @@ export async function POST(req: NextRequest) {
     }
 
     const tenant = booking.tenants as unknown as Tenant | null;
-    const isAllowedAdmin = [
-      "niwache12@gmail.com",
-      "ganginabeauty@gmail.com",
-      "admin@agure.space",
-      "support@agure.space",
-    ].includes(userEmail?.toLowerCase() || "");
-    const isOwner = Boolean(tenant?.owner_email && tenant.owner_email.toLowerCase() === userEmail?.toLowerCase());
-
-    if (!allowBypass && !isOwner && !isAllowedAdmin) {
+    if (!allowBypass && (!tenant || !(await isTenantAdmin(userEmail, tenant.id)))) {
       return NextResponse.json({ error: "forbidden", message: "You do not have access to this studio." }, { status: 403 });
     }
 

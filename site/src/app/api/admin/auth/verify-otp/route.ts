@@ -1,106 +1,97 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyOtpCode } from "@/lib/otpStore";
-import { createAdminSessionToken } from "@/lib/adminAuth";
-import { SlidingWindowRateLimiter } from "@/lib/rateLimit";
+import {
+  createAdminSession,
+  adminSessionCookieOptions,
+  ADMIN_SESSION_COOKIE,
+} from "@/lib/adminAuth";
+import { consumeRateLimit, getClientIp, hashIp } from "@/lib/rateLimit";
+import { resolveTenantForEmail, isTenantAdmin } from "@/lib/tenantAuth";
 import { getTenantConfig, DEFAULT_TENANT_SLUG } from "@/config/tenant.config";
 
-export const dynamic = "force-dynamic"; // design-ok
+export const dynamic = "force-dynamic";
 
 /**
- * Failed verification throttling: at most 5 failed attempts per email inside a
- * rolling 15-minute window. Success clears the counter. Both "invalid code"
- * and "email not authorized" attempts count, which also slows enumeration.
+ * Verifies a single-use OTP and creates a server-side session.
+ * The raw session token is only ever sent as an HttpOnly cookie; no token is
+ * returned in the JSON body.
  */
-const FAILED_WINDOW_MS = 15 * 60 * 1000;
-const FAILED_MAX_ATTEMPTS = 5;
+const WINDOW_SECONDS = 15 * 60;
+const IP_LIMIT = 20;
+const EMAIL_LIMIT = 10;
 
-const failedAttempts = new SlidingWindowRateLimiter(
-  FAILED_MAX_ATTEMPTS,
-  FAILED_WINDOW_MS
-);
-
-function rateLimitedResponse(retryAfterMs: number): NextResponse {
-  const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+function invalidCode() {
   return NextResponse.json(
-    {
-      error: "rate_limited",
-      message: "Too many failed verification attempts. Please try again later.",
-    },
-    { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+    { error: "invalid_code", message: "Invalid or expired code." },
+    { status: 401 }
   );
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req.headers);
+    const ipAllowed = await consumeRateLimit(
+      `verify:ip:${hashIp(clientIp)}`,
+      IP_LIMIT,
+      WINDOW_SECONDS
+    );
+
+    if (!ipAllowed) {
+      return NextResponse.json(
+        { error: "rate_limited", message: "Too many attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": "900" } }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
-    const { code, challengeToken, tenant_id, tenantId } = body;
+    const email = typeof body.email === "string" ? body.email.toLowerCase().trim() : "";
+    const code = typeof body.code === "string" ? body.code.trim() : "";
+    const challengeId = typeof body.challengeId === "string" ? body.challengeId : "";
 
-    // Resolve the active tenant and its authorized admin allow-list.
-    const resolvedTenantId = String(tenant_id || tenantId || DEFAULT_TENANT_SLUG);
-    const config = getTenantConfig(resolvedTenantId);
-    const allowedEmails = config.auth.allowedAdminEmails
-      .map((entry) => entry.toLowerCase().trim())
-      .filter(Boolean);
-
-    const defaultEmail = (config.contact.ownerEmail || allowedEmails[0] || "")
-      .toLowerCase()
-      .trim();
-    const requestedEmail =
-      typeof body.email === "string" ? body.email.toLowerCase().trim() : "";
-    const targetEmail = requestedEmail || defaultEmail;
-
-    // Locked-out email? Reject before any verification work.
-    if (targetEmail && failedAttempts.isLimited(targetEmail)) {
-      return rateLimitedResponse(failedAttempts.retryAfterMs(targetEmail));
+    if (!email || !/^\d{6}$/.test(code) || !challengeId) {
+      return invalidCode();
     }
 
-    if (!code || typeof code !== "string") {
-      return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    const emailAllowed = await consumeRateLimit(
+      `verify:email:${email}`,
+      EMAIL_LIMIT,
+      WINDOW_SECONDS
+    );
+
+    if (!emailAllowed) {
+      return invalidCode();
     }
 
-    const recordFailure = () => {
-      if (targetEmail) failedAttempts.record(targetEmail);
-    };
-
-    // Only emails explicitly authorized for this studio may ever receive a session.
-    if (!targetEmail || !targetEmail.includes("@") || !allowedEmails.includes(targetEmail)) {
-      recordFailure();
-      return NextResponse.json(
-        { error: "forbidden", message: "This email is not authorized for this studio." },
-        { status: 401 }
-      );
+    const valid = await verifyOtpCode(email, code, challengeId);
+    if (!valid) {
+      return invalidCode();
     }
 
-    // Genuine test-environment mock: an operator may opt in to a fixed code for
-    // automated/local testing via ADMIN_TEST_OTP. Never available in production.
-    const testOtp = process.env.ADMIN_TEST_OTP;
-    const isTestEnvironmentMock =
-      process.env.NODE_ENV !== "production" && Boolean(testOtp) && code === testOtp;
+    const requestedTenantId = getTenantConfig(
+      String(body.tenant_id || DEFAULT_TENANT_SLUG)
+    ).id;
+    const tenantId = (await isTenantAdmin(email, requestedTenantId))
+      ? requestedTenantId
+      : ((await resolveTenantForEmail(email)) || requestedTenantId);
 
-    // Standard verification against the issued OTP store / signed challenge.
-    const isValid = isTestEnvironmentMock || verifyOtpCode(targetEmail, code, challengeToken);
-    if (!isValid) {
-      recordFailure();
-      return NextResponse.json(
-        { error: "invalid_code", message: "Invalid or expired code." },
-        { status: 401 }
-      );
+    if (!(await isTenantAdmin(email, tenantId))) {
+      return invalidCode();
     }
 
-    // A successful verification clears the failure budget for this email.
-    failedAttempts.reset(targetEmail);
+    const session = await createAdminSession(email, tenantId);
+    if (!session) {
+      return NextResponse.json({ error: "session_failed" }, { status: 500 });
+    }
 
-    const adminToken = createAdminSessionToken(targetEmail, config.id);
-    const res = NextResponse.json({ success: true, token: adminToken });
-    res.cookies.set("admin_token", adminToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60,
-      path: "/",
+    const res = NextResponse.json({
+      success: true,
+      email,
+      tenant_id: tenantId,
     });
+
+    res.cookies.set(ADMIN_SESSION_COOKIE, session.token, adminSessionCookieOptions());
     return res;
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Error in verify-otp:", err);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }

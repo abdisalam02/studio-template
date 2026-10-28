@@ -2,62 +2,46 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * Cross-origin bridge for the tenant front-ends.
+ * Single source of truth for API CORS and admin CSRF.
  *
- * The hosted studios call the API same-origin, but external tenant front-ends
- * (for example the Noire app) call `/api/v1/t/:slug/*` from a different
- * origin. Browsers gate those calls behind CORS, so this middleware:
- *
- *   - answers preflight OPTIONS with 204 + the requisite headers,
- *   - echoes the concrete origin (never `*`) so credentialed requests work,
- *   - authorises known production domains, same-origin requests and the
- *     common localhost development ports,
- *   - lets self-authenticated routes (a signed token, no session cookie, e.g.
- *     the onboarding approval link) pass straight through.
- *
- * Extend the production allow-list without a code change by setting
- * `CORS_ALLOWED_ORIGINS` to a comma-separated list of full origins.
+ * - Public API (`/api/v1`, `/api/webhooks`, `/api/action`, `/api/manage`) is
+ *   open with `Access-Control-Allow-Origin: *`; it never uses cookies.
+ * - Admin API (`/api/admin`) echoes an allow-listed origin and enables
+ *   credentials, because the session lives in an HttpOnly cookie.
+ * - State-changing admin requests with a foreign Origin are rejected
+ *   (defence in depth on top of SameSite=Strict).
  */
 
-/** Canonical production origins for the hosted studios. */
 const PRODUCTION_ORIGINS = [
   "https://www.abdisalam.space",
   "https://abdisalam.space",
-  // External Noire intake front-end (one-click onboarding submissions).
   "https://noire.niwache12.workers.dev",
   "https://noire-rosy.vercel.app",
 ];
 
-/** Local development ports the tenant front-ends commonly run on. */
 const DEV_PORTS = new Set(["3000", "3001", "3002", "5173"]);
-
 const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
-const ALLOWED_METHODS = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
-const ALLOWED_HEADERS =
-  "Content-Type, Authorization, X-Requested-With, Accept, X-CSRF-Token, x-admin-key, x-admin-token";
+const PUBLIC_PREFIXES = ["/api/v1/", "/api/webhooks", "/api/action", "/api/manage"];
+const ADMIN_PREFIX = "/api/admin";
 
-/**
- * API prefixes that authenticate themselves (a signed token in the URL/body)
- * rather than with an admin session cookie. They must always bypass any
- * session gate. Keep this list as small as possible.
- */
+const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+const ALLOWED_HEADERS = "Content-Type, Authorization, X-Requested-With, Accept";
+
+/** API prefixes that authenticate themselves and bypass the CORS gate. */
 const SELF_AUTHENTICATED_API_PREFIXES = ["/api/admin/onboard/approve"];
 
-function isSelfAuthenticatedRequest(pathname: string): boolean {
+function isSelfAuthenticated(pathname: string): boolean {
   return SELF_AUTHENTICATED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-/** Full origins supplied at runtime via a comma-separated env variable. */
 function configuredOrigins(): string[] {
-  const raw = process.env.CORS_ALLOWED_ORIGINS || "";
-  return raw
+  return (process.env.CORS_ALLOWED_ORIGINS || "")
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
 }
 
-/** Matches http(s)://localhost|127.0.0.1|[::1]:<dev port> outside production. */
 function isLocalhostDevOrigin(origin: string): boolean {
   if (process.env.NODE_ENV === "production") return false;
   try {
@@ -72,23 +56,18 @@ function isLocalhostDevOrigin(origin: string): boolean {
 }
 
 function isAllowedOrigin(origin: string, request: NextRequest): boolean {
-  // No Origin header: a same-origin or server-to-server call needs no CORS.
   if (!origin || origin === "null") return false;
-
-  // Same-origin requests still send an Origin header for non-GET methods.
   try {
     if (new URL(origin).host === request.nextUrl.host) return true;
   } catch {
-    // Fall through to the explicit allow-lists.
+    // fall through
   }
-
   if (PRODUCTION_ORIGINS.includes(origin)) return true;
   if (configuredOrigins().includes(origin)) return true;
   return isLocalhostDevOrigin(origin);
 }
 
-/** Adds `Origin` to `Vary` without clobbering any existing value. */
-function appendVaryOrigin(response: NextResponse): void {
+function appendVary(response: NextResponse): void {
   const existing = response.headers.get("Vary");
   if (!existing) {
     response.headers.set("Vary", "Origin");
@@ -100,9 +79,14 @@ function appendVaryOrigin(response: NextResponse): void {
   }
 }
 
-function applyCorsHeaders(response: NextResponse, origin: string, allowed: boolean): void {
-  appendVaryOrigin(response);
-  if (!allowed) return;
+function setPublicCors(response: NextResponse): void {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", ALLOWED_METHODS);
+  response.headers.set("Access-Control-Allow-Headers", ALLOWED_HEADERS);
+}
+
+function setAdminCors(response: NextResponse, origin: string): void {
+  appendVary(response);
   response.headers.set("Access-Control-Allow-Origin", origin);
   response.headers.set("Access-Control-Allow-Credentials", "true");
   response.headers.set("Access-Control-Allow-Methods", ALLOWED_METHODS);
@@ -110,33 +94,46 @@ function applyCorsHeaders(response: NextResponse, origin: string, allowed: boole
 }
 
 export function middleware(request: NextRequest) {
-  // Only API requests participate in CORS.
-  if (!request.nextUrl.pathname.startsWith("/api")) {
-    return NextResponse.next();
-  }
+  const pathname = request.nextUrl.pathname;
+  if (!pathname.startsWith("/api")) return NextResponse.next();
+  if (isSelfAuthenticated(pathname)) return NextResponse.next();
 
-  // The onboarding approval link is opened straight from an email and is
-  // authenticated by its own HMAC token, so it must never be gated by an
-  // admin session cookie (and needs no CORS — it is a top-level navigation).
-  if (isSelfAuthenticatedRequest(request.nextUrl.pathname)) {
-    return NextResponse.next();
-  }
-
+  const isAdmin = pathname.startsWith(ADMIN_PREFIX);
+  const isPublic = PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const origin = request.headers.get("origin") || "";
   const allowed = isAllowedOrigin(origin, request);
 
-  // Preflight: answer directly so the browser never blocks the real request.
+  // Preflight
   if (request.method === "OPTIONS") {
     const response = new NextResponse(null, { status: 204 });
-    applyCorsHeaders(response, origin, allowed);
-    if (allowed) {
-      response.headers.set("Access-Control-Max-Age", "86400");
+    if (isAdmin) {
+      if (allowed) setAdminCors(response, origin);
+    } else if (isPublic) {
+      setPublicCors(response);
     }
     return response;
   }
 
+  // CSRF: a browser sending a foreign Origin may not mutate admin state.
+  if (
+    isAdmin &&
+    !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+    origin &&
+    !allowed
+  ) {
+    return NextResponse.json(
+      { error: "forbidden_origin" },
+      { status: 403 }
+    );
+  }
+
   const response = NextResponse.next();
-  applyCorsHeaders(response, origin, allowed);
+  if (isAdmin) {
+    if (allowed) setAdminCors(response, origin);
+    else appendVary(response);
+  } else if (isPublic) {
+    setPublicCors(response);
+  }
   return response;
 }
 

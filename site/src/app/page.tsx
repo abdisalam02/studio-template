@@ -429,7 +429,7 @@ export default async function StudioHomePage(props: PageProps) {
               {studio.location} · {studio.email}
             </div>
             <div className="pt-2 flex items-center justify-center gap-3 text-[11px]">
-              <a href={`/admin?tenant=${config.id}`} className="hover:underline">
+              <a href={`/admin.html?tenant=${config.id}`} className="hover:underline">
                 Admin Portal
               </a>
               <span>·</span>

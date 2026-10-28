@@ -67,12 +67,6 @@
     return tenantPrefix() + name;
   }
 
-  // Gangina keeps its historical unprefixed token key so existing sessions and
-  // tooling stay valid; every other tenant gets an isolated token key.
-  function tokenStorageKey() {
-    return TENANT_ID === 'gangina' ? 'admin_token' : `${tenantPrefix()}admin_token`;
-  }
-
   function getTenantId() {
     return TENANT_ID;
   }
@@ -136,25 +130,23 @@
     return window.location.origin;
   }
 
-  function getAdminToken() {
-    try {
-      return (
-        localStorage.getItem(tokenStorageKey()) ||
-        sessionStorage.getItem(tokenStorageKey()) ||
-        ''
-      );
-    } catch (e) {
-      return '';
-    }
+  // The session lives in an HttpOnly cookie; JS never sees a token.
+  function getAuthHeaders(extraHeaders = {}) {
+    return { ...extraHeaders };
   }
 
-  function getAuthHeaders(extraHeaders = {}) {
-    const headers = { ...extraHeaders };
-    const token = getAdminToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  async function fetchSession() {
+    try {
+      const res = await fetch(`${getApiBase()}/api/admin/auth/session`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) return null;
+      const data = await res.json().catch(() => null);
+      return data && data.authenticated ? data : null;
+    } catch (e) {
+      return null;
     }
-    return headers;
   }
 
   // English month & day names
@@ -364,21 +356,19 @@
   // 3. STORAGE & SUPABASE DATA ACCESS
   // ----------------------------------------------------------------------------
   function getBookings() {
-    // Locked gate: expose only synthetic silhouettes, never cached real data.
-    if (isGateLocked) return PREVIEW_BOOKINGS;
+    // Never paint preview or synthetic rows: the dashboard starts empty and
+    // fills from the API once the session is authenticated.
+    if (isGateLocked) return [];
     try {
       const stored = localStorage.getItem(storageKey('bookings'));
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading bookings:', e);
     }
-    // Only Gangina ships demo seed data; other studios start with a clean slate.
-    const seed = TENANT_ID === 'gangina' ? SEED_BOOKINGS : [];
-    localStorage.setItem(storageKey('bookings'), JSON.stringify(seed));
-    return seed;
+    return [];
   }
 
   function saveBookings(bookings) {
@@ -422,7 +412,6 @@
         credentials: 'include'
       });
       if (res.status === 401) {
-        localStorage.removeItem(tokenStorageKey());
         sessionStorage.removeItem(storageKey('admin_auth'));
         isGateLocked = true;
         const overlay = document.getElementById('admin-login-overlay');
@@ -2379,7 +2368,7 @@
   // ----------------------------------------------------------------------------
   // 12. SECURITY GATE
   // ----------------------------------------------------------------------------
-  function initSecurityGate() {
+  async function initSecurityGate() {
     const overlay = document.getElementById('admin-login-overlay');
     const emailForm = document.getElementById('admin-email-form');
     const codeForm = document.getElementById('admin-login-form');
@@ -2402,7 +2391,7 @@
     const RESEND_LABEL = 'Resend code';
     const VERIFY_LABEL = 'Open Studio Manager →';
 
-    let challengeToken = '';
+    let challengeId = '';
     let activeChallengeEmail = '';
     let activeChallengeTenant = '';
     let loginStep = 'email';
@@ -2536,7 +2525,7 @@
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data.success) {
-          challengeToken = data.challengeToken || '';
+          challengeId = data.challengeId || '';
           activeChallengeEmail = data.email || requestedEmail;
           activeChallengeTenant = data.tenant_id || requestedTenant;
 
@@ -2579,8 +2568,9 @@
       }
     }
 
-    const hasValidToken = Boolean(getAdminToken() || sessionStorage.getItem(storageKey('admin_auth')) === 'true');
-    if (hasValidToken) {
+    const session = await fetchSession();
+    if (session) {
+      if (session.tenant_id) setActiveTenant(session.tenant_id, { applyBranding: true });
       isGateLocked = false;
       overlay.classList.remove('unlocking');
       overlay.style.display = 'none';
@@ -2596,10 +2586,14 @@
     }
 
     if (lockBtn) {
-      lockBtn.addEventListener('click', () => {
+      lockBtn.addEventListener('click', async () => {
+        try {
+          await fetch(`${getApiBase()}/api/admin/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+        } catch (e) {}
         sessionStorage.removeItem(storageKey('admin_auth'));
-        localStorage.removeItem(tokenStorageKey());
-        document.cookie = 'admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
         isGateLocked = true;
         overlay.classList.remove('unlocking');
         overlay.style.display = 'flex';
@@ -2672,18 +2666,16 @@
             body: JSON.stringify({
               email: verifyEmail,
               code: code,
-              challengeToken: challengeToken,
+              challengeId: challengeId,
               tenant_id: verifyTenant
             })
           });
 
           const data = await res.json().catch(() => ({}));
 
-          if (res.ok && data.success && data.token) {
+          if (res.ok && data.success) {
             setActiveTenant(verifyTenant, { applyBranding: true });
-            localStorage.setItem(tokenStorageKey(), data.token);
             sessionStorage.setItem(storageKey('admin_auth'), 'true');
-            document.cookie = `admin_token=${data.token}; path=/; max-age=2592000; SameSite=Lax`;
             clearStepErrors();
             showToast('✓ Studio Manager ready');
 
@@ -2787,13 +2779,13 @@
   // ----------------------------------------------------------------------------
   // INITIALIZE ON DOM READY
   // ----------------------------------------------------------------------------
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     applyTenantBranding();
     initTouchGestures();
     initNavigation();
     initModals();
     initPaletteSwitcher();
-    initSecurityGate();
+    await initSecurityGate();
     renderAllViews();
     // Only reach for real data when a session is already established; the locked
     // dashboard stays on its synthetic silhouettes until the owner signs in.

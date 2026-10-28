@@ -99,7 +99,7 @@ export default async function VurderPage({ searchParams }: VurderPageProps) {
                 Er du studioeier? Logg inn for å godkjenne eller redigere:
               </p>
               <Link
-                href={`/admin?ref=${encodeURIComponent(booking.ref)}`}
+                href={`/admin.html?ref=${encodeURIComponent(booking.ref)}`}
                 className="inline-block bg-foreground text-background px-5 py-2.5 rounded-full font-mono text-xs font-semibold hover:opacity-90 transition-opacity"
               >
                 Åpne i kontrollpanel ↗
@@ -139,7 +139,7 @@ export default async function VurderPage({ searchParams }: VurderPageProps) {
         )}
 
         <footer className="pt-4 border-t border-border/50 text-center">
-          <Link href="/admin" className="text-[11px] font-mono text-muted hover:text-foreground underline">
+          <Link href="/admin.html" className="text-[11px] font-mono text-muted hover:text-foreground underline">
             Gå til studio administrasjon
           </Link>
         </footer>

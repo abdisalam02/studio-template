@@ -14,6 +14,7 @@ import {
   slotErrorMessage,
 } from "@/lib/bookingRules";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,13 @@ export async function POST(req: NextRequest) {
     const service = booking.services as unknown as
       | { name: string; duration_min: number; buffer_min: number | null }
       | null;
+
+    if (!tenant || !auth.email || !(await isTenantAdmin(auth.email, tenant.id))) {
+      return NextResponse.json(
+        { error: "forbidden", message: "You do not have access to this studio." },
+        { status: 403 }
+      );
+    }
 
     const timezone = tenant?.timezone || "Europe/Oslo";
 

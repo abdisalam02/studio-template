@@ -206,7 +206,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
         tone="error"
         title="Invalid link"
         message="This review link is incomplete or malformed."
-        actionHref="/admin"
+        actionHref="/admin.html"
         actionLabel="Go to the control panel"
         colors={defaultColors}
       />
@@ -227,7 +227,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
         tone="error"
         title="Booking not found"
         message={`No booking was found with reference ${ref}.`}
-        actionHref="/admin"
+        actionHref="/admin.html"
         actionLabel="Go to the control panel"
         colors={defaultColors}
       />
@@ -241,7 +241,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
         tone="warning"
         title="Security link expired"
         message="The code for direct review is invalid or has already been used."
-        actionHref={`/admin?ref=${encodeURIComponent(ref)}`}
+        actionHref={`/admin.html?ref=${encodeURIComponent(ref)}`}
         actionLabel="Sign in to review in the control panel"
         colors={defaultColors}
       />

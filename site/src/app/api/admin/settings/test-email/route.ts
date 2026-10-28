@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getTenantConfig } from "@/config/tenant.config";
 import { sendTestNotificationEmail, type Tenant } from "@/lib/email";
+import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 
 export const dynamic = "force-dynamic"; // design-ok
 
@@ -35,13 +37,11 @@ function tenantFromConfig(tenantId?: string | null): Tenant {
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const isDev = process.env.NODE_ENV !== "production";
-    const hasBearer = Boolean(authHeader?.startsWith("Bearer "));
+    const isDev = process.env.NODE_ENV === "development";
+    const allowBypass = isDev && req.nextUrl.searchParams.get("dev_bypass") === "true";
 
-    // In production a Bearer token is required; in development we allow the
-    // admin dev-bypass flow to exercise the live email without an OTP session.
-    if (!hasBearer && !isDev) {
+    const auth = await verifyAdminRequest(req, allowBypass);
+    if (!auth.authenticated || !auth.email) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
@@ -52,19 +52,24 @@ export async function POST(req: NextRequest) {
       recipient?: string;
     };
 
+    const tenantId = tenant_id || auth.tenantId || "gangina";
+    if (!allowBypass && !(await isTenantAdmin(auth.email, tenantId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
     // Prefer the real tenant row so owner_email / name stay in sync with the DB.
     let tenant: Tenant | null = null;
-    if (supabaseAdmin && tenant_id) {
+    if (supabaseAdmin) {
       const { data } = await supabaseAdmin
         .from("tenants")
         .select("*")
-        .eq("id", tenant_id)
+        .eq("id", tenantId)
         .maybeSingle();
 
       if (data) tenant = data as unknown as Tenant;
     }
     if (!tenant) {
-      tenant = tenantFromConfig(tenant_id);
+      tenant = tenantFromConfig(tenantId);
     }
 
     // Accept `recipient`, fall back to legacy `email`, then the configured owner.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 import { generateBookingRef, generateSecureToken, hashToken } from "@/lib/tokens";
 import { zonedDateTimeToUtc } from "@/lib/bookingRules";
 import { generateIcsCalendar } from "@/lib/ics";
@@ -56,6 +57,13 @@ export async function POST(req: NextRequest) {
 
     if (!tenant) {
       return NextResponse.json({ error: "tenant_not_found" }, { status: 404 });
+    }
+
+    if (!(await isTenantAdmin(auth.email, tenant_id))) {
+      return NextResponse.json(
+        { error: "forbidden", message: "You do not have access to this studio." },
+        { status: 403 }
+      );
     }
 
     // Interpret date + time in the studio's timezone; a numeric start_utc is

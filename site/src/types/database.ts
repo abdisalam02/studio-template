@@ -18,6 +18,99 @@ export type BookingStatus =
 export interface Database {
   public: {
     Tables: {
+      admin_sessions: {
+        Row: {
+          id: string;
+          token_hash: string;
+          email: string;
+          tenant_id: string;
+          created_at: string;
+          expires_at: string;
+          revoked_at: string | null;
+          last_seen_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          token_hash: string;
+          email: string;
+          tenant_id: string;
+          created_at?: string;
+          expires_at: string;
+          revoked_at?: string | null;
+          last_seen_at?: string | null;
+        };
+        Update: {
+          expires_at?: string;
+          revoked_at?: string | null;
+          last_seen_at?: string | null;
+        };
+        Relationships: [];
+      };
+      admin_otp_challenges: {
+        Row: {
+          id: string;
+          email: string;
+          code_hash: string;
+          expires_at: string;
+          attempts: number;
+          consumed_at: string | null;
+          created_at: string;
+          ip_hash: string | null;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          code_hash: string;
+          expires_at: string;
+          attempts?: number;
+          consumed_at?: string | null;
+          created_at?: string;
+          ip_hash?: string | null;
+        };
+        Update: {
+          attempts?: number;
+          consumed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      auth_rate_events: {
+        Row: {
+          id: number;
+          key: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          key: string;
+          created_at?: string;
+        };
+        Update: {
+          key?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      tenant_admins: {
+        Row: {
+          tenant_id: string;
+          email: string;
+          role: string;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          tenant_id: string;
+          email: string;
+          role?: string;
+          active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          role?: string;
+          active?: boolean;
+        };
+        Relationships: [];
+      };
       tenants: {
         Row: {
           id: string;
@@ -314,6 +407,22 @@ export interface Database {
           p_end_utc: number;
           p_block_end_utc: number;
           p_now: number;
+        };
+        Returns: boolean;
+      };
+      consume_rate_limit: {
+        Args: {
+          p_key: string;
+          p_limit: number;
+          p_window_seconds: number;
+        };
+        Returns: boolean;
+      };
+      verify_otp_challenge: {
+        Args: {
+          p_id: string;
+          p_email: string;
+          p_code_hash: string;
         };
         Returns: boolean;
       };

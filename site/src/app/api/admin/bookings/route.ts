@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 
 export const dynamic = "force-dynamic"; // design-ok
 
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
     // Authenticate before probing server configuration so unauthenticated
     // callers always receive 401 and never learn whether the DB is wired up.
     const auth = await verifyAdminRequest(req, allowBypass);
-    if (!auth.authenticated) {
+    if (!auth.authenticated || !auth.email) {
       return NextResponse.json({ error: "unauthorized", message: "Missing or invalid login." }, { status: 401 });
     }
 
@@ -20,10 +21,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    const userEmail = (auth.email || "niwache12@gmail.com").toLowerCase();
-    const tenantParam = req.nextUrl.searchParams.get("tenant_id") || "gangina";
+    const userEmail = auth.email.toLowerCase();
+    const tenantParam = req.nextUrl.searchParams.get("tenant_id") || auth.tenantId || "gangina";
 
-    // Query tenant by id or match default gangina
+    // Query tenant by id or fall back to the session's tenant.
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
       .select("*")
@@ -32,27 +33,11 @@ export async function GET(req: NextRequest) {
 
     const tenantId = tenant?.id || tenantParam;
 
-    // Check salon access
-    if (tenant && tenant.owner_email) {
-      const ownerEmail = tenant.owner_email.toLowerCase();
-      const isOwner = ownerEmail === userEmail;
-      const isAllowedAdmin = [
-        "niwache12@gmail.com",
-        "ganginabeauty@gmail.com",
-        "admin@agure.space",
-        "support@agure.space",
-      ].includes(userEmail);
-      const isDevEmail =
-        userEmail.includes("niwache") ||
-        userEmail.includes("gangina") ||
-        userEmail.includes("abdisalam");
-
-      if (!isOwner && !isAllowedAdmin && !isDevEmail) {
-        return NextResponse.json(
-          { error: "forbidden", message: "You do not have access to this studio." },
-          { status: 403 }
-        );
-      }
+    if (!(await isTenantAdmin(userEmail, tenantId))) {
+      return NextResponse.json(
+        { error: "forbidden", message: "You do not have access to this studio." },
+        { status: 403 }
+      );
     }
 
     // Query all bookings for this tenant ordered by start_utc descending

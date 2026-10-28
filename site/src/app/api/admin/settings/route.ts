@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 
 export const dynamic = "force-dynamic"; // design-ok
 
@@ -18,7 +19,11 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
-    const tenantId = url.searchParams.get("tenant_id") || "gangina";
+    const tenantId = url.searchParams.get("tenant_id") || auth.tenantId || "gangina";
+
+    if (!allowBypass && !(await isTenantAdmin(auth.email, tenantId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
 
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_error" }, { status: 500 });
@@ -39,9 +44,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
-
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "server_error" }, { status: 500 });
     }
@@ -54,8 +56,7 @@ export async function POST(req: NextRequest) {
     const allowBypass = Boolean(
       isDev && (
         body?.dev_bypass === true ||
-        req.nextUrl.searchParams.get("dev_bypass") === "true" ||
-        (token && token.startsWith("dev-bypass-"))
+        req.nextUrl.searchParams.get("dev_bypass") === "true"
       )
     );
 
@@ -77,7 +78,12 @@ export async function POST(req: NextRequest) {
     if (body.min_notice_min != null) updateData.min_notice_min = body.min_notice_min;
     if (body.max_days_ahead != null) updateData.max_days_ahead = body.max_days_ahead;
 
-    const targetTenantId = tenant_id || "gangina";
+    const targetTenantId = tenant_id || auth.tenantId || "gangina";
+
+    if (!allowBypass && !(await isTenantAdmin(auth.email, targetTenantId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
     const { data: tenant, error } = await supabaseAdmin
       .from("tenants")
       .update(updateData)

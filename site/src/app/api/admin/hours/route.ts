@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 
 export const dynamic = "force-dynamic"; // design-ok
 export const revalidate = 0;
@@ -29,7 +30,11 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
-    const tenantId = url.searchParams.get("tenant_id") || "gangina";
+    const tenantId = url.searchParams.get("tenant_id") || auth.tenantId || "gangina";
+
+    if (!allowBypass && !(await isTenantAdmin(auth.email, tenantId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403, headers: CORS_HEADERS });
+    }
 
     if (!supabaseAdmin) {
       return NextResponse.json(
@@ -87,7 +92,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const { tenant_id, hours, slot_step_min } = body;
-    const targetTenantId = tenant_id || "gangina";
+    const targetTenantId = tenant_id || auth.tenantId || "gangina";
+
+    if (!allowBypass && !(await isTenantAdmin(auth.email, targetTenantId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403, headers: CORS_HEADERS });
+    }
+
     const hoursList = Array.isArray(hours) ? hours : [];
 
     // 1. Update slot step if provided

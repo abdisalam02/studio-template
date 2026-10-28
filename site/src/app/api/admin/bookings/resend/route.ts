@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 import {
   sendCustomerConfirmation,
   sendCustomerReceipt,
@@ -15,13 +16,6 @@ import {
 export const dynamic = "force-dynamic";
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-const ALLOWED_ADMINS = [
-  "niwache12@gmail.com",
-  "ganginabeauty@gmail.com",
-  "admin@agure.space",
-  "support@agure.space",
-];
 
 /**
  * Re-sends the customer copy of a booking, optionally after correcting the
@@ -82,11 +76,13 @@ export async function POST(req: NextRequest) {
     const isOwner =
       Boolean(tenant.owner_email) &&
       tenant.owner_email.toLowerCase() === userEmail;
-    if (!allowBypass && !isOwner && !ALLOWED_ADMINS.includes(userEmail)) {
-      return NextResponse.json(
-        { error: "forbidden", message: "You do not have access to this studio." },
-        { status: 403 }
-      );
+    if (!allowBypass && !isOwner) {
+      if (!(await isTenantAdmin(userEmail, tenant.id))) {
+        return NextResponse.json(
+          { error: "forbidden", message: "You do not have access to this studio." },
+          { status: 403 }
+        );
+      }
     }
 
     // Optional correction of the address. Validated before the send so a typo

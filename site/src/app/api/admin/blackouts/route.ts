@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { isTenantAdmin } from "@/lib/tenantAuth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,26 +34,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let tenantId = "gangina";
-    const { data: tenant } = await supabaseAdmin
-      .from("tenants")
-      .select("id")
-      .eq("owner_email", userEmail)
-      .eq("active", true)
-      .maybeSingle();
+    const tenantId = String(body.tenant_id || auth.tenantId || "gangina");
 
-    if (tenant?.id) {
-      tenantId = tenant.id;
-    } else {
-      const isAllowedAdmin = [
-        "niwache12@gmail.com",
-        "ganginabeauty@gmail.com",
-        "admin@agure.space",
-        "support@agure.space",
-      ].includes(userEmail.toLowerCase());
-      if (!isAllowedAdmin && !allowBypass) {
-        return NextResponse.json({ error: "forbidden", message: "No studio is linked to this email." }, { status: 403 });
-      }
+    if (!allowBypass && !(await isTenantAdmin(userEmail, tenantId))) {
+      return NextResponse.json(
+        { error: "forbidden", message: "No studio is linked to this email." },
+        { status: 403 }
+      );
     }
 
     const { data: blackout, error: insertErr } = await supabaseAdmin
