@@ -1,14 +1,25 @@
 import type { Metadata } from "next";
-import { Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import { CLIENT_CONFIG } from "@/config/client";
 import "./globals.css";
 import "./booking.css";
 
-const montserrat = Montserrat({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+/**
+ * Montserrat is self-hosted instead of loaded through `next/font/google`.
+ *
+ * Fetching fonts from fonts.googleapis.com at build time made every deploy
+ * depend on a third party: when Google answered with a non-CSS response the
+ * loader threw `Cannot read properties of null (reading '1')` and the build
+ * failed, blocking unrelated releases. The variable font (latin subset,
+ * weights 300–700, includes æøå) is now a repo asset, so builds are hermetic.
+ */
+const montserrat = localFont({
+  src: "./fonts/montserrat-latin.woff2",
+  weight: "300 700",
+  style: "normal",
   variable: "--font-montserrat",
   display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
