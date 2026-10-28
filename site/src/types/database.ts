@@ -199,6 +199,10 @@ export interface Database {
           created_at: number;
           expires_at: number | null;
           decided_at: number | null;
+          resend_email_id: string | null;
+          customer_email_status: string | null;
+          customer_email_status_at: number | null;
+          customer_email_error: string | null;
         };
         Insert: {
           id?: never;
@@ -222,6 +226,10 @@ export interface Database {
           created_at?: number;
           expires_at?: number | null;
           decided_at?: number | null;
+          resend_email_id?: string | null;
+          customer_email_status?: string | null;
+          customer_email_status_at?: number | null;
+          customer_email_error?: string | null;
         };
         Update: {
           id?: never;
@@ -245,6 +253,10 @@ export interface Database {
           created_at?: number;
           expires_at?: number | null;
           decided_at?: number | null;
+          resend_email_id?: string | null;
+          customer_email_status?: string | null;
+          customer_email_status_at?: number | null;
+          customer_email_error?: string | null;
         };
         Relationships: [
           {

@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyToken } from "@/lib/tokens";
 import { generateIcsCalendar } from "@/lib/ics";
-import { sendCustomerConfirmation, sendCustomerDeclined, type Tenant } from "@/lib/email";
+import {
+  sendCustomerConfirmation,
+  sendCustomerDeclined,
+  emailOutcome,
+  classifyEmailFailure,
+  type Tenant,
+} from "@/lib/email";
 import type { BookingStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic"; // design-ok
@@ -86,13 +92,23 @@ export async function POST(req: NextRequest) {
       sort: number;
     } | null;
 
-    if (tenant && service) {
+    const bookingWithSummary = booking as typeof booking & {
+      service_summary?: string | null;
+    };
+
+    if (tenant) {
+      // The service row can be missing for multi-service or deleted services;
+      // fall back to the summary stored on the booking so the customer is
+      // still told what was decided.
+      const serviceName =
+        bookingWithSummary.service_summary || service?.name || "Behandling";
+
       const bookingDetails = {
         ref: booking.ref,
         customer_name: booking.customer_name,
         customer_email: booking.customer_email,
         customer_phone: booking.customer_phone,
-        service_name: service.name,
+        service_name: serviceName,
         price_nok: booking.price_nok,
         start_utc: booking.start_utc,
         end_utc: booking.end_utc,
@@ -100,25 +116,38 @@ export async function POST(req: NextRequest) {
       };
 
       try {
+        let sendResult: unknown = null;
+
         if (decision === "accept") {
           const icsContent = generateIcsCalendar({
             ref: booking.ref,
-            title: `${service.name} - ${tenant.name}`,
+            title: `${serviceName} - ${tenant.name}`,
             description: `Booking for ${booking.customer_name}. Reference: ${booking.ref}.`,
             startUtc: booking.start_utc,
             endUtc: booking.end_utc,
             tenantName: tenant.name,
           });
 
-          const mailRes = await sendCustomerConfirmation(tenant, bookingDetails, icsContent);
-          if (mailRes && "error" in mailRes && mailRes.error) {
-            console.error("Error from Resend sending confirmation email:", mailRes.error);
-          }
+          sendResult = await sendCustomerConfirmation(tenant, bookingDetails, icsContent);
         } else {
-          const mailRes = await sendCustomerDeclined(tenant, bookingDetails);
-          if (mailRes && "error" in mailRes && mailRes.error) {
-            console.error("Error from Resend sending declined email:", mailRes.error);
-          }
+          sendResult = await sendCustomerDeclined(tenant, bookingDetails);
+        }
+
+        const outcome = emailOutcome(sendResult);
+        await supabaseAdmin
+          .from("bookings")
+          .update({
+            resend_email_id: outcome.id,
+            customer_email_status: outcome.error
+              ? classifyEmailFailure(outcome.error)
+              : "sent",
+            customer_email_status_at: now,
+            customer_email_error: outcome.error ? outcome.error.message : null,
+          })
+          .eq("id", booking.id);
+
+        if (outcome.error) {
+          console.error("Resend rejected the customer decision email:", outcome.error);
         }
       } catch (mailErr) {
         console.error("Failed to send customer notification email on decision:", mailErr);

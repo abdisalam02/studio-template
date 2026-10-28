@@ -5,7 +5,13 @@ import {
   generateSecureToken,
   hashToken,
 } from "@/lib/tokens";
-import { sendOwnerAlert, sendCustomerReceipt, type Tenant } from "@/lib/email";
+import {
+  sendOwnerAlert,
+  sendCustomerReceipt,
+  emailOutcome,
+  classifyEmailFailure,
+  type Tenant,
+} from "@/lib/email";
 import { getEngineBaseUrl } from "@/lib/url";
 import { getTenantConfig } from "@/config/tenant.config";
 
@@ -244,6 +250,7 @@ export async function POST(
         { status: 500, headers: CORS_HEADERS }
       );
     }
+    const db = supabaseAdmin;
 
     let { data: tenant, error: tenantErr } = await supabaseAdmin
       .from("tenants")
@@ -534,12 +541,31 @@ export async function POST(
     const emailPromise = Promise.allSettled([
       sendOwnerAlert(tenant, bookingDetails, actionUrl),
       sendCustomerReceipt(tenant, bookingDetails, manageUrl),
-    ]).then((results) => {
+    ]).then(async (results) => {
       results.forEach((res, i) => {
         if (res.status === "rejected") {
           console.error(`Booking email ${i === 0 ? "owner" : "customer"} dispatch error:`, res.reason);
         }
       });
+
+      // Record what Resend accepted for the customer copy. The actual
+      // delivered/bounced answer arrives later on the webhook, which matches
+      // this id to the booking.
+      const customerResult = results[1];
+      if (customerResult.status !== "fulfilled") return;
+
+      const outcome = emailOutcome(customerResult.value);
+      await db
+        .from("bookings")
+        .update({
+          resend_email_id: outcome.id,
+          customer_email_status: outcome.error
+            ? classifyEmailFailure(outcome.error)
+            : "sent",
+          customer_email_status_at: Math.floor(Date.now() / 1000),
+          customer_email_error: outcome.error ? outcome.error.message : null,
+        })
+        .eq("ref", ref);
     });
 
     if (typeof after === "function") {

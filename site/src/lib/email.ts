@@ -180,6 +180,67 @@ function formatOsloDateTime(epochSeconds: number): string {
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Delivery outcomes                                                          */
+/*  Resend accepts a message before the receiving server has answered, so a    */
+/*  bad mailbox only shows up later (webhook) or as a rejected send. These     */
+/*  helpers normalise both paths into the same small vocabulary.               */
+/* -------------------------------------------------------------------------- */
+
+export type EmailDeliveryStatus =
+  | "sent"
+  | "delivered"
+  | "delayed"
+  | "bounced"
+  | "complained"
+  | "failed"
+  | "suppressed";
+
+export interface EmailOutcome {
+  id: string | null;
+  error: { name: string; message: string } | null;
+}
+
+/** Extracts the Resend message id from a `emails.send` response. */
+export function emailOutcome(result: unknown): EmailOutcome {
+  const raw = result as
+    | { data?: { id?: string } | null; error?: unknown }
+    | null
+    | undefined;
+  if (!raw) return { id: null, error: null };
+
+  const id =
+    raw.data && typeof raw.data.id === "string" && raw.data.id.trim()
+      ? raw.data.id
+      : null;
+
+  if (!raw.error) return { id, error: null };
+
+  const err = raw.error as { name?: unknown; message?: unknown } | string;
+  if (typeof err === "string") {
+    return { id, error: { name: "error", message: err } };
+  }
+  return {
+    id,
+    error: {
+      name: typeof err.name === "string" ? err.name : "error",
+      message:
+        typeof err.message === "string" ? err.message : "Unknown email error",
+    },
+  };
+}
+
+/** Maps a rejected send onto a booking email status. */
+export function classifyEmailFailure(error: {
+  name: string;
+  message: string;
+}): EmailDeliveryStatus {
+  const text = `${error.name} ${error.message}`.toLowerCase();
+  if (text.includes("suppress")) return "suppressed";
+  if (text.includes("bounce")) return "bounced";
+  return "failed";
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -421,7 +482,7 @@ export async function sendOwnerAlert(
 export async function sendCustomerReceipt(
   tenant: Tenant,
   booking: BookingDetails,
-  manageUrl: string
+  manageUrl?: string | null
 ) {
   if (!resend) {
     console.warn("RESEND_API_KEY is not set. Skipping customer receipt email.");
@@ -452,11 +513,13 @@ export async function sendCustomerReceipt(
       studioName
     )}. Forespørselen vurderes nå av studioet, og du mottar en bekreftelse så snart timen er godkjent.`,
     detailsHtml: emailDetailRows(palette, rows),
-    actionHtml: `<div style="text-align:center;margin-top:24px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.6;color:${palette.label};">${emailTextLink(
-      palette,
-      manageUrl,
-      "Administrer din reservasjon"
-    )}</div>`,
+    actionHtml: manageUrl
+      ? `<div style="text-align:center;margin-top:24px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.6;color:${palette.label};">${emailTextLink(
+          palette,
+          manageUrl,
+          "Administrer din reservasjon"
+        )}</div>`
+      : "",
     footerHtml: "Ikke deg? Ignorer denne e-posten.",
   });
 
@@ -466,6 +529,75 @@ export async function sendCustomerReceipt(
     from,
     replyTo,
     to: [booking.customer_email],
+    subject,
+    html,
+  });
+}
+
+/**
+ * Tells the owner that the customer copy could not be delivered.
+ *
+ * Fired from the Resend webhook (hard bounce / complaint / rejected send) and
+ * from the admin resend action, so a typo in the customer's address surfaces
+ * within seconds instead of the booking looking confirmed while the customer
+ * has heard nothing.
+ */
+export async function sendOwnerEmailBounceAlert(
+  tenant: Tenant,
+  booking: BookingDetails,
+  failure: { address: string; status: EmailDeliveryStatus; reason?: string | null }
+) {
+  if (!resend) {
+    console.warn("RESEND_API_KEY is not set. Skipping email bounce alert.");
+    return { success: false, reason: "missing_api_key" };
+  }
+
+  const config = resolveConfig(tenant);
+  const palette = config.theme.colors;
+  const studioName = studioNameOf(tenant, config);
+  const osloTime = formatOsloDateTime(booking.start_utc);
+  const adminBaseUrl = getEngineBaseUrl();
+  const fixUrl = `${adminBaseUrl}/admin?ref=${encodeURIComponent(booking.ref)}`;
+  const subject = `Kundekvittering feilet: ${booking.customer_name} (${booking.ref})`;
+
+  const rows: EmailDetailInput[] = [
+    { label: "Kunde", value: booking.customer_name },
+    { label: "Referanse", value: booking.ref },
+    { label: "Adresse som feilet", value: failure.address },
+    { label: "Behandling", value: booking.service_name },
+    { label: "Tidspunkt", value: osloTime },
+    { label: "Status", value: failure.status },
+  ];
+
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: "E-postvarsel",
+    eyebrow: "Kvittering ikke levert",
+    title: "Kunden fikk ikke kvitteringen",
+    titleColor: palette.red,
+    introHtml:
+      "Vi fikk ikke levert bekreftelsen til kundens e-postadresse. Adressen finnes sannsynligvis ikke. Rett den opp i kontrollpanelet og send kvitteringen på nytt, ellers vet kunden ikke at timen er bestilt.",
+    detailsHtml: emailDetailRows(palette, rows),
+    actionHtml:
+      emailButton(palette, fixUrl, "Fiks e-postadressen →") +
+      (failure.reason
+        ? emailNoteBox(
+            palette,
+            `<strong style="color:${palette.value};font-weight:600;">Teknisk årsak:</strong> ${escapeHtml(
+              failure.reason
+            )}`
+          )
+        : ""),
+    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+  });
+
+  const { from, replyTo } = getSenderInfo(tenant, config);
+
+  return sendEmailSafely(config, {
+    from,
+    replyTo,
+    to: [tenant.owner_email],
     subject,
     html,
   });

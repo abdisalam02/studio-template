@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { Database } from "@/types/database";
 
 export type AdminBooking = Database["public"]["Tables"]["bookings"]["Row"] & {
@@ -16,7 +16,25 @@ interface ClientDrawerProps {
   onStatusUpdate: (bookingId: number, status: "confirmed" | "declined" | "cancelled") => void;
   onReschedule?: (booking: AdminBooking) => void;
   actionLoading: number | null;
+  /** Admin session token, used for the customer-email resend action. */
+  token?: string | null;
+  /** Called after a resend so the list and drawer reflect the new state. */
+  onEmailUpdated?: (
+    bookingId: number,
+    email: string,
+    status: string | null
+  ) => void;
 }
+
+const EMAIL_STATUS_LABEL: Record<string, { label: string; tone: string }> = {
+  sent: { label: "Kvittering sendt", tone: "bg-neutral-100 text-neutral-600" },
+  delivered: { label: "Kvittering levert", tone: "bg-emerald-100 text-emerald-800" },
+  delayed: { label: "Kvittering forsinket", tone: "bg-amber-100 text-amber-800" },
+  bounced: { label: "E-post finnes ikke", tone: "bg-red-100 text-red-800" },
+  failed: { label: "Kvittering feilet", tone: "bg-red-100 text-red-800" },
+  suppressed: { label: "Adresse blokkert", tone: "bg-red-100 text-red-800" },
+  complained: { label: "Merket som spam", tone: "bg-red-100 text-red-800" },
+};
 
 function formatOsloDateTime(epochSeconds: number): string {
   const d = new Date(epochSeconds * 1000);
@@ -55,7 +73,23 @@ export function ClientDrawer({
   onStatusUpdate,
   onReschedule,
   actionLoading,
+  token,
+  onEmailUpdated,
 }: ClientDrawerProps) {
+  const [emailValue, setEmailValue] = useState(booking?.customer_email || "");
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEmailValue(booking?.customer_email || "");
+    setEditingEmail(false);
+  }, [booking?.id, booking?.customer_email]);
+
+  useEffect(() => {
+    setEmailNotice(null);
+  }, [booking?.id]);
+
   if (!booking) return null;
 
   // Clean phone number for WhatsApp link (e.g., +47 900 00 000 -> 4790000000)
@@ -71,6 +105,56 @@ export function ClientDrawer({
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappText)}`;
 
   const isLoading = actionLoading === booking.id;
+
+  const emailStatus = booking.customer_email_status || "";
+  const emailStatusMeta = EMAIL_STATUS_LABEL[emailStatus];
+  const emailFailed = ["bounced", "failed", "suppressed", "complained"].includes(
+    emailStatus
+  );
+
+  const handleResendEmail = async () => {
+    if (!token) {
+      setEmailNotice("Mangler innlogging – logg inn på nytt.");
+      return;
+    }
+    setSendingEmail(true);
+    setEmailNotice(null);
+    try {
+      const res = await fetch("/api/admin/bookings/resend", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ id: booking.id, email: emailValue.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEmailNotice(data.message || data.error || "Kunne ikke sende e-posten.");
+        return;
+      }
+      onEmailUpdated?.(
+        booking.id,
+        data.customer_email || emailValue.trim(),
+        data.email?.status ?? null
+      );
+      if (data.success) {
+        setEditingEmail(false);
+        setEmailNotice("Sendt på nytt. Du får varsel om adressen ikke finnes.");
+      } else {
+        setEmailNotice(
+          `Ikke levert (${data.email?.status || "feil"}): ${
+            data.email?.error || "ukjent årsak"
+          }`
+        );
+      }
+    } catch {
+      setEmailNotice("Nettverksfeil under sending.");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   // Attempt to parse custom_fields if stored as JSON string or object
   let customFieldsObj: Record<string, any> = {};
@@ -147,6 +231,82 @@ export function ClientDrawer({
               </a>
             ) : null}
           </div>
+        </div>
+
+        {/* Customer email delivery + repair */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">
+              Kundekvittering
+            </span>
+            {emailStatusMeta && (
+              <span
+                className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded-full ${emailStatusMeta.tone}`}
+              >
+                {emailStatusMeta.label}
+              </span>
+            )}
+          </div>
+
+          {editingEmail || emailFailed ? (
+            <div className="space-y-2">
+              <input
+                type="email"
+                inputMode="email"
+                value={emailValue}
+                onChange={(e) => setEmailValue(e.target.value)}
+                placeholder="navn@epost.no"
+                className="w-full rounded-xl border border-[#EAE6E1] bg-[#FAF8F5] px-3 py-2.5 text-xs text-[#111113] outline-none focus:border-[#111113]"
+              />
+              <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
+                {emailFailed
+                  ? "Adressen fikk ikke kvitteringen. Rett den opp og send på nytt."
+                  : "Send kvitteringen til en annen adresse."}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={sendingEmail || !emailValue.trim()}
+                  onClick={handleResendEmail}
+                  className="flex-1 py-2.5 rounded-xl bg-[#111113] text-white font-bold text-xs hover:opacity-90 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {sendingEmail ? "Sender..." : "Send på nytt"}
+                </button>
+                {!emailFailed && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingEmail(false);
+                      setEmailValue(booking.customer_email || "");
+                      setEmailNotice(null);
+                    }}
+                    className="py-2.5 px-4 rounded-xl border border-[#EAE6E1] text-xs font-semibold text-[#111113] hover:border-[#111113] transition-colors cursor-pointer"
+                  >
+                    Avbryt
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-[#EAE6E1] bg-[#FAF8F5] px-3 py-2.5">
+              <span className="text-xs text-[#111113] truncate">
+                {booking.customer_email}
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditingEmail(true)}
+                className="text-[11px] font-semibold text-[#111113] underline shrink-0 cursor-pointer"
+              >
+                Endre / send på nytt
+              </button>
+            </div>
+          )}
+
+          {emailNotice && (
+            <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
+              {emailNotice}
+            </p>
+          )}
         </div>
 
         {/* Appointment Services & Price Details */}

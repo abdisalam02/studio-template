@@ -497,6 +497,10 @@ function AdminPageContent() {
               created_at: startUtc - 86400,
               expires_at: null,
               decided_at: startUtc - 80000,
+              resend_email_id: null,
+              customer_email_status: "delivered",
+              customer_email_status_at: startUtc - 86400,
+              customer_email_error: null,
               service_summary: activePreset.id === "studio-klo" ? "Japansk Strukturgelé - Nytt Sett" : "Custom Shape (Butterfly, Star)",
               custom_fields: activePreset.id === "studio-klo"
                 ? { current_nails: "Helt bare negler" }
@@ -692,11 +696,18 @@ function AdminPageContent() {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const emailPatch = data?.email
+          ? { customer_email_status: data.email.status as string | null }
+          : {};
+
         setBookings((prev) =>
-          prev.map((b) => (b.id === bookingId ? { ...b, status } : b))
+          prev.map((b) => (b.id === bookingId ? { ...b, status, ...emailPatch } : b))
         );
         if (selectedBooking?.id === bookingId) {
-          setSelectedBooking((prev) => (prev ? { ...prev, status } : null));
+          setSelectedBooking((prev) =>
+            prev ? { ...prev, status, ...emailPatch } : null
+          );
         }
       } else {
         // Update state locally for mock items
@@ -1722,6 +1733,13 @@ function AdminPageContent() {
                                     Venter svar
                                   </span>
                                 )}
+                                {["bounced", "failed", "suppressed", "complained"].includes(
+                                  b.customer_email_status || ""
+                                ) && (
+                                  <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-red-600 text-white tracking-wider">
+                                    E-post feilet
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-[#8a8a8a] flex items-center gap-1.5 truncate">
                                 <span className="font-semibold text-[#111113]">
@@ -2312,6 +2330,19 @@ function AdminPageContent() {
         onStatusUpdate={handleStatusUpdate}
         onReschedule={(b) => setRescheduleBooking(b)}
         actionLoading={actionLoading}
+        token={sessionToken}
+        onEmailUpdated={(bookingId, email, emailStatus) => {
+          const patch = {
+            customer_email: email,
+            customer_email_status: emailStatus,
+          };
+          setBookings((prev) =>
+            prev.map((b) => (b.id === bookingId ? { ...b, ...patch } : b))
+          );
+          setSelectedBooking((prev) =>
+            prev && prev.id === bookingId ? { ...prev, ...patch } : prev
+          );
+        }}
       />
 
       {/* RESCHEDULE MODAL */}

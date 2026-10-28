@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
-import { sendCustomerConfirmation, sendCustomerDeclined, type Tenant } from "@/lib/email";
+import {
+  sendCustomerConfirmation,
+  sendCustomerDeclined,
+  emailOutcome,
+  classifyEmailFailure,
+  type EmailDeliveryStatus,
+  type Tenant,
+} from "@/lib/email";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import type { BookingStatus } from "@/types/database";
 
@@ -91,43 +98,76 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "database_error", details: updateErr.message }, { status: 500 });
     }
 
-    // Send emails if tenant and service exist
+    // Send emails if the tenant exists. The joined service row can be absent
+    // (multi-service booking, or a service deleted after the fact), so fall
+    // back to the summary stored on the booking instead of silently skipping
+    // the customer's confirmation / rejection email.
     const service = booking.services as unknown as { name: string; price_nok: number } | null;
-    if (tenant && service) {
+    const bookingWithSummary = booking as typeof booking & {
+      service_summary?: string | null;
+    };
+    let emailStatus: EmailDeliveryStatus | null = null;
+    let emailError: string | null = null;
+
+    if (tenant) {
+      const serviceName =
+        bookingWithSummary.service_summary || service?.name || "Behandling";
+
       const bookingDetails = {
         ref: booking.ref,
         customer_name: booking.customer_name,
         customer_email: booking.customer_email,
         customer_phone: booking.customer_phone,
-        service_name: service.name,
+        service_name: serviceName,
         price_nok: booking.price_nok,
         start_utc: booking.start_utc,
         end_utc: booking.end_utc,
         notes: booking.notes,
       };
 
+      let sendResult: unknown = null;
+
       if (status === "confirmed") {
         const icsContent = generateIcsCalendar({
           ref: booking.ref,
-          title: `${service.name} - ${tenant.name}`,
+          title: `${serviceName} - ${tenant.name}`,
           description: `Booking for ${booking.customer_name}. Reference: ${booking.ref}.`,
           startUtc: booking.start_utc,
           endUtc: booking.end_utc,
           tenantName: tenant.name,
         });
 
-        sendCustomerConfirmation(tenant, bookingDetails, icsContent).catch((err) => {
-          console.error("Failed to send customer confirmation email:", err);
-        });
+        sendResult = await sendCustomerConfirmation(tenant, bookingDetails, icsContent);
       } else if (status === "declined" || status === "cancelled") {
-        sendCustomerDeclined(tenant, bookingDetails).catch((err) => {
-          console.error("Failed to send customer update email:", err);
-        });
+        sendResult = await sendCustomerDeclined(tenant, bookingDetails);
+      }
+
+      if (sendResult) {
+        const outcome = emailOutcome(sendResult);
+        emailStatus = outcome.error
+          ? classifyEmailFailure(outcome.error)
+          : "sent";
+        emailError = outcome.error ? outcome.error.message : null;
+
+        await supabaseAdmin
+          .from("bookings")
+          .update({
+            resend_email_id: outcome.id,
+            customer_email_status: emailStatus,
+            customer_email_status_at: now,
+            customer_email_error: emailError,
+          })
+          .eq("id", booking.id);
       }
     }
 
     return NextResponse.json(
-      { success: true, status: newStatus, booking: updatedBooking || booking },
+      {
+        success: true,
+        status: newStatus,
+        booking: updatedBooking || booking,
+        email: emailStatus ? { status: emailStatus, error: emailError } : null,
+      },
       { status: 200 }
     );
   } catch (err: unknown) {
