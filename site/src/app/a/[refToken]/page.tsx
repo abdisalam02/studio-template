@@ -377,15 +377,12 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                 >
                   <WarningIcon />
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold" style={{ color: colors.red }}>
                     Confirmation email not delivered
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed" style={{ color: colors.label }}>
-                    The address <strong style={{ color: colors.value }}>{booking.customer_email}</strong> does
-                    not exist. The customer entered it incorrectly, so they never received the
-                    confirmation and do not know this booking exists.
-                    {emailError ? ` (${emailError})` : ""}
+                  <p className="mt-1 truncate text-xs" style={{ color: colors.label }}>
+                    {booking.customer_email}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
@@ -413,6 +410,31 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                       </a>
                     )}
                   </div>
+                  <details className="mt-3">
+                    <summary
+                      className="cursor-pointer text-[11px] font-semibold underline underline-offset-2"
+                      style={{ color: colors.label }}
+                    >
+                      What happened?
+                    </summary>
+                    <div
+                      className="mt-2 space-y-1.5 text-[11px] leading-relaxed"
+                      style={{ color: colors.label }}
+                    >
+                      <p>
+                        The address <strong style={{ color: colors.value }}>{booking.customer_email}</strong>{" "}
+                        does not exist. The customer entered it incorrectly, so they never received
+                        the confirmation and do not know this booking exists.
+                      </p>
+                      <p>
+                        Correct the address and resend, or contact them on WhatsApp / phone to
+                        confirm the time directly.
+                      </p>
+                      {emailError && (
+                        <p className="opacity-75">Technical reason: {emailError}</p>
+                      )}
+                    </div>
+                  </details>
                 </div>
               </div>
             </section>

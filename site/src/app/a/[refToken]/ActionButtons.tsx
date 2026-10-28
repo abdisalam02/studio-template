@@ -43,6 +43,31 @@ function toWhatsAppNumber(raw: string): string {
   return digits;
 }
 
+/** True when the palette surface is dark, so native inputs use dark chrome. */
+function isDarkColor(hex: string): boolean {
+  const clean = (hex || "").replace("#", "").trim();
+  const full =
+    clean.length === 3
+      ? clean.split("").map((c) => c + c).join("")
+      : clean;
+  if (full.length !== 6 || /[^0-9a-f]/i.test(full)) return true;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
+
+/** Input styling that stays readable on both light and dark tenant palettes. */
+function fieldStyle(colors: TenantColors, dark: boolean): CSSProperties {
+  return {
+    backgroundColor: colors.recessed,
+    borderColor: colors.borderStrong,
+    color: colors.value,
+    caretColor: colors.accent,
+    colorScheme: dark ? "dark" : "light",
+  };
+}
+
 function Spinner() {
   return (
     <span
@@ -152,6 +177,7 @@ export function ActionButtons({
   durationMinutes = 30,
 }: ActionButtonsProps) {
   const colors = theme ?? getTenantConfig().theme.colors;
+  const dark = isDarkColor(colors.card);
   const [status, setStatus] = useState<string>(currentStatus);
   const [pending, setPending] = useState<"accept" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +188,9 @@ export function ActionButtons({
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailNotice, setEmailNotice] = useState<string | null>(null);
 
-  const [modal, setModal] = useState<null | "approve" | "decline" | "reschedule" | "email">(null);
+  const [modal, setModal] = useState<
+    null | "approve" | "approve-warning" | "decline" | "reschedule" | "email"
+  >(null);
 
   const initialStart = startUtc ? new Date(startUtc * 1000) : new Date();
   const [newDate, setNewDate] = useState(
@@ -396,13 +424,17 @@ export function ActionButtons({
         </button>
       )}
 
-      {/* Approve gets its own row */}
+      {/* Approve gets its own row; muted while the customer has no email */}
       <button
         type="button"
         disabled={loading}
-        onClick={() => setModal("approve")}
+        onClick={() => setModal(emailFailed ? "approve-warning" : "approve")}
         className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
-        style={{ backgroundColor: colors.value, color: colors.valueText }}
+        style={{
+          backgroundColor: emailFailed ? `${colors.borderStrong}66` : colors.value,
+          color: emailFailed ? colors.label : colors.valueText,
+          border: emailFailed ? `1px solid ${colors.borderStrong}` : "1px solid transparent",
+        }}
       >
         {pending === "accept" ? (
           <>
@@ -459,13 +491,12 @@ export function ActionButtons({
         </a>
       )}
 
-      {/* Approve confirmation */}
+      {/* Approve confirmation — with an extra warning when the customer
+          never received their email. */}
       {modal === "approve" && (
         <Modal
           title="Approve this booking?"
-          subtitle={`${customerName || "The customer"} will receive a confirmation email${
-            emailFailed ? " — but the address on file is currently not deliverable." : ""
-          }.`}
+          subtitle={`${customerName || "The customer"} will receive a confirmation email.`}
           colors={colors}
           onClose={() => !loading && setModal(null)}
         >
@@ -493,6 +524,73 @@ export function ActionButtons({
             >
               Cancel
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {modal === "approve-warning" && (
+        <Modal
+          title="Approve without a confirmation email?"
+          colors={colors}
+          onClose={() => !loading && setModal(null)}
+        >
+          <div
+            className="flex items-start gap-3 rounded-2xl border p-3"
+            style={{ borderColor: `${colors.red}33`, backgroundColor: `${colors.red}0F` }}
+          >
+            <span className="mt-0.5" style={{ color: colors.red }}>
+              <WarningIcon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 text-xs leading-relaxed" style={{ color: colors.label }}>
+              <p className="font-semibold" style={{ color: colors.red }}>
+                {email || "This address"} did not receive the confirmation.
+              </p>
+              <p className="mt-1">
+                The customer does not know this booking exists. You can still approve it, but
+                they will not receive a confirmation or calendar file.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm font-semibold" style={{ color: colors.value }}>
+            Are you sure you want to approve the booking for {customerName || "this customer"}?
+          </p>
+
+          {error && (
+            <p className="mt-3 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: `${colors.red}33`, color: colors.red }}>
+              {error}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setModal("email")}
+              className="inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold"
+              style={{ borderColor: `${colors.red}55`, color: colors.red, backgroundColor: `${colors.red}0F` }}
+            >
+              Fix the email address first
+            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => runDecision("accept")}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
+                style={{ backgroundColor: colors.value, color: colors.valueText }}
+              >
+                {pending === "accept" ? <><Spinner /> Approving…</> : "Approve anyway"}
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => setModal(null)}
+                className="flex-1 rounded-full border px-5 py-3 text-sm font-semibold"
+                style={{ borderColor: colors.borderStrong, color: colors.value }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </Modal>
       )}
@@ -559,7 +657,7 @@ export function ActionButtons({
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
                 className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                style={{ borderColor: colors.borderStrong, color: colors.value }}
+                style={fieldStyle(colors, dark)}
               />
             </label>
             <label className="block">
@@ -571,7 +669,7 @@ export function ActionButtons({
                 value={newTime}
                 onChange={(e) => setNewTime(e.target.value)}
                 className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                style={{ borderColor: colors.borderStrong, color: colors.value }}
+                style={fieldStyle(colors, dark)}
               />
             </label>
 
@@ -650,8 +748,8 @@ export function ActionButtons({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@email.com"
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: colors.borderStrong, color: colors.value }}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none placeholder:text-[var(--c-label)]"
+              style={fieldStyle(colors, dark)}
             />
           </label>
 
