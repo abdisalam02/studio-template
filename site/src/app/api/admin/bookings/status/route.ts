@@ -6,6 +6,7 @@ import {
   sendCustomerDeclined,
   emailOutcome,
   classifyEmailFailure,
+  alertOwnerIfDeliveryFailed,
   type EmailDeliveryStatus,
   type Tenant,
 } from "@/lib/email";
@@ -158,6 +159,10 @@ export async function POST(req: NextRequest) {
             customer_email_error: emailError,
           })
           .eq("id", booking.id);
+
+        if (outcome.error) {
+          await alertOwnerIfDeliveryFailed(tenant, bookingDetails, outcome);
+        }
       }
     }
 

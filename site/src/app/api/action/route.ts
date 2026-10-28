@@ -7,6 +7,7 @@ import {
   sendCustomerDeclined,
   emailOutcome,
   classifyEmailFailure,
+  alertOwnerIfDeliveryFailed,
   type Tenant,
 } from "@/lib/email";
 import type { BookingStatus } from "@/types/database";
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest) {
 
         if (outcome.error) {
           console.error("Resend rejected the customer decision email:", outcome.error);
+          await alertOwnerIfDeliveryFailed(tenant, bookingDetails, outcome);
         }
       } catch (mailErr) {
         console.error("Failed to send customer notification email on decision:", mailErr);

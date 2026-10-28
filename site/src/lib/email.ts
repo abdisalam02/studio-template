@@ -151,6 +151,22 @@ async function sendEmailSafely(config: TenantConfig, payload: ResendEmailPayload
     console.warn("RESEND_API_KEY is not set. Skipping email dispatch.");
     return { data: null, error: { name: "missing_api_key", message: "RESEND_API_KEY is not set" } };
   }
+
+  // Resend accepts a send to a suppressed address with HTTP 200 and no error,
+  // then silently drops it — no bounce, no webhook, no way to notice. Ask the
+  // suppression list first so that case is reported like any other failure.
+  const suppressed = await firstSuppressedRecipient(payload.to);
+  if (suppressed) {
+    console.warn(`Resend suppression list blocks ${suppressed}; send skipped.`);
+    return {
+      data: null,
+      error: {
+        name: "suppressed",
+        message: `Adressen ${suppressed} står på Resends sperreliste (tidligere hard bounce). Fjern den i Resend → Suppressions, eller bruk en annen adresse.`,
+      },
+    };
+  }
+
   const logo = getLogoAsset(config);
   const finalPayload: ResendEmailPayload = logo.attachment
     ? { ...payload, attachments: [...(payload.attachments ?? []), logo.attachment] }
@@ -165,6 +181,35 @@ async function sendEmailSafely(config: TenantConfig, payload: ResendEmailPayload
     console.error("RESEND SEND ERROR:", error);
     return { data: null, error };
   }
+}
+
+/**
+ * Returns the first recipient that Resend currently suppresses, or null.
+ * Fails open: a lookup error must never stop a legitimate send.
+ */
+async function firstSuppressedRecipient(
+  to: ResendEmailPayload["to"]
+): Promise<string | null> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+
+  const recipients = Array.isArray(to) ? to : [to];
+  for (const address of recipients) {
+    if (!address || typeof address !== "string") continue;
+    try {
+      const res = await fetch(
+        `https://api.resend.com/suppressions/${encodeURIComponent(address)}`,
+        {
+          headers: { Authorization: `Bearer ${apiKey}` },
+          cache: "no-store",
+        }
+      );
+      if (res.status === 200) return address;
+    } catch (err) {
+      console.warn("Suppression lookup failed; sending anyway.", err);
+    }
+  }
+  return null;
 }
 
 function formatOsloDateTime(epochSeconds: number): string {
@@ -601,6 +646,35 @@ export async function sendOwnerEmailBounceAlert(
     subject,
     html,
   });
+}
+
+/**
+ * Immediate counterpart to the delivery webhook.
+ *
+ * A rejected or suppressed send never produces a delivery event, so waiting
+ * for one means the owner is never told. Call this right after a customer
+ * send returns an error; for accepted-but-later-bounced mail the webhook
+ * handles the alert instead (and does not overlap, because this only fires
+ * when the send itself failed).
+ */
+export async function alertOwnerIfDeliveryFailed(
+  tenant: Tenant,
+  booking: BookingDetails,
+  outcome: EmailOutcome
+): Promise<boolean> {
+  if (!outcome.error) return false;
+
+  try {
+    await sendOwnerEmailBounceAlert(tenant, booking, {
+      address: booking.customer_email,
+      status: classifyEmailFailure(outcome.error),
+      reason: outcome.error.message,
+    });
+    return true;
+  } catch (err) {
+    console.error("Owner delivery-failure alert failed:", err);
+    return false;
+  }
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   sendCustomerReceipt,
   emailOutcome,
   classifyEmailFailure,
+  alertOwnerIfDeliveryFailed,
   type Tenant,
 } from "@/lib/email";
 import { getEngineBaseUrl } from "@/lib/url";
@@ -566,6 +567,12 @@ export async function POST(
           customer_email_error: outcome.error ? outcome.error.message : null,
         })
         .eq("ref", ref);
+
+      // A rejected/suppressed send produces no delivery event, so tell the
+      // owner right away instead of waiting for a webhook that never comes.
+      if (outcome.error) {
+        await alertOwnerIfDeliveryFailed(tenant, bookingDetails, outcome);
+      }
     });
 
     if (typeof after === "function") {
