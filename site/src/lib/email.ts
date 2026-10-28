@@ -172,16 +172,39 @@ async function sendEmailSafely(config: TenantConfig, payload: ResendEmailPayload
   const finalPayload: ResendEmailPayload = logo.attachment
     ? { ...payload, attachments: [...(payload.attachments ?? []), logo.attachment] }
     : payload;
-  try {
-    const res = await resend.emails.send(finalPayload);
-    if (res.error) {
-      console.error("RESEND SEND ERROR:", res.error);
+  // Retry transient provider failures (rate limits, 5xx, timeouts).
+  // The Resend SDK's response is a union; callers normalise it with
+  // emailOutcome(), so the accumulator is intentionally untyped here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lastResult: any = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await resend.emails.send(finalPayload);
+      if (!res.error) return res;
+
+      lastResult = res;
+      const error = res.error as { name?: string; message?: string };
+      const detail = `${error.name || ""} ${error.message || ""}`;
+      const retryable = /rate|limit|timeout|temporar|server|5\d\d/i.test(detail);
+
+      if (!retryable || attempt === 2) {
+        console.error("RESEND SEND ERROR:", res.error);
+        return res;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    } catch (error) {
+      lastResult = { data: null, error };
+      if (attempt === 2) {
+        console.error("RESEND SEND ERROR:", error);
+        return lastResult;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
     }
-    return res;
-  } catch (error) {
-    console.error("RESEND SEND ERROR:", error);
-    return { data: null, error };
   }
+
+  return lastResult;
 }
 
 /**
@@ -672,7 +695,7 @@ export async function sendCustomerReceipt(
     introHtml: `We have received your booking request at ${strongValue(
       palette,
       studioName
-    )}. The studio is reviewing it now, and you will receive a confirmation as soon as the time is approved.`,
+    )}. The studio is reviewing it now, and you will receive a confirmation as soon as the time is approved. We usually reply within a few hours on opening days.`,
     detailsHtml: emailDetailRows(palette, rows),
     actionHtml: manageUrl
       ? `<div style="text-align:center;margin-top:24px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.6;color:${palette.label};">${emailTextLink(
@@ -867,6 +890,61 @@ export async function sendCustomerConfirmation(
         contentType: "text/calendar",
       },
     ],
+  });
+}
+
+/**
+ * Sends a reminder before a confirmed appointment.
+ * The manage URL is derived server-side, so the customer can still cancel
+ * outside the 24-hour window.
+ */
+export async function sendCustomerReminder(
+  tenant: Tenant,
+  booking: BookingDetails,
+  manageUrl: string,
+  hoursBefore: number
+) {
+  if (!resend) {
+    console.warn("RESEND_API_KEY is not set. Skipping customer reminder email.");
+    return { success: false, reason: "missing_api_key" };
+  }
+
+  const config = resolveConfig(tenant);
+  const palette = lightEmailPalette(config);
+  const studioName = studioNameOf(tenant, config);
+  const osloTime = formatOsloDateTime(booking.start_utc);
+  const subject = `Reminder: your appointment at ${tenant.name} is in ${hoursBefore} hours`;
+
+  const rows: EmailDetailInput[] = [
+    { label: "Reference", value: booking.ref },
+    { label: "Treatment", value: booking.service_name },
+    { label: "Time", value: osloTime },
+    { label: "Price", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+  ];
+
+  const html = renderEmailShell({
+    config,
+    tenantName: studioName,
+    subtitle: `${hoursBefore}-hour reminder`,
+    eyebrow: "Appointment reminder",
+    title: `Your appointment is in ${hoursBefore} hours`,
+    introHtml: `This is a reminder for your appointment at ${strongValue(
+      palette,
+      studioName
+    )}. If you can no longer make it, please let us know as early as possible.`,
+    detailsHtml: emailDetailRows(palette, rows),
+    actionHtml: emailButton(palette, manageUrl, "View or cancel →"),
+    footerHtml: `Reference ${escapeHtml(booking.ref)}`,
+  });
+
+  const { from, replyTo } = getSenderInfo(tenant, config);
+
+  return sendEmailSafely(config, {
+    from,
+    replyTo,
+    to: [booking.customer_email],
+    subject,
+    html,
   });
 }
 

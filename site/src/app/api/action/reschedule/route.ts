@@ -8,6 +8,7 @@ import {
   validateSlot,
   slotErrorMessage,
 } from "@/lib/bookingRules";
+import { logAdminEvent } from "@/lib/audit";
 import {
   sendCustomerRescheduleConfirmation,
   emailOutcome,
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     const tenant = booking.tenants as unknown as {
       id: string;
       name: string;
+      owner_email?: string | null;
       timezone?: string | null;
       buffer_min?: number | null;
       min_notice_min?: number | null;
@@ -189,6 +191,14 @@ export async function POST(req: NextRequest) {
         customer_email_error: emailError,
       })
       .eq("id", booking.id);
+
+    await logAdminEvent({
+      actor: tenant.owner_email || "review-link",
+      tenantId: tenant.id,
+      action: "booking.rescheduled",
+      bookingRef: booking.ref,
+      detail: { from: booking.start_utc, to: startUtc, via: "review-link" },
+    });
 
     return NextResponse.json({
       success: true,

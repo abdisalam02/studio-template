@@ -15,6 +15,7 @@ import {
 } from "@/lib/bookingRules";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
+import { logAdminEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -204,6 +205,14 @@ export async function POST(req: NextRequest) {
         })
         .eq("id", booking.id);
     }
+
+    await logAdminEvent({
+      actor: auth.email,
+      tenantId: tenant.id,
+      action: "booking.rescheduled",
+      bookingRef: booking.ref,
+      detail: { from: booking.start_utc, to: startUtc, email_status: emailStatus },
+    });
 
     return NextResponse.json({
       success: true,

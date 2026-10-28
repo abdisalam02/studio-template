@@ -83,3 +83,29 @@ export function parseRefToken(param: string): { ref: string; token: string } | n
   if (!ref || !token) return null;
   return { ref, token };
 }
+
+/** Deterministic manage token for reminder emails and server-side links. */
+export function deriveManageToken(ref: string): string {
+  return crypto
+    .createHmac("sha256", REVIEW_LINK_SECRET)
+    .update(`manage:${ref.toUpperCase()}`)
+    .digest("base64url");
+}
+
+/** Accepts the original one-time manage token or the derived one. */
+export function verifyManageToken(
+  ref: string,
+  token: string,
+  storedHash: string
+): boolean {
+  if (verifyToken(token, storedHash)) return true;
+  if (!ref || !token) return false;
+
+  const derived = deriveManageToken(ref);
+  const received = Buffer.from(token);
+  const expected = Buffer.from(derived);
+  return (
+    received.length === expected.length &&
+    crypto.timingSafeEqual(received, expected)
+  );
+}

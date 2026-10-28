@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
+import { logAdminEvent } from "@/lib/audit";
 import { generateBookingRef, generateSecureToken, hashToken } from "@/lib/tokens";
 import { zonedDateTimeToUtc } from "@/lib/bookingRules";
 import { generateIcsCalendar } from "@/lib/ics";
@@ -217,6 +218,14 @@ export async function POST(req: NextRequest) {
         console.warn("Could not send confirmation email for manual booking:", err);
       }
     }
+
+    await logAdminEvent({
+      actor: auth.email || "admin",
+      tenantId: tenant_id,
+      action: "booking.manual_created",
+      bookingRef: booking.ref,
+      detail: { service: serviceName, start_utc: booking.start_utc },
+    });
 
     return NextResponse.json({
       success: true,

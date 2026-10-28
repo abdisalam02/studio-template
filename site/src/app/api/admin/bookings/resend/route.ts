@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
+import { logAdminEvent } from "@/lib/audit";
 import {
   sendCustomerConfirmation,
   sendCustomerReceipt,
@@ -152,6 +153,14 @@ export async function POST(req: NextRequest) {
         customer_email_error: emailError,
       })
       .eq("id", booking.id);
+
+    await logAdminEvent({
+      actor: userEmail,
+      tenantId: tenant.id,
+      action: "booking.email_resent",
+      bookingRef: booking.ref,
+      detail: { email: targetEmail, status: emailStatus },
+    });
 
     return NextResponse.json({
       success: !outcome.error,

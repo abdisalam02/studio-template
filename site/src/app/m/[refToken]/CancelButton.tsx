@@ -27,13 +27,13 @@ export function CancelButton({ refCode, token, initialStatus }: CancelButtonProp
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || data.error || "Kunne ikke avbestille timen.");
+        throw new Error(data.message || data.error || "Could not cancel the appointment.");
       }
 
       setStatus("cancelled");
       setShowConfirm(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Kunne ikke avbestille timen.";
+      const msg = err instanceof Error ? err.message : "Could not cancel the appointment.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -42,8 +42,11 @@ export function CancelButton({ refCode, token, initialStatus }: CancelButtonProp
 
   if (status === "cancelled") {
     return (
-      <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/10 text-center font-mono text-xs text-red-600 dark:text-red-400">
-        Timen din er avbestilt. Studioet har fått beskjed.
+      <div
+        role="status"
+        className="p-4 rounded-xl border border-red-500/20 bg-red-500/10 text-center font-mono text-xs text-red-600 dark:text-red-400"
+      >
+        Your appointment has been cancelled. The studio has been notified.
       </div>
     );
   }
@@ -51,7 +54,10 @@ export function CancelButton({ refCode, token, initialStatus }: CancelButtonProp
   return (
     <div className="space-y-4 pt-2 border-t border-border">
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-mono">
+        <div
+          role="alert"
+          className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-mono"
+        >
           {error}
         </div>
       )}
@@ -62,11 +68,13 @@ export function CancelButton({ refCode, token, initialStatus }: CancelButtonProp
           onClick={() => setShowConfirm(true)}
           className="w-full py-3 px-4 rounded-xl border border-red-500/30 text-red-600 hover:bg-red-500/10 font-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
         >
-          Avbestill time
+          Cancel appointment
         </button>
       ) : (
         <div className="p-4 rounded-xl border border-border bg-muted/10 space-y-3 font-mono text-xs">
-          <p className="font-bold text-foreground">Er du sikker på at du vil avbestille timen?</p>
+          <p className="font-bold text-foreground">
+            Are you sure you want to cancel this appointment?
+          </p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -74,7 +82,7 @@ export function CancelButton({ refCode, token, initialStatus }: CancelButtonProp
               onClick={handleCancel}
               className="flex-1 py-2.5 px-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 transition-all cursor-pointer"
             >
-              {loading ? "Avbestiller..." : "Ja, avbestill"}
+              {loading ? "Cancelling..." : "Yes, cancel"}
             </button>
             <button
               type="button"
@@ -82,7 +90,7 @@ export function CancelButton({ refCode, token, initialStatus }: CancelButtonProp
               onClick={() => setShowConfirm(false)}
               className="flex-1 py-2.5 px-3 rounded-lg border border-border bg-card text-foreground hover:bg-muted/10 transition-all cursor-pointer"
             >
-              Avbryt
+              Keep appointment
             </button>
           </div>
         </div>

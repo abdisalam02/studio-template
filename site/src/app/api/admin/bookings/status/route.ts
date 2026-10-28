@@ -12,6 +12,7 @@ import {
 } from "@/lib/email";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
+import { logAdminEvent } from "@/lib/audit";
 import type { BookingStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic"; // design-ok
@@ -154,6 +155,14 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+
+    await logAdminEvent({
+      actor: userEmail,
+      tenantId: tenant?.id || booking.tenant_id,
+      action: `booking.${newStatus}`,
+      bookingRef: booking.ref,
+      detail: { email_status: emailStatus },
+    });
 
     return NextResponse.json(
       {

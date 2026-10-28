@@ -69,7 +69,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "database_error" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, dry_run: false, anonymised: data ?? 0 });
+    // Audit retention: 12 months.
+    const { data: purgedEvents, error: purgeError } = await supabaseAdmin.rpc(
+      "purge_admin_events",
+      { p_older_than_days: 365 }
+    );
+    if (purgeError) {
+      console.warn("purge_admin_events failed:", purgeError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      dry_run: false,
+      anonymised: data ?? 0,
+      events_purged: purgedEvents ?? 0,
+    });
   } catch (err: unknown) {
     console.error("Retention error:", err);
     return NextResponse.json({ error: "server_error" }, { status: 500 });

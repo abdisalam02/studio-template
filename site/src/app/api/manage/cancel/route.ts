@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { verifyToken } from "@/lib/tokens";
+import { verifyManageToken } from "@/lib/tokens";
 import { sendOwnerCancellationAlert, type Tenant } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Validate token against manage_token_hash
-    const isValid = verifyToken(token, booking.manage_token_hash);
+    const isValid = verifyManageToken(ref, token, booking.manage_token_hash);
     if (!isValid) {
       return NextResponse.json({ error: "invalid_or_expired_token" }, { status: 403 });
     }
@@ -51,7 +51,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Update booking status to cancelled
+    // 3. Enforce the studio's cancellation window server-side.
+    const now = Math.floor(Date.now() / 1000);
+    const windowHours = 24;
+    if (booking.start_utc - now < windowHours * 3600) {
+      return NextResponse.json(
+        {
+          error: "cancellation_window_closed",
+          message:
+            "Online cancellation closes 24 hours before the appointment. Please contact the studio directly.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // 4. Update booking status to cancelled
     const { error: updateErr } = await supabaseAdmin
       .from("bookings")
       .update({ status: "cancelled" })

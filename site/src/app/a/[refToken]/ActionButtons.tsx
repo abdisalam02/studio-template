@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { getTenantConfig, type TenantColors } from "@/config/tenant.config";
 
 interface ActionButtonsProps {
@@ -119,14 +119,64 @@ function Modal({
   children: ReactNode;
   closeOnBackdrop?: boolean;
 }) {
+  const titleId = useId();
+  const descId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const nodes = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null);
+
+      if (nodes.length === 0) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      document.body.style.overflow = previousOverflow;
+      if (previous && typeof previous.focus === "function") previous.focus();
+    };
+  }, []);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={subtitle ? descId : undefined}
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/55 p-0 font-sans backdrop-blur-[2px] sm:items-center sm:p-4"
       onClick={() => closeOnBackdrop && onClose()}
     >
       <div
+        ref={dialogRef}
         className="w-full max-w-[440px] rounded-t-[22px] border bg-white p-6 shadow-2xl sm:rounded-[22px]"
         style={{
           borderColor: colors.border,
@@ -137,16 +187,17 @@ function Modal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold tracking-tight" style={{ color: colors.value }}>
+            <h3 id={titleId} className="text-lg font-semibold tracking-tight" style={{ color: colors.value }}>
               {title}
             </h3>
             {subtitle && (
-              <p className="mt-1 text-xs leading-relaxed" style={{ color: colors.label }}>
+              <p id={descId} className="mt-1 text-xs leading-relaxed" style={{ color: colors.label }}>
                 {subtitle}
               </p>
             )}
           </div>
           <button
+            ref={closeRef}
             type="button"
             onClick={onClose}
             className="cursor-pointer p-1 text-sm"
@@ -382,6 +433,7 @@ export function ActionButtons({
     <div className="space-y-3" style={themeStyle(colors)}>
       {error && (
         <div
+          role="alert"
           className="rounded-2xl border px-4 py-3 text-xs leading-relaxed"
           style={{
             borderColor: `${colors.red}33`,
@@ -674,7 +726,7 @@ export function ActionButtons({
             </label>
 
             {rescheduleNotice && (
-              <p className="rounded-xl border px-3 py-2 text-xs" style={{ borderColor: `${colors.red}33`, color: colors.red }}>
+              <p role="alert" className="rounded-xl border px-3 py-2 text-xs" style={{ borderColor: `${colors.red}33`, color: colors.red }}>
                 {rescheduleNotice}
               </p>
             )}
@@ -754,7 +806,7 @@ export function ActionButtons({
           </label>
 
           {emailNotice && (
-            <p className="mt-2 text-[11px] leading-relaxed" style={{ color: colors.label }}>
+            <p role="status" className="mt-2 text-[11px] leading-relaxed" style={{ color: colors.label }}>
               {emailNotice}
             </p>
           )}

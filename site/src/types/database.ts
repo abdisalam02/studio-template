@@ -90,6 +90,32 @@ export interface Database {
         };
         Relationships: [];
       };
+      admin_events: {
+        Row: {
+          id: number;
+          actor_email: string;
+          tenant_id: string;
+          action: string;
+          booking_ref: string | null;
+          detail: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          actor_email: string;
+          tenant_id: string;
+          action: string;
+          booking_ref?: string | null;
+          detail?: Json;
+          created_at?: string;
+        };
+        Update: {
+          action?: string;
+          booking_ref?: string | null;
+          detail?: Json;
+        };
+        Relationships: [];
+      };
       tenant_admins: {
         Row: {
           tenant_id: string;
@@ -296,6 +322,8 @@ export interface Database {
           customer_email_status: string | null;
           customer_email_status_at: number | null;
           customer_email_error: string | null;
+          reminder_24h_sent_at: number | null;
+          reminder_2h_sent_at: number | null;
         };
         Insert: {
           id?: never;
@@ -323,6 +351,8 @@ export interface Database {
           customer_email_status?: string | null;
           customer_email_status_at?: number | null;
           customer_email_error?: string | null;
+          reminder_24h_sent_at?: number | null;
+          reminder_2h_sent_at?: number | null;
         };
         Update: {
           id?: never;
@@ -350,6 +380,8 @@ export interface Database {
           customer_email_status?: string | null;
           customer_email_status_at?: number | null;
           customer_email_error?: string | null;
+          reminder_24h_sent_at?: number | null;
+          reminder_2h_sent_at?: number | null;
         };
         Relationships: [
           {
@@ -425,6 +457,12 @@ export interface Database {
           p_code_hash: string;
         };
         Returns: boolean;
+      };
+      purge_admin_events: {
+        Args: {
+          p_older_than_days?: number;
+        };
+        Returns: number;
       };
       anonymize_old_bookings: {
         Args: {
