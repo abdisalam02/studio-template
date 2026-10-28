@@ -5,62 +5,6 @@ export const dynamic = "force-dynamic"; // design-ok
 export const revalidate = 0;
 
 /* -------------------------------------------------------------------------- */
-/*  CORS                                                                      */
-/* -------------------------------------------------------------------------- */
-
-/** Origins permitted to read the public tenant profile. */
-const ALLOWED_ORIGINS = [
-  "https://www.abdisalam.space",
-  "https://abdisalam.space",
-  "https://noire.niwache12.workers.dev",
-  "https://noire-rosy.vercel.app",
-];
-
-const DEV_PORTS = new Set(["3000", "3001", "3002", "5173"]);
-const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
-
-/**
- * Echoes an authorized request origin, falling back to `*` for anonymous
- * readers of this public, read-only endpoint.
- */
-function resolveAllowedOrigin(req: NextRequest): string {
-  const origin = req.headers.get("origin") || "";
-  if (origin) {
-    if (ALLOWED_ORIGINS.includes(origin)) return origin;
-
-    const extra = (process.env.CORS_ALLOWED_ORIGINS || "")
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    if (extra.includes(origin)) return origin;
-
-    try {
-      const url = new URL(origin);
-      if (LOCALHOST_HOSTS.has(url.hostname.toLowerCase())) {
-        const port = url.port || (url.protocol === "https:" ? "443" : "80");
-        if (DEV_PORTS.has(port)) return origin;
-      }
-    } catch {
-      // Ignore a malformed Origin header.
-    }
-  }
-  return "*";
-}
-
-function corsHeaders(req: NextRequest): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": resolveAllowedOrigin(req),
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept",
-    Vary: "Origin",
-  };
-}
-
-export async function OPTIONS(req: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
-}
-
-/* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -78,10 +22,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const cors = corsHeaders(req);
   const notFound = NextResponse.json(
     { error: "Tenant not found" },
-    { status: 404, headers: cors }
+    { status: 404 }
   );
 
   const { slug: rawSlug } = await params;
@@ -124,7 +67,6 @@ export async function GET(
   return NextResponse.json(merged, {
     status: 200,
     headers: {
-      ...cors,
       "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
     },
   });

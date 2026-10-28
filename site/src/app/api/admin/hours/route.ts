@@ -6,11 +6,8 @@ import { isTenantAdmin } from "@/lib/tenantAuth";
 export const dynamic = "force-dynamic"; // design-ok
 export const revalidate = 0;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-key",
-};
+// CORS is owned by middleware so credential handling stays consistent.
+const CORS_HEADERS: Record<string, string> = {};
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
