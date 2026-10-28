@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/admin.css?v=2">
   <link rel="icon" type="image/png" href="img/double-layer-star.png">
 </head>
 <body class="is-locked">
@@ -475,6 +475,20 @@
         </a>
       </div>
 
+      <!-- Customer email delivery -->
+      <div class="drawer-email-panel" id="drawer-email-panel" style="display:none;">
+        <div class="drawer-email-head">
+          <span class="drawer-email-status" id="drawer-email-status-label">Confirmation sent</span>
+          <span class="drawer-email-hint">Fix the address and resend</span>
+        </div>
+        <p class="drawer-email-error" id="drawer-email-error" style="display:none;"></p>
+        <div class="drawer-email-controls">
+          <input type="email" id="drawer-email-input" class="drawer-email-input" placeholder="name@email.com" autocomplete="off" />
+          <button type="button" class="drawer-email-btn" id="drawer-email-resend">Resend email</button>
+        </div>
+        <p class="drawer-email-msg" id="drawer-email-msg"></p>
+      </div>
+
       <!-- Service -->
       <div class="modal-section-title">Service</div>
       <div class="modal-detail-list">
@@ -781,7 +795,7 @@
   <div class="admin-toast-box" id="admin-toast"></div>
 
   <!-- Scripts -->
-  <script src="js/config.js"></script>
-  <script src="js/admin.js"></script>
+  <script src="js/config.js?v=2"></script>
+  <script src="js/admin.js?v=2"></script>
 </body>
 </html>

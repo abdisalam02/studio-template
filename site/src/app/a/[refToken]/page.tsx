@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { supabaseAdmin } from "@/lib/supabase";
-import { parseRefToken, verifyToken } from "@/lib/tokens";
+import { parseRefToken, verifyReviewToken } from "@/lib/tokens";
 import { getTenantConfig, type TenantColors } from "@/config/tenant.config";
 import { resolveBrandLogo } from "@/lib/brandAsset";
 import { ActionButtons } from "./ActionButtons";
@@ -11,7 +11,7 @@ interface PageProps {
 
 function formatOsloDateTime(epochSeconds: number): string {
   const d = new Date(epochSeconds * 1000);
-  return d.toLocaleString("no-NO", {
+  return d.toLocaleString("en-GB", {
     timeZone: "Europe/Oslo",
     weekday: "long",
     year: "numeric",
@@ -172,10 +172,10 @@ export default async function OwnerReviewPage({ params }: PageProps) {
     return (
       <StateScreen
         tone="error"
-        title="Ugyldig lenke"
-        message="Denne vurderingslenken er ufullstendig eller feilformatert."
+        title="Invalid link"
+        message="This review link is incomplete or malformed."
         actionHref="/admin"
-        actionLabel="Gå til kontrollpanel"
+        actionLabel="Go to the control panel"
         colors={defaultColors}
       />
     );
@@ -193,24 +193,24 @@ export default async function OwnerReviewPage({ params }: PageProps) {
     return (
       <StateScreen
         tone="error"
-        title="Bestilling ikke funnet"
-        message={`Fant ingen bestilling med referanse ${ref}.`}
+        title="Booking not found"
+        message={`No booking was found with reference ${ref}.`}
         actionHref="/admin"
-        actionLabel="Gå til kontrollpanel"
+        actionLabel="Go to the control panel"
         colors={defaultColors}
       />
     );
   }
 
-  const isValid = verifyToken(token, booking.action_token_hash);
+  const isValid = verifyReviewToken(ref, token, booking.action_token_hash);
   if (!isValid) {
     return (
       <StateScreen
         tone="warning"
-        title="Sikkerhetslenke utløpt"
-        message="Sikkerhetskoden for direkte vurdering er ugyldig eller allerede brukt."
+        title="Security link expired"
+        message="The code for direct review is invalid or has already been used."
         actionHref={`/admin?ref=${encodeURIComponent(ref)}`}
-        actionLabel="Logg inn for å vurdere i kontrollpanelet"
+        actionLabel="Sign in to review in the control panel"
         colors={defaultColors}
       />
     );
@@ -304,7 +304,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                     {studioName}
                   </p>
                   <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-[var(--c-value)] sm:text-2xl" style={{ color: colors.value }}>
-                    Vurder bestilling
+                    Review booking
                   </h1>
                 </div>
               </div>
@@ -313,7 +313,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                 style={{ borderColor: colors.borderStrong, backgroundColor: colors.card, color: colors.label }}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--c-accent)]" style={{ backgroundColor: colors.accent }} />
-                Timeforespørsel
+                Booking request
               </span>
             </div>
           </header>
@@ -321,13 +321,13 @@ export default async function OwnerReviewPage({ params }: PageProps) {
           {/* Structured summary */}
           <section className="px-6 py-6 sm:px-8">
             <dl className="divide-y divide-[var(--c-border)]">
-              <DetailRow label="Referanse" colors={colors}>
+              <DetailRow label="Reference" colors={colors}>
                 <span className="tabular-nums">{booking.ref}</span>
               </DetailRow>
 
-              <DetailRow label="Kunde" colors={colors}>{booking.customer_name}</DetailRow>
+              <DetailRow label="Customer" colors={colors}>{booking.customer_name}</DetailRow>
 
-              <DetailRow label="Telefon" colors={colors}>
+              <DetailRow label="Phone" colors={colors}>
                 <a
                   href={`tel:${booking.customer_phone}`}
                   className="text-[var(--c-value)] underline decoration-[var(--c-border-strong)] underline-offset-4 transition-colors hover:decoration-[var(--c-accent)]"
@@ -337,7 +337,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                 </a>
               </DetailRow>
 
-              <DetailRow label="E-post" colors={colors}>
+              <DetailRow label="Email" colors={colors}>
                 <a
                   href={`mailto:${booking.customer_email}`}
                   className="text-[var(--c-value)] underline decoration-[var(--c-border-strong)] underline-offset-4 transition-colors hover:decoration-[var(--c-accent)]"
@@ -347,9 +347,9 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                 </a>
               </DetailRow>
 
-              <DetailRow label="Behandling" colors={colors}>
+              <DetailRow label="Treatment" colors={colors}>
                 <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                  <span>{service?.name || "Behandling"}</span>
+                  <span>{service?.name || "Treatment"}</span>
                   <span
                     className="rounded-full border border-[var(--c-border-strong)] bg-[var(--c-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--c-label)]"
                     style={{ borderColor: colors.borderStrong, backgroundColor: colors.border, color: colors.label }}
@@ -359,11 +359,11 @@ export default async function OwnerReviewPage({ params }: PageProps) {
                 </span>
               </DetailRow>
 
-              <DetailRow label="Tidspunkt" colors={colors}>
+              <DetailRow label="Time" colors={colors}>
                 <span className="capitalize">{timeString}</span>
               </DetailRow>
 
-              <DetailRow label="Pris" colors={colors}>
+              <DetailRow label="Price" colors={colors}>
                 <span className="text-base tabular-nums">{booking.price_nok} kr</span>
               </DetailRow>
             </dl>
@@ -371,7 +371,7 @@ export default async function OwnerReviewPage({ params }: PageProps) {
             {booking.notes && (
               <div className="mt-6">
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--c-label)]" style={{ color: colors.label }}>
-                  Kundens notat
+                  Customer note
                 </p>
                 <p
                   className="whitespace-pre-wrap rounded-2xl border border-[var(--c-border)] bg-[var(--c-recessed)] p-4 text-sm leading-relaxed text-[var(--c-label)]"
@@ -396,6 +396,9 @@ export default async function OwnerReviewPage({ params }: PageProps) {
               customerName={booking.customer_name}
               studioName={studioName}
               theme={colors}
+              customerEmail={booking.customer_email}
+              emailStatus={booking.customer_email_status}
+              emailError={booking.customer_email_error}
             />
           </footer>
           </div>

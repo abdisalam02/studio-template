@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import fs from "fs";
 import type { Database } from "@/types/database";
 import { getEngineBaseUrl } from "@/lib/url";
+import { deriveReviewToken } from "@/lib/tokens";
 import { resolveBrandLogo } from "@/lib/brandAsset";
 import {
   getTenantConfig,
@@ -162,7 +163,7 @@ async function sendEmailSafely(config: TenantConfig, payload: ResendEmailPayload
       data: null,
       error: {
         name: "suppressed",
-        message: `Adressen ${suppressed} står på Resends sperreliste (tidligere hard bounce). Fjern den i Resend → Suppressions, eller bruk en annen adresse.`,
+        message: `${suppressed} is on Resend's suppression list (a previous hard bounce). Remove it in Resend → Suppressions, or use a different address.`,
       },
     };
   }
@@ -214,7 +215,7 @@ async function firstSuppressedRecipient(
 
 function formatOsloDateTime(epochSeconds: number): string {
   const d = new Date(epochSeconds * 1000);
-  return d.toLocaleString("no-NO", {
+  return d.toLocaleString("en-GB", {
     timeZone: "Europe/Oslo",
     weekday: "long",
     year: "numeric",
@@ -381,7 +382,7 @@ function renderEmailShell(params: EmailShellParams): string {
     : `<img src="${logo.src}" alt="${escapeHtml(studioName)}" width="88" height="88" style="display:block;width:88px;height:88px;max-width:88px;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;" />`;
 
   return `<!DOCTYPE html>
-<html lang="no">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -470,32 +471,34 @@ export function renderOwnerAlertEmail(
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Ny timebestilling: ${booking.customer_name} - ${booking.service_name}`;
+  const subject = `New booking: ${booking.customer_name} - ${booking.service_name}`;
   const adminBaseUrl = getEngineBaseUrl();
-  const reviewUrl = actionUrl || `${adminBaseUrl}/admin?ref=${encodeURIComponent(booking.ref)}`;
+  const reviewUrl =
+    actionUrl ||
+    `${adminBaseUrl}/a/${encodeURIComponent(booking.ref)}.${deriveReviewToken(booking.ref)}`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Kunde", value: booking.customer_name },
-    { label: "Telefon", value: booking.customer_phone },
-    { label: "E-post", value: booking.customer_email },
-    { label: "Behandling", value: booking.service_name },
-    { label: "Tidspunkt", value: osloTime },
-    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+    { label: "Customer", value: booking.customer_name },
+    { label: "Phone", value: booking.customer_phone },
+    { label: "Email", value: booking.customer_email },
+    { label: "Treatment", value: booking.service_name },
+    { label: "Time", value: osloTime },
+    { label: "Price", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
   ];
   if (booking.notes) {
-    rows.push({ label: "Notat", value: booking.notes });
+    rows.push({ label: "Notes", value: booking.notes });
   }
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Ny bestilling",
-    eyebrow: "Timeforespørsel",
-    title: "Ny timebestilling mottatt",
-    introHtml: `En ny reservasjon venter på vurdering for ${strongValue(palette, studioName)}.`,
+    subtitle: "New booking",
+    eyebrow: "Booking request",
+    title: "New booking received",
+    introHtml: `A new reservation is waiting for review at ${strongValue(palette, studioName)}.`,
     detailsHtml: emailDetailRows(palette, rows),
-    actionHtml: emailButton(palette, reviewUrl, "Vurder bestilling →"),
-    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+    actionHtml: emailButton(palette, reviewUrl, "Review booking →"),
+    footerHtml: `Reference ${escapeHtml(booking.ref)}`,
   });
 
   return { subject, html };
@@ -538,34 +541,34 @@ export async function sendCustomerReceipt(
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Mottatt timeforespørsel hos ${tenant.name}`;
+  const subject = `Request received at ${tenant.name}`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Referanse", value: booking.ref },
-    { label: "Behandling", value: booking.service_name },
-    { label: "Ønsket tid", value: osloTime },
-    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+    { label: "Reference", value: booking.ref },
+    { label: "Treatment", value: booking.service_name },
+    { label: "Requested time", value: osloTime },
+    { label: "Price", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
   ];
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Timeforespørsel mottatt",
-    eyebrow: "Forespørsel",
-    title: "Takk for din forespørsel",
-    introHtml: `Vi har mottatt din timeforespørsel hos ${strongValue(
+    subtitle: "Request received",
+    eyebrow: "Booking request",
+    title: "Thank you for your request",
+    introHtml: `We have received your booking request at ${strongValue(
       palette,
       studioName
-    )}. Forespørselen vurderes nå av studioet, og du mottar en bekreftelse så snart timen er godkjent.`,
+    )}. The studio is reviewing it now, and you will receive a confirmation as soon as the time is approved.`,
     detailsHtml: emailDetailRows(palette, rows),
     actionHtml: manageUrl
       ? `<div style="text-align:center;margin-top:24px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.6;color:${palette.label};">${emailTextLink(
           palette,
           manageUrl,
-          "Administrer din reservasjon"
+          "Manage your booking"
         )}</div>`
       : "",
-    footerHtml: "Ikke deg? Ignorer denne e-posten.",
+    footerHtml: "Not you? You can safely ignore this email.",
   });
 
   const { from, replyTo } = getSenderInfo(tenant, config);
@@ -602,39 +605,39 @@ export async function sendOwnerEmailBounceAlert(
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
   const adminBaseUrl = getEngineBaseUrl();
-  const fixUrl = `${adminBaseUrl}/admin?ref=${encodeURIComponent(booking.ref)}`;
-  const subject = `Kundekvittering feilet: ${booking.customer_name} (${booking.ref})`;
+  const fixUrl = `${adminBaseUrl}/a/${encodeURIComponent(booking.ref)}.${deriveReviewToken(booking.ref)}`;
+  const subject = `Customer email failed: ${booking.customer_name} (${booking.ref})`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Kunde", value: booking.customer_name },
-    { label: "Referanse", value: booking.ref },
-    { label: "Adresse som feilet", value: failure.address },
-    { label: "Behandling", value: booking.service_name },
-    { label: "Tidspunkt", value: osloTime },
+    { label: "Customer", value: booking.customer_name },
+    { label: "Reference", value: booking.ref },
+    { label: "Failed address", value: failure.address },
+    { label: "Treatment", value: booking.service_name },
+    { label: "Time", value: osloTime },
     { label: "Status", value: failure.status },
   ];
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "E-postvarsel",
-    eyebrow: "Kvittering ikke levert",
-    title: "Kunden fikk ikke kvitteringen",
+    subtitle: "Email alert",
+    eyebrow: "Receipt not delivered",
+    title: "The customer did not receive the receipt",
     titleColor: palette.red,
     introHtml:
-      "Vi fikk ikke levert bekreftelsen til kundens e-postadresse. Adressen finnes sannsynligvis ikke. Rett den opp i kontrollpanelet og send kvitteringen på nytt, ellers vet kunden ikke at timen er bestilt.",
+      "We could not deliver the confirmation to the customer's email address. The address most likely does not exist. Correct it and resend the receipt from the review page, otherwise the customer has no idea the appointment was booked.",
     detailsHtml: emailDetailRows(palette, rows),
     actionHtml:
-      emailButton(palette, fixUrl, "Fiks e-postadressen →") +
+      emailButton(palette, fixUrl, "Fix the email address →") +
       (failure.reason
         ? emailNoteBox(
             palette,
-            `<strong style="color:${palette.value};font-weight:600;">Teknisk årsak:</strong> ${escapeHtml(
+            `<strong style="color:${palette.value};font-weight:600;">Technical reason:</strong> ${escapeHtml(
               failure.reason
             )}`
           )
         : ""),
-    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+    footerHtml: `Reference ${escapeHtml(booking.ref)}`,
   });
 
   const { from, replyTo } = getSenderInfo(tenant, config);
@@ -689,32 +692,32 @@ export function renderCustomerConfirmationEmail(
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Bekreftet: Din time hos ${tenant.name}`;
+  const subject = `Confirmed: Your appointment at ${tenant.name}`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Referanse", value: booking.ref },
-    { label: "Behandling", value: booking.service_name },
-    { label: "Tidspunkt", value: osloTime },
-    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+    { label: "Reference", value: booking.ref },
+    { label: "Treatment", value: booking.service_name },
+    { label: "Time", value: osloTime },
+    { label: "Price", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
   ];
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Time bekreftet",
-    eyebrow: "Bekreftelse",
-    title: "Din time er bekreftet",
+    subtitle: "Appointment confirmed",
+    eyebrow: "Confirmation",
+    title: "Your appointment is confirmed",
     titleColor: palette.green,
-    introHtml: `Din time er bekreftet! Vi gleder oss til å se deg hos ${strongValue(
+    introHtml: `Your appointment is confirmed! We look forward to seeing you at ${strongValue(
       palette,
       studioName
     )}.`,
     detailsHtml: emailDetailRows(palette, rows),
     actionHtml: emailNoteBox(
       palette,
-      "Kalenderfil (.ics) er lagt ved denne e-posten slik at du enkelt kan legge avtalen til i kalenderen din."
+      "A calendar file (.ics) is attached to this email so you can add the appointment to your calendar."
     ),
-    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+    footerHtml: `Reference ${escapeHtml(booking.ref)}`,
   });
 
   return { subject, html };
@@ -766,24 +769,24 @@ export async function sendCustomerDeclined(
   const config = resolveConfig(tenant);
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
-  const subject = `Oppdatering angående din time hos ${tenant.name}`;
+  const subject = `Update on your appointment at ${tenant.name}`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Referanse", value: booking.ref },
-    { label: "Behandling", value: booking.service_name },
+    { label: "Reference", value: booking.ref },
+    { label: "Treatment", value: booking.service_name },
   ];
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Oppdatering",
-    eyebrow: "Timeforespørsel",
-    title: "Forespørselen kunne ikke bekreftes",
+    subtitle: "Update",
+    eyebrow: "Booking request",
+    title: "Your request could not be confirmed",
     titleColor: palette.red,
     introHtml:
-      "Forespørselen din kunne dessverre ikke bekreftes denne gangen. Besøk vår nettside for å velge et annet tidspunkt.",
+      "Unfortunately your request could not be confirmed this time. Visit our website to choose another time.",
     detailsHtml: emailDetailRows(palette, rows),
-    footerHtml: "Ta gjerne kontakt med oss dersom du har spørsmål.",
+    footerHtml: "Feel free to contact us if you have any questions.",
   });
 
   const { from, replyTo } = getSenderInfo(tenant, config);
@@ -810,26 +813,26 @@ export async function sendOwnerCancellationAlert(
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Avbestilling: ${booking.customer_name} - ${booking.service_name}`;
+  const subject = `Cancellation: ${booking.customer_name} - ${booking.service_name}`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Referanse", value: booking.ref },
-    { label: "Kunde", value: booking.customer_name },
-    { label: "Telefon", value: booking.customer_phone },
-    { label: "Behandling", value: booking.service_name },
-    { label: "Opprinnelig tid", value: osloTime },
+    { label: "Reference", value: booking.ref },
+    { label: "Customer", value: booking.customer_name },
+    { label: "Phone", value: booking.customer_phone },
+    { label: "Treatment", value: booking.service_name },
+    { label: "Original time", value: osloTime },
   ];
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Avbestilling",
-    eyebrow: "Kansellering",
-    title: "Kunden har avbestilt timen",
+    subtitle: "Cancellation",
+    eyebrow: "Cancellation",
+    title: "The customer cancelled the appointment",
     titleColor: palette.red,
-    introHtml: `En kunde har avbestilt sin time hos ${strongValue(palette, studioName)}.`,
+    introHtml: `A customer has cancelled their appointment at ${strongValue(palette, studioName)}.`,
     detailsHtml: emailDetailRows(palette, rows),
-    footerHtml: "Tidspunktet er nå frigjort i kalenderen.",
+    footerHtml: "The time slot is now free in the calendar.",
   });
 
   const { from, replyTo } = getSenderInfo(tenant, config);
@@ -902,31 +905,31 @@ export async function sendCustomerRescheduleConfirmation(
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
   const osloTime = formatOsloDateTime(booking.start_utc);
-  const subject = `Nytt tidspunkt bekreftet hos ${tenant.name}`;
+  const subject = `New time confirmed at ${tenant.name}`;
 
   const rows: EmailDetailInput[] = [
-    { label: "Referanse", value: booking.ref },
-    { label: "Behandling", value: booking.service_name },
-    { label: "Nytt tidspunkt", value: osloTime },
-    { label: "Pris", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
+    { label: "Reference", value: booking.ref },
+    { label: "Treatment", value: booking.service_name },
+    { label: "New time", value: osloTime },
+    { label: "Price", value: `${booking.price_nok} ${currencyOf(config)}`, numeric: true },
   ];
 
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Nytt tidspunkt",
-    eyebrow: "Endring",
-    title: "Timen har fått nytt tidspunkt",
-    introHtml: `Dette er en bekreftelse på at din time hos ${strongValue(
+    subtitle: "New time",
+    eyebrow: "Change",
+    title: "Your appointment has a new time",
+    introHtml: `This confirms that your appointment at ${strongValue(
       palette,
       studioName
-    )} har blitt flyttet.`,
+    )} has been moved.`,
     detailsHtml: emailDetailRows(palette, rows),
     actionHtml: emailNoteBox(
       palette,
-      "Oppdatert kalenderfil (.ics) er lagt ved denne e-posten."
+      "The updated calendar file (.ics) is attached to this email."
     ),
-    footerHtml: `Referanse ${escapeHtml(booking.ref)}`,
+    footerHtml: `Reference ${escapeHtml(booking.ref)}`,
   });
 
   const { from, replyTo } = getSenderInfo(tenant, config);
@@ -956,20 +959,20 @@ export async function sendTestNotificationEmail(tenant: Tenant, recipientEmail: 
   const config = resolveConfig(tenant);
   const palette = config.theme.colors;
   const studioName = studioNameOf(tenant, config);
-  const subject = `Testvarsel fra ${tenant.name}`;
+  const subject = `Test alert from ${tenant.name}`;
   const html = renderEmailShell({
     config,
     tenantName: studioName,
-    subtitle: "Testvarsel",
-    eyebrow: "Systemtest",
-    title: "Test av e-postvarsling",
-    introHtml: `Dette er et testvarsel sendt fra ditt kontrollpanel for ${strongValue(
+    subtitle: "Test alert",
+    eyebrow: "System test",
+    title: "Test of email notifications",
+    introHtml: `This is a test alert sent from your control panel for ${strongValue(
       palette,
       studioName
     )}.`,
     detailsHtml: `<tr>
       <td style="padding-top:6px;">
-        <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:16px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.65;color:${palette.value};">Status: E-postintegrasjon via Resend fungerer som forventet.</div>
+        <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:16px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.65;color:${palette.value};">Status: the Resend email integration is working as expected.</div>
       </td>
     </tr>`,
     maxWidth: 500,

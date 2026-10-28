@@ -11,9 +11,14 @@ interface ActionButtonsProps {
   customerName?: string;
   studioName?: string;
   theme?: TenantColors;
+  customerEmail?: string;
+  emailStatus?: string | null;
+  emailError?: string | null;
 }
 
 const WHATSAPP_GREEN = "#25D366";
+
+const FAILED_EMAIL_STATUSES = ["bounced", "failed", "suppressed", "complained"];
 
 /** Exposes the resolved tenant palette as CSS custom properties. */
 function themeStyle(colors: TenantColors): CSSProperties {
@@ -64,13 +69,24 @@ export function ActionButtons({
   customerName,
   studioName,
   theme,
+  customerEmail,
+  emailStatus,
+  emailError,
 }: ActionButtonsProps) {
   const colors = theme ?? getTenantConfig().theme.colors;
   const [status, setStatus] = useState<string>(currentStatus);
   const [pending, setPending] = useState<"accept" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [email, setEmail] = useState<string>(customerEmail || "");
+  const [deliveryStatus, setDeliveryStatus] = useState<string>(emailStatus || "");
+  const [deliveryError, setDeliveryError] = useState<string | null>(emailError || null);
+  const [fixingEmail, setFixingEmail] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
+
   const loading = pending !== null;
+  const emailFailed = FAILED_EMAIL_STATUSES.includes(deliveryStatus);
 
   const handleAction = async (decision: "accept" | "decline") => {
     if (loading) return;
@@ -86,43 +102,196 @@ export function ActionButtons({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || data.error || "Noe gikk galt under oppdatering.");
+        throw new Error(data.message || data.error || "Something went wrong. Please try again.");
       }
 
       setStatus(data.status);
+      if (data.email?.status) {
+        setDeliveryStatus(data.email.status);
+        setDeliveryError(data.email.error || null);
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Kunne ikke fullføre handlingen.";
+      const msg = err instanceof Error ? err.message : "Could not complete the action.";
       setError(msg);
     } finally {
       setPending(null);
     }
   };
 
+  const handleResendEmail = async () => {
+    if (sendingEmail) return;
+    setSendingEmail(true);
+    setEmailNotice(null);
+
+    try {
+      const res = await fetch("/api/action/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: refCode, token, email: email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setEmailNotice(data.message || data.error || "Could not send the email.");
+        return;
+      }
+
+      if (data.customer_email) setEmail(data.customer_email);
+      setDeliveryStatus(data.email?.status || "sent");
+      setDeliveryError(data.email?.error || null);
+
+      if (data.success) {
+        setFixingEmail(false);
+        setEmailNotice("Sent. If the address is wrong again, you will see the error here.");
+      } else {
+        setEmailNotice(
+          `Not delivered (${data.email?.status || "error"}): ${
+            data.email?.error || "unknown reason"
+          }`
+        );
+      }
+    } catch {
+      setEmailNotice("Network error while sending.");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const emailTone = emailFailed
+    ? colors.red
+    : deliveryStatus === "delivered"
+    ? colors.green
+    : colors.label;
+
+  const emailSummary = emailFailed
+    ? `Confirmation not delivered${email ? ` to ${email}` : ""}`
+    : deliveryStatus === "delivered"
+    ? `Confirmation delivered${email ? ` to ${email}` : ""}`
+    : deliveryStatus === "sent"
+    ? `Confirmation sent${email ? ` to ${email}` : ""}`
+    : deliveryStatus === "delayed"
+    ? `Delivery delayed${email ? ` to ${email}` : ""}`
+    : "";
+
   if (status !== "pending") {
     const isConfirmed = status === "confirmed";
     const tone = isConfirmed ? colors.green : colors.red;
     return (
-      <div
-        className="rounded-2xl border p-4 text-center"
-        style={{ borderColor: `${tone}33`, backgroundColor: `${tone}1A` }}
-      >
-        <p className="text-sm font-semibold" style={{ color: tone }}>
-          {isConfirmed ? "Avtalen er godkjent" : "Avtalen er avslått"}
-        </p>
-        <p className="mt-1 text-xs leading-relaxed text-[var(--c-label)]" style={{ color: colors.label }}>
-          Kunden har mottatt e-post med oppdatert status.
-        </p>
+      <div className="space-y-3" style={themeStyle(colors)}>
+        <div
+          className="rounded-2xl border p-4 text-center"
+          style={{ borderColor: `${tone}33`, backgroundColor: `${tone}1A` }}
+        >
+          <p className="text-sm font-semibold" style={{ color: tone }}>
+            {isConfirmed ? "Booking approved" : "Booking declined"}
+          </p>
+          <p
+            className="mt-1 text-xs leading-relaxed text-[var(--c-label)]"
+            style={{ color: colors.label }}
+          >
+            The customer has been emailed the updated status.
+          </p>
+        </div>
+
+        {emailFailed && (
+          <EmailDeliveryCard />
+        )}
       </div>
     );
   }
 
   const waNumber = toWhatsAppNumber(phone || "");
   const waMessage = encodeURIComponent(
-    `Hei${customerName ? ` ${customerName}` : ""}! Angående din timeforespørsel${
-      studioName ? ` hos ${studioName}` : ""
+    `Hi${customerName ? ` ${customerName}` : ""}! About your booking request${
+      studioName ? ` at ${studioName}` : ""
     } (ref. ${refCode}).`
   );
   const waHref = waNumber ? `https://wa.me/${waNumber}?text=${waMessage}` : "";
+
+  /** Red/green delivery row, expandable into a fix-and-resend editor. */
+  function EmailDeliveryCard() {
+    return (
+      <div
+        className="overflow-hidden rounded-2xl border text-left"
+        style={{
+          borderColor: `${emailTone}40`,
+          backgroundColor: `${emailTone}12`,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setFixingEmail((open) => !open)}
+          className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+          aria-expanded={fixingEmail}
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold" style={{ color: emailTone }}>
+              {emailSummary}
+            </span>
+            {emailFailed && deliveryError && (
+              <span
+                className="mt-0.5 block truncate text-[11px] leading-relaxed"
+                style={{ color: colors.label }}
+              >
+                {deliveryError}
+              </span>
+            )}
+          </span>
+          <span
+            className="shrink-0 text-[11px] font-semibold underline decoration-1 underline-offset-2"
+            style={{ color: emailTone }}
+          >
+            {fixingEmail ? "Close" : emailFailed ? "Fix email" : "Edit"}
+          </span>
+        </button>
+
+        {fixingEmail && (
+          <div
+            className="space-y-2 border-t px-4 py-3"
+            style={{ borderColor: `${emailTone}26` }}
+          >
+            <label
+              className="block text-[10px] font-semibold uppercase tracking-[0.16em]"
+              style={{ color: colors.label }}
+              htmlFor="review-customer-email"
+            >
+              Customer email
+            </label>
+            <input
+              id="review-customer-email"
+              type="email"
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@email.com"
+              className="w-full rounded-xl border bg-white/70 px-3 py-2.5 text-sm outline-none focus:border-current"
+              style={{ borderColor: colors.borderStrong, color: colors.value }}
+            />
+            <p className="text-[11px] leading-relaxed" style={{ color: colors.label }}>
+              {emailFailed
+                ? "Check the address for typos, then resend. The customer will receive the email that matches the current booking status."
+                : "Send the customer a fresh copy of this booking."}
+            </p>
+            <button
+              type="button"
+              disabled={sendingEmail || !email.trim()}
+              onClick={handleResendEmail}
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ backgroundColor: colors.value, color: colors.valueText }}
+            >
+              {sendingEmail && <Spinner />}
+              {sendingEmail ? "Sending…" : "Resend email"}
+            </button>
+            {emailNotice && (
+              <p className="text-[11px] leading-relaxed" style={{ color: colors.label }}>
+                {emailNotice}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3" style={themeStyle(colors)}>
@@ -139,6 +308,8 @@ export function ActionButtons({
         </div>
       )}
 
+      {emailSummary && <EmailDeliveryCard />}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <button
           type="button"
@@ -149,10 +320,10 @@ export function ActionButtons({
         >
           {pending === "accept" ? (
             <>
-              <Spinner /> Godkjenner…
+              <Spinner /> Approving…
             </>
           ) : (
-            "Godkjenn time"
+            "Approve booking"
           )}
         </button>
 
@@ -165,10 +336,10 @@ export function ActionButtons({
         >
           {pending === "decline" ? (
             <>
-              <Spinner /> Avslår…
+              <Spinner /> Declining…
             </>
           ) : (
-            "Avslå time"
+            "Decline booking"
           )}
         </button>
       </div>
@@ -186,7 +357,7 @@ export function ActionButtons({
           }}
         >
           <WhatsAppIcon />
-          Kontakt kunde på WhatsApp
+          Contact customer on WhatsApp
         </a>
       )}
     </div>

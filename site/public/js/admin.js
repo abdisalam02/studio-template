@@ -492,7 +492,9 @@
             price: Number(b.total_price || b.price_nok || 350),
             status: b.status || 'confirmed',
             placement: b.placement || b.custom_fields?.placement || '',
-            notes: b.notes || ''
+            notes: b.notes || '',
+            emailStatus: b.customer_email_status || '',
+            emailError: b.customer_email_error || ''
           };
         });
 
@@ -1098,6 +1100,7 @@
         <span class="datetime-chip">${b.time}</span>
         ${b.clientEmail ? `<span class="datetime-chip client-email-chip" title="${b.clientEmail}">${b.clientEmail}</span>` : ''}
         ${b.clientPhone ? `<span class="datetime-chip">${b.clientPhone}</span>` : ''}
+        ${['bounced', 'failed', 'suppressed', 'complained'].includes(b.emailStatus || '') ? `<span class="datetime-chip email-failed-chip" title="${b.emailError || 'Confirmation was not delivered'}">Email failed</span>` : ''}
       </div>
     `;
 
@@ -1438,6 +1441,82 @@
 
     const emailVal = document.getElementById('drawer-email-val');
     if (emailVal) emailVal.textContent = booking.clientEmail || 'client@post.no';
+
+    // Customer email delivery state — same signal as the review portal
+    const FAILED_EMAIL = ['bounced', 'failed', 'suppressed', 'complained'];
+    const emailFailed = FAILED_EMAIL.includes(booking.emailStatus || '');
+    const emailPanel = document.getElementById('drawer-email-panel');
+    const emailStatusLabel = document.getElementById('drawer-email-status-label');
+    const emailErrorEl = document.getElementById('drawer-email-error');
+    const emailInput = document.getElementById('drawer-email-input');
+    const emailMsg = document.getElementById('drawer-email-msg');
+
+    if (emailPanel) emailPanel.style.display = booking.emailStatus ? 'block' : 'none';
+    if (emailStatusLabel) {
+      emailStatusLabel.textContent = emailFailed
+        ? 'Confirmation not delivered'
+        : booking.emailStatus === 'delivered'
+          ? 'Confirmation delivered'
+          : 'Confirmation sent';
+      emailStatusLabel.className = `drawer-email-status ${emailFailed ? 'is-failed' : 'is-ok'}`;
+    }
+    if (emailErrorEl) {
+      const reason = emailFailed ? (booking.emailError || '') : '';
+      emailErrorEl.textContent = reason;
+      emailErrorEl.style.display = reason ? 'block' : 'none';
+    }
+    if (emailInput) emailInput.value = booking.clientEmail || '';
+    if (emailMsg) emailMsg.textContent = '';
+
+    const emailResendBtn = document.getElementById('drawer-email-resend');
+    if (emailResendBtn && !emailResendBtn.dataset.wired) {
+      emailResendBtn.dataset.wired = '1';
+      emailResendBtn.addEventListener('click', async () => {
+        const current = activeDrawerBooking;
+        if (!current) return;
+        const email = (document.getElementById('drawer-email-input')?.value || '').trim();
+        const msg = document.getElementById('drawer-email-msg');
+        const original = emailResendBtn.textContent;
+        emailResendBtn.disabled = true;
+        emailResendBtn.textContent = 'Sending…';
+        try {
+          const res = await fetch(`${getApiBase()}/api/admin/bookings/resend`, {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({ id: current.id, email })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || data.error || 'Could not send.');
+
+          const status = data.email?.status || 'sent';
+          if (data.customer_email) current.clientEmail = data.customer_email;
+          current.emailStatus = status;
+          current.emailError = data.email?.error || '';
+
+          saveBookings(getBookings().map(b => b.id === current.id ? { ...b, clientEmail: current.clientEmail, emailStatus: status, emailError: current.emailError } : b));
+
+          if (data.success) {
+            if (emailStatusLabel) {
+              emailStatusLabel.textContent = 'Confirmation sent';
+              emailStatusLabel.className = 'drawer-email-status is-ok';
+            }
+            if (emailErrorEl) {
+              emailErrorEl.style.display = 'none';
+              emailErrorEl.textContent = '';
+            }
+            if (msg) msg.textContent = 'Resent. If the address is wrong again, the error appears here.';
+          } else if (msg) {
+            msg.textContent = `Not delivered (${status}): ${data.email?.error || 'unknown reason'}`;
+          }
+        } catch (err) {
+          if (msg) msg.textContent = err.message || 'Network error.';
+        } finally {
+          emailResendBtn.disabled = false;
+          emailResendBtn.textContent = original;
+        }
+      });
+    }
 
     document.getElementById('drawer-intake-details').textContent = booking.placement ? `Placement: ${booking.placement}` : 'Standard placement';
     document.getElementById('drawer-notes-display').textContent = booking.notes || 'No client notes recorded.';

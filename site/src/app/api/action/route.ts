@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { verifyToken } from "@/lib/tokens";
+import { verifyReviewToken } from "@/lib/tokens";
 import { generateIcsCalendar } from "@/lib/ics";
 import {
   sendCustomerConfirmation,
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Verify token hash against action_token_hash
-    const isValid = verifyToken(token, booking.action_token_hash);
+    const isValid = verifyReviewToken(ref, token, booking.action_token_hash);
     if (!isValid) {
       return NextResponse.json({ error: "invalid_or_expired_token" }, { status: 403 });
     }
@@ -97,12 +97,14 @@ export async function POST(req: NextRequest) {
       service_summary?: string | null;
     };
 
+    let emailResult: { status: string; error: string | null } | null = null;
+
     if (tenant) {
       // The service row can be missing for multi-service or deleted services;
       // fall back to the summary stored on the booking so the customer is
       // still told what was decided.
       const serviceName =
-        bookingWithSummary.service_summary || service?.name || "Behandling";
+        bookingWithSummary.service_summary || service?.name || "Treatment";
 
       const bookingDetails = {
         ref: booking.ref,
@@ -135,15 +137,18 @@ export async function POST(req: NextRequest) {
         }
 
         const outcome = emailOutcome(sendResult);
+        emailResult = {
+          status: outcome.error ? classifyEmailFailure(outcome.error) : "sent",
+          error: outcome.error ? outcome.error.message : null,
+        };
+
         await supabaseAdmin
           .from("bookings")
           .update({
             resend_email_id: outcome.id,
-            customer_email_status: outcome.error
-              ? classifyEmailFailure(outcome.error)
-              : "sent",
+            customer_email_status: emailResult.status,
             customer_email_status_at: now,
-            customer_email_error: outcome.error ? outcome.error.message : null,
+            customer_email_error: emailResult.error,
           })
           .eq("id", booking.id);
 
@@ -156,7 +161,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, status: newStatus }, { status: 200 });
+    return NextResponse.json(
+      { success: true, status: newStatus, email: emailResult },
+      { status: 200 }
+    );
   } catch (err: unknown) {
     console.error("Unexpected error in action route:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";

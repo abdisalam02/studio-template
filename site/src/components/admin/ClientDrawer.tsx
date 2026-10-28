@@ -27,13 +27,13 @@ interface ClientDrawerProps {
 }
 
 const EMAIL_STATUS_LABEL: Record<string, { label: string; tone: string }> = {
-  sent: { label: "Kvittering sendt", tone: "bg-neutral-100 text-neutral-600" },
-  delivered: { label: "Kvittering levert", tone: "bg-emerald-100 text-emerald-800" },
-  delayed: { label: "Kvittering forsinket", tone: "bg-amber-100 text-amber-800" },
-  bounced: { label: "E-post finnes ikke", tone: "bg-red-100 text-red-800" },
-  failed: { label: "Kvittering feilet", tone: "bg-red-100 text-red-800" },
-  suppressed: { label: "Adresse blokkert", tone: "bg-red-100 text-red-800" },
-  complained: { label: "Merket som spam", tone: "bg-red-100 text-red-800" },
+  sent: { label: "Confirmation sent", tone: "bg-neutral-100 text-neutral-600" },
+  delivered: { label: "Confirmation delivered", tone: "bg-emerald-100 text-emerald-800" },
+  delayed: { label: "Delivery delayed", tone: "bg-amber-100 text-amber-800" },
+  bounced: { label: "Email does not exist", tone: "bg-red-100 text-red-800" },
+  failed: { label: "Delivery failed", tone: "bg-red-100 text-red-800" },
+  suppressed: { label: "Address suppressed", tone: "bg-red-100 text-red-800" },
+  complained: { label: "Marked as spam", tone: "bg-red-100 text-red-800" },
 };
 
 function formatOsloDateTime(epochSeconds: number): string {
@@ -114,7 +114,7 @@ export function ClientDrawer({
 
   const handleResendEmail = async () => {
     if (!token) {
-      setEmailNotice("Mangler innlogging – logg inn på nytt.");
+      setEmailNotice("Missing session – please sign in again.");
       return;
     }
     setSendingEmail(true);
@@ -141,11 +141,11 @@ export function ClientDrawer({
       );
       if (data.success) {
         setEditingEmail(false);
-        setEmailNotice("Sendt på nytt. Du får varsel om adressen ikke finnes.");
+        setEmailNotice("Resent. You will be alerted if the address does not exist.");
       } else {
         setEmailNotice(
           `Ikke levert (${data.email?.status || "feil"}): ${
-            data.email?.error || "ukjent årsak"
+            data.email?.error || "unknown reason"
           }`
         );
       }
@@ -237,7 +237,7 @@ export function ClientDrawer({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">
-              Kundekvittering
+              Customer email
             </span>
             {emailStatusMeta && (
               <span
@@ -260,8 +260,8 @@ export function ClientDrawer({
               />
               <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
                 {emailFailed
-                  ? "Adressen fikk ikke kvitteringen. Rett den opp og send på nytt."
-                  : "Send kvitteringen til en annen adresse."}
+                  ? "The customer did not receive the confirmation. Fix the address and resend."
+                  : "Send the confirmation to a different address."}
               </p>
               <div className="flex gap-2">
                 <button
@@ -270,7 +270,7 @@ export function ClientDrawer({
                   onClick={handleResendEmail}
                   className="flex-1 py-2.5 rounded-xl bg-[#111113] text-white font-bold text-xs hover:opacity-90 disabled:opacity-50 transition-colors cursor-pointer"
                 >
-                  {sendingEmail ? "Sender..." : "Send på nytt"}
+                  {sendingEmail ? "Sending..." : "Resend"}
                 </button>
                 {!emailFailed && (
                   <button
@@ -297,7 +297,7 @@ export function ClientDrawer({
                 onClick={() => setEditingEmail(true)}
                 className="text-[11px] font-semibold text-[#111113] underline shrink-0 cursor-pointer"
               >
-                Endre / send på nytt
+                Edit / resend
               </button>
             </div>
           )}
