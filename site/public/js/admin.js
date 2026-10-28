@@ -21,6 +21,7 @@
   let activeFilter = 'active'; // 'active', 'pending', 'confirmed', 'archive', 'all'
   let isArchiveOpen = false;
   let activeDrawerBooking = null;
+  let bookingCache = [];
   let isToggling = false;
 
   // The frosted login gate starts locked. While locked the dashboard renders
@@ -356,23 +357,14 @@
   // 3. STORAGE & SUPABASE DATA ACCESS
   // ----------------------------------------------------------------------------
   function getBookings() {
-    // Never paint preview or synthetic rows: the dashboard starts empty and
-    // fills from the API once the session is authenticated.
+    // Customer rows stay in memory only; nothing identifying is written to
+    // localStorage. The locked dashboard never paints synthetic rows.
     if (isGateLocked) return [];
-    try {
-      const stored = localStorage.getItem(storageKey('bookings'));
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn('Error reading bookings:', e);
-    }
-    return [];
+    return bookingCache;
   }
 
   function saveBookings(bookings) {
-    localStorage.setItem(storageKey('bookings'), JSON.stringify(bookings));
+    bookingCache = Array.isArray(bookings) ? bookings : [];
     renderAllViews();
   }
 
@@ -413,6 +405,7 @@
       });
       if (res.status === 401) {
         sessionStorage.removeItem(storageKey('admin_auth'));
+        bookingCache = [];
         isGateLocked = true;
         const overlay = document.getElementById('admin-login-overlay');
         if (overlay) {
@@ -488,7 +481,7 @@
         });
 
         if (mapped.length > 0) {
-          localStorage.setItem(storageKey('bookings'), JSON.stringify(mapped));
+          bookingCache = mapped;
         }
       }
 
@@ -2594,6 +2587,7 @@
           });
         } catch (e) {}
         sessionStorage.removeItem(storageKey('admin_auth'));
+        bookingCache = [];
         isGateLocked = true;
         overlay.classList.remove('unlocking');
         overlay.style.display = 'flex';
@@ -2780,6 +2774,8 @@
   // INITIALIZE ON DOM READY
   // ----------------------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', async () => {
+    // Remove customer data persisted by older builds.
+    try { localStorage.removeItem(storageKey('bookings')); } catch (e) {}
     applyTenantBranding();
     initTouchGestures();
     initNavigation();

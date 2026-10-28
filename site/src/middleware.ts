@@ -95,7 +95,21 @@ function setAdminCors(response: NextResponse, origin: string): void {
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (!pathname.startsWith("/api")) return NextResponse.next();
+  const isTokenPage = pathname.startsWith("/a/") || pathname.startsWith("/m/");
+
+  if (!pathname.startsWith("/api")) {
+    const response = NextResponse.next();
+    // Token-bearing pages must never leak their URL as a referrer or be cached.
+    response.headers.set(
+      "Referrer-Policy",
+      isTokenPage ? "no-referrer" : "strict-origin-when-cross-origin"
+    );
+    if (isTokenPage) {
+      response.headers.set("Cache-Control", "no-store, max-age=0");
+    }
+    return response;
+  }
+
   if (isSelfAuthenticated(pathname)) return NextResponse.next();
 
   const isAdmin = pathname.startsWith(ADMIN_PREFIX);
@@ -138,5 +152,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: "/((?!_next/static|_next/image|favicon.ico).*)",
 };

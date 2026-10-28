@@ -426,6 +426,13 @@ export interface Database {
         };
         Returns: boolean;
       };
+      anonymize_old_bookings: {
+        Args: {
+          p_older_than_days: number;
+          p_tenant_id?: string | null;
+        };
+        Returns: number;
+      };
     };
     Enums: {
       [_ in never]: never;

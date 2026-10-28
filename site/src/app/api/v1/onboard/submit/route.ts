@@ -48,7 +48,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
       "Content-Type, Authorization, X-Requested-With, Accept",
   };
   if (origin) {
-    headers["Access-Control-Allow-Origin"] = origin;
+    // CORS is owned by middleware.
     headers["Access-Control-Allow-Credentials"] = "true";
   }
   return headers;

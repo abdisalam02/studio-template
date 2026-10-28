@@ -16,6 +16,7 @@ import {
 import { getEngineBaseUrl } from "@/lib/url";
 import { getTenantConfig } from "@/config/tenant.config";
 import { validateSlot, slotErrorMessage, zonedParts } from "@/lib/bookingRules";
+import { consumeRateLimit, getClientIp, hashIp } from "@/lib/rateLimit";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -205,6 +206,25 @@ async function provisionDevTenant(slug: string): Promise<Tenant | null> {
   return tenant ?? null;
 }
 
+async function verifyTurnstile(token: unknown, ip: string): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true; // not configured yet
+  if (typeof token !== "string" || !token) return false;
+
+  try {
+    const form = new URLSearchParams({ secret, response: token, remoteip: ip });
+    const res = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      { method: "POST", body: form, cache: "no-store" }
+    );
+    const data = (await res.json()) as { success?: boolean };
+    return data.success === true;
+  } catch (err) {
+    console.error("Turnstile verification failed:", err);
+    return false;
+  }
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -218,8 +238,55 @@ export async function POST(
       );
     }
 
+    const clientIp = getClientIp(req.headers);
+    const ipAllowed = await consumeRateLimit(
+      `booking:ip:${hashIp(clientIp)}`,
+      8,
+      3600
+    );
+    if (!ipAllowed) {
+      return NextResponse.json(
+        { error: "rate_limited", message: "Too many booking attempts. Please try again later." },
+        { status: 429, headers: CORS_HEADERS }
+      );
+    }
+
     const body = await req.json();
-    console.log('=== INCOMING BOOKING BODY ===', JSON.stringify(body, null, 2));
+
+    // Bot signals: a filled honeypot or an impossibly fast form.
+    if (typeof body.company === "string" && body.company.trim()) {
+      return NextResponse.json(
+        { error: "verification_failed", message: "Verification failed." },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
+    if (
+      !process.env.TURNSTILE_SECRET_KEY &&
+      typeof body.form_elapsed_ms === "number" &&
+      body.form_elapsed_ms > 0 &&
+      body.form_elapsed_ms < 1200
+    ) {
+      return NextResponse.json(
+        { error: "verification_failed", message: "Verification failed." },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
+    const turnstileOk = await verifyTurnstile(body.turnstile_token, clientIp);
+    if (!turnstileOk) {
+      return NextResponse.json(
+        { error: "verification_failed", message: "Please complete the verification." },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
+    if (body.consent !== true) {
+      return NextResponse.json(
+        { error: "consent_required", message: "Please accept the terms and privacy policy." },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
 
     const {
       service_id,
@@ -244,6 +311,20 @@ export async function POST(
     const rawCustomerPhone = customer_phone || customer?.phone;
     const rawNotes = notes || customer?.notes || "";
     const rawStartTime = start_utc || start_time;
+
+    if (rawCustomerEmail && typeof rawCustomerEmail === "string") {
+      const emailAllowed = await consumeRateLimit(
+        `booking:email:${hashIp(rawCustomerEmail.toLowerCase().trim())}`,
+        5,
+        3600
+      );
+      if (!emailAllowed) {
+        return NextResponse.json(
+          { error: "rate_limited", message: "Too many booking attempts for this email." },
+          { status: 429, headers: CORS_HEADERS }
+        );
+      }
+    }
 
     // 1. Fetch tenant first so we have timezone & default config
     if (!supabaseAdmin) {
@@ -480,7 +561,7 @@ export async function POST(
       p_price_nok: totalPriceNok,
       p_deposit_nok: 0,
       p_consent_at: now,
-      p_privacy_version: "v1",
+      p_privacy_version: String(body.consent_version || "2026-10"),
       p_action_token_hash: actionHash,
       p_manage_token_hash: manageHash,
       p_now: now,
