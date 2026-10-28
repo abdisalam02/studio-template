@@ -157,6 +157,27 @@ export async function GET(req: NextRequest) {
         console.warn("purge_admin_events failed:", purgeError);
       }
 
+      // Auth housekeeping: drop sessions a week past expiry and OTP challenges
+      // older than a week. Rate-limit rows prune themselves inside
+      // consume_rate_limit(), so they stay bounded without a job.
+      const weekAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
+
+      const { error: sessionPruneError } = await supabaseAdmin
+        .from("admin_sessions")
+        .delete()
+        .lt("expires_at", weekAgo);
+      if (sessionPruneError) {
+        console.warn("admin_sessions prune failed:", sessionPruneError);
+      }
+
+      const { error: otpPruneError } = await supabaseAdmin
+        .from("admin_otp_challenges")
+        .delete()
+        .lt("created_at", weekAgo);
+      if (otpPruneError) {
+        console.warn("admin_otp_challenges prune failed:", otpPruneError);
+      }
+
       retention = {
         anonymised: Number(anonymised ?? 0),
         events_purged: Number(purged ?? 0),
