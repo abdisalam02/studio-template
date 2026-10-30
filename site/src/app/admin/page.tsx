@@ -253,6 +253,7 @@ function AdminPortalContent() {
   const [searchFilter, setSearchFilter] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<"active" | "pending" | "confirmed" | "archive" | "all">("active");
   const [archiveExpanded, setArchiveExpanded] = useState(false);
+  const [isInitialDataLoading, setIsInitialDataLoading] = useState(true);
 
   // Calendar mathematical helpers
   function getWeekDaysForDate(dateStr: string) {
@@ -1059,6 +1060,8 @@ function AdminPortalContent() {
         }
       } catch (err) {
         if (!signal.aborted) console.error("Failed to load tenant data:", err);
+      } finally {
+        if (!signal.aborted) setIsInitialDataLoading(false);
       }
     }
     loadTenantData();
@@ -1363,15 +1366,59 @@ function AdminPortalContent() {
 
   if (authStatus === "checking") {
     return (
-      <div
-        id="admin-page-root"
-        style={{
-          position: "fixed",
-          inset: 0,
-          backgroundColor: "var(--admin-canopy-bg, #121214)",
-          zIndex: 9999,
-        }}
-      />
+      <div id="admin-page-root" className="admin-skeleton-screen" data-theme={activeTheme}>
+        {/* Top Canopy Skeleton */}
+        <div className="skeleton-topbar">
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <div className="skeleton-avatar skeleton-shimmer" />
+            <div className="skeleton-title-box">
+              <div className="skeleton-line-title skeleton-shimmer" />
+              <div className="skeleton-line-sub skeleton-shimmer" />
+            </div>
+          </div>
+          <div className="skeleton-action-btn skeleton-shimmer" />
+        </div>
+
+        {/* Calendar Strip Skeleton */}
+        <div className="skeleton-calendar-strip">
+          <div className="skeleton-cal-head">
+            <div style={{ width: 120, height: 16, borderRadius: 4 }} className="skeleton-shimmer" />
+            <div style={{ width: 64, height: 26, borderRadius: 999 }} className="skeleton-shimmer" />
+          </div>
+          <div className="skeleton-cal-days">
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="skeleton-cal-pill skeleton-shimmer" />
+            ))}
+          </div>
+        </div>
+
+        {/* Sheet Skeleton */}
+        <div className="skeleton-sheet-container">
+          <div className="skeleton-sheet-handle" />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ width: 140, height: 18, borderRadius: 4 }} className="skeleton-shimmer-light" />
+            <div style={{ width: 80, height: 22, borderRadius: 999 }} className="skeleton-shimmer-light" />
+          </div>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="skeleton-card">
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "999px" }} className="skeleton-shimmer-light" />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ width: 90, height: 12, borderRadius: 3 }} className="skeleton-shimmer-light" />
+                    <div style={{ width: 120, height: 10, borderRadius: 3 }} className="skeleton-shimmer-light" />
+                  </div>
+                </div>
+                <div style={{ width: 55, height: 18, borderRadius: 999 }} className="skeleton-shimmer-light" />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                <div style={{ width: 80, height: 12, borderRadius: 3 }} className="skeleton-shimmer-light" />
+                <div style={{ width: 50, height: 12, borderRadius: 3 }} className="skeleton-shimmer-light" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
@@ -1968,7 +2015,24 @@ function AdminPortalContent() {
 
                 {/* Chronological Timeline Stack */}
                 <div className="dagsagenda-timeline" id="dagsagenda-timeline">
-                  {bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate)).length === 0 ? (
+                  {isInitialDataLoading ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="skeleton-card" style={{ background: "#FAFAFA" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                              <div style={{ width: 32, height: 32, borderRadius: "999px" }} className="skeleton-shimmer-light" />
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                <div style={{ width: 100, height: 12, borderRadius: "3px" }} className="skeleton-shimmer-light" />
+                                <div style={{ width: 140, height: 10, borderRadius: "3px" }} className="skeleton-shimmer-light" />
+                              </div>
+                            </div>
+                            <div style={{ width: 60, height: 20, borderRadius: "999px" }} className="skeleton-shimmer-light" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate)).length === 0 ? (
                     (() => {
                       const todayIso = new Date().toISOString().split("T")[0];
                       const isToday = selectedDate === todayIso;
