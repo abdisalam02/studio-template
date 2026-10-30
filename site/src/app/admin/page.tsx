@@ -3079,7 +3079,8 @@ function AdminPortalContent() {
                             type="button"
                             className="btn-ny-time"
                             style={{ flex: 1, padding: "8px 12px", fontSize: "0.76rem", justifyContent: "center" }}
-                            onClick={() => {
+                            onClick={async () => {
+                              const count = selectedPlanDates.length;
                               const nextOverrides = { ...dateOverrides };
                               selectedPlanDates.forEach((d) => {
                                 if (isCustomizingDates && perDateCustomTimes[d]) {
@@ -3110,7 +3111,25 @@ function AdminPortalContent() {
                               setDateOverrides(nextOverrides);
                               setSelectedPlanDates([]);
                               setIsCustomizingDates(false);
-                              showToast(`✓ Applied override to ${selectedPlanDates.length} date(s)`);
+                              try {
+                                const res = await fetch("/api/admin/hours", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    tenant_id: activeTenant || session?.tenant_id || "gangina",
+                                    shifts,
+                                    interval_min: Number(slotInterval),
+                                    date_overrides: nextOverrides,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  showToast(`✓ Overrides saved (${count} dates)`);
+                                } else {
+                                  showToast("Could not persist overrides to database");
+                                }
+                              } catch (_) {
+                                showToast("Could not persist overrides to database");
+                              }
                             }}
                           >
                             Apply Override ({selectedPlanDates.length})
@@ -3119,7 +3138,8 @@ function AdminPortalContent() {
                             type="button"
                             className="quick-action-btn"
                             style={{ padding: "8px 12px", fontSize: "0.76rem" }}
-                            onClick={() => {
+                            onClick={async () => {
+                              const count = selectedPlanDates.length;
                               const nextOverrides = { ...dateOverrides };
                               selectedPlanDates.forEach((d) => {
                                 delete nextOverrides[d];
@@ -3127,7 +3147,21 @@ function AdminPortalContent() {
                               setDateOverrides(nextOverrides);
                               setSelectedPlanDates([]);
                               setIsCustomizingDates(false);
-                              showToast(`✓ Reset ${selectedPlanDates.length} date(s) to defaults`);
+                              try {
+                                const res = await fetch("/api/admin/hours", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    tenant_id: activeTenant || session?.tenant_id || "gangina",
+                                    shifts,
+                                    interval_min: Number(slotInterval),
+                                    date_overrides: nextOverrides,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  showToast(`✓ Reset ${count} date(s) to defaults`);
+                                }
+                              } catch (_) {}
                             }}
                           >
                             Reset Defaults
@@ -3396,14 +3430,14 @@ function AdminPortalContent() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      tenant_id: activeTenant,
+                      tenant_id: activeTenant || session?.tenant_id || "gangina",
                       shifts,
                       interval_min: Number(slotInterval),
                       date_overrides: dateOverrides,
                     }),
                   });
                   if (res.ok) {
-                    showToast("✓ Operating hours saved");
+                    showToast("✓ Operating hours saved to database");
                   } else {
                     showToast("Could not save operating hours");
                   }
@@ -3570,116 +3604,124 @@ function AdminPortalContent() {
               </div>
 
               <div className="modal-top-handle" role="button" aria-label="Dismiss sheet" onClick={() => setActiveDrawerBooking(null)} />
-              <div className="modal-sheet-head">
-                <div className="modal-identity">
-                  <div className="client-avatar-circle" id="drawer-avatar-circle">
-                    {(activeDrawerBooking.client_name ?? "Guest")
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </div>
-                  <div className="modal-identity-text">
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                      <span className="modal-eyebrow" id="drawer-ref-pill">
-                        REF {activeDrawerBooking.ref}
+
+              {/* Scrollable middle body styled as The Atelier Studio Ticket */}
+              <div className="modal-sheet-scroll-body" style={{ paddingTop: "6px" }}>
+                {/* 1. Atelier Ticket Shell */}
+                <div className={`atelier-ticket-card is-status-${activeDrawerBooking.status}`}>
+                  {/* Ticket Header & Hallmark */}
+                  <div style={{ padding: "16px 16px 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <div className="client-avatar-circle" id="drawer-avatar-circle" style={{ width: "38px", height: "38px", fontSize: "0.85rem", fontWeight: 700 }}>
+                        {(activeDrawerBooking.client_name ?? "Guest")
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ fontFamily: "monospace", fontSize: "0.70rem", fontWeight: 700, color: "var(--admin-sheet-muted)", letterSpacing: "0.05em" }} id="drawer-ref-pill">
+                            № {activeDrawerBooking.ref}
+                          </span>
+                          <span className="sheet-tenant-badge" style={{ fontSize: "0.64rem" }}>{tenantProfile.name || "Studio"}</span>
+                        </div>
+                        <h3 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#111827", margin: "2px 0 0", letterSpacing: "-0.02em" }} id="drawer-client-name">
+                          {activeDrawerBooking.client_name ?? "Guest Appointment"}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className={`status-seal-pill ${activeDrawerBooking.status}`}>
+                        <span className="status-seal-dot" />
+                        {activeDrawerBooking.status === "pending" ? "Pending Review" : activeDrawerBooking.status.toUpperCase()}
                       </span>
-                      <span className="sheet-tenant-badge">{tenantProfile.name || "Studio"}</span>
-                    </div>
-                    <h3 className="modal-sheet-title" id="drawer-client-name">
-                      {activeDrawerBooking.client_name ?? "Guest Appointment"}
-                    </h3>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="modal-sheet-close"
-                  id="close-client-drawer-btn"
-                  onClick={() => setActiveDrawerBooking(null)}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Scrollable middle body */}
-              <div className="modal-sheet-scroll-body">
-                {/* Single Unified Date & Time Card */}
-                <div className="modal-section-title">Schedule</div>
-                <div
-                  className="drawer-datetime-unified"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "12px 16px",
-                    borderRadius: "14px",
-                    background: "rgba(0, 0, 0, 0.03)",
-                    border: "1px solid rgba(0, 0, 0, 0.05)",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "1.2rem" }}>📅</span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827" }}>
-                        {formatEnglishDate(activeDrawerBooking.scheduled_at?.split("T")[0] || "2026-10-30")}
-                      </div>
-                      <div style={{ fontSize: "0.76rem", color: "var(--admin-sheet-muted)" }}>
-                        {activeDrawerBooking.scheduled_at?.split("T")[1]?.slice(0, 5) || "12:00"} · {activeDrawerBooking.duration_min || 45} min duration
-                      </div>
+                      <button
+                        type="button"
+                        className="modal-sheet-close"
+                        id="close-client-drawer-btn"
+                        onClick={() => setActiveDrawerBooking(null)}
+                        style={{ position: "static", width: "28px", height: "28px" }}
+                      >
+                        ✕
+                      </button>
                     </div>
                   </div>
-                  <span
-                    className={`status-pill-badge ${activeDrawerBooking.status}`}
-                    style={{ fontSize: "0.64rem", padding: "3px 8px", borderRadius: "999px", fontWeight: 700, textTransform: "uppercase" }}
-                  >
-                    {activeDrawerBooking.status}
-                  </span>
+
+                  {/* Perforated Deckle Tear-Line */}
+                  <div className="atelier-ticket-tear">
+                    <div className="atelier-ticket-dashed-line" />
+                  </div>
+
+                  {/* 2. Hero Schedule & Service Bento */}
+                  <div className="atelier-schedule-grid">
+                    {/* Time & Date Tile */}
+                    <div className="atelier-bento-tile">
+                      <div style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", color: "var(--admin-sheet-muted)", letterSpacing: "0.05em" }}>
+                        Session Time
+                      </div>
+                      <div className="atelier-time-hero" style={{ marginTop: "4px" }}>
+                        {activeDrawerBooking.scheduled_at?.split("T")[1]?.slice(0, 5) || "12:00"}
+                      </div>
+                      <div className="atelier-date-sub">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        <span>{formatEnglishDate(activeDrawerBooking.scheduled_at?.split("T")[0] || "2026-10-30")}</span>
+                      </div>
+                      <div style={{ fontSize: "0.68rem", color: "#6B7280", marginTop: "2px" }}>
+                        {activeDrawerBooking.duration_min || 45} min duration
+                      </div>
+                    </div>
+
+                    {/* Service & Fee Tile */}
+                    <div className="atelier-bento-tile">
+                      <div style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", color: "var(--admin-sheet-muted)", letterSpacing: "0.05em" }}>
+                        Treatment
+                      </div>
+                      <div className="atelier-service-name" title={activeDrawerBooking.service_name || "Single Gem"}>
+                        {activeDrawerBooking.service_name || "Single Gem"}
+                      </div>
+                      <div className="atelier-price-tag">
+                        {activeDrawerBooking.service_price ? `${activeDrawerBooking.service_price} kr` : "350 kr"}
+                      </div>
+                      <div style={{ fontSize: "0.68rem", color: "#059669", fontWeight: 600, marginTop: "2px" }}>
+                        Studio Rate
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Boxless Full-Width Client Contact Rows */}
-                <div className="modal-section-title">Client Contact</div>
-                <div className="drawer-contact-list" style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "18px" }}>
+                {/* 3. Client Contact Dossier Tile */}
+                <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "var(--admin-sheet-muted)", letterSpacing: "0.05em", marginBottom: "6px", marginLeft: "2px" }}>
+                  Client Contact
+                </div>
+                <div className="atelier-contact-box">
                   {/* Phone Row */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span style={{ fontSize: "1.05rem", color: "var(--admin-sheet-muted)" }}>📞</span>
-                      <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "#111827", letterSpacing: "0.01em" }}>
+                  <div className="atelier-contact-row">
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                      </svg>
+                      <span style={{ fontWeight: 600, fontSize: "0.85rem", color: "#111827", letterSpacing: "0.02em" }}>
                         {activeDrawerBooking.client_phone || "No phone recorded"}
                       </span>
                     </div>
                     {activeDrawerBooking.client_phone && (
                       <div style={{ display: "flex", gap: "6px" }}>
-                        <a
-                          href={`tel:${activeDrawerBooking.client_phone}`}
-                          className="contact-action-pill"
-                          style={{
-                            padding: "5px 12px",
-                            borderRadius: "999px",
-                            background: "rgba(0, 0, 0, 0.05)",
-                            fontSize: "0.74rem",
-                            fontWeight: 600,
-                            color: "#18181B",
-                            textDecoration: "none",
-                          }}
-                        >
+                        <a href={`tel:${activeDrawerBooking.client_phone}`} className="atelier-action-pill atelier-pill-neutral">
                           Call
                         </a>
                         <a
                           href={`https://wa.me/${(activeDrawerBooking.client_phone || "").replace(/[^0-9]/g, "")}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="contact-action-pill"
-                          style={{
-                            padding: "5px 12px",
-                            borderRadius: "999px",
-                            background: "#E6F4EA",
-                            fontSize: "0.74rem",
-                            fontWeight: 600,
-                            color: "#137333",
-                            textDecoration: "none",
-                          }}
+                          className="atelier-action-pill atelier-pill-whatsapp"
                         >
                           WhatsApp
                         </a>
@@ -3688,28 +3730,18 @@ function AdminPortalContent() {
                   </div>
 
                   {/* Email Row */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1, marginRight: "8px" }}>
-                      <span style={{ fontSize: "1.05rem", color: "var(--admin-sheet-muted)" }}>✉️</span>
-                      <span style={{ fontWeight: 600, fontSize: "0.85rem", color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div className="atelier-contact-row">
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1, marginRight: "8px" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                      </svg>
+                      <span style={{ fontWeight: 600, fontSize: "0.82rem", color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {activeDrawerBooking.client_email || "No email recorded"}
                       </span>
                     </div>
                     {activeDrawerBooking.client_email && (
-                      <a
-                        href={`mailto:${activeDrawerBooking.client_email}`}
-                        className="contact-action-pill"
-                        style={{
-                          padding: "5px 12px",
-                          borderRadius: "999px",
-                          background: "rgba(0, 0, 0, 0.05)",
-                          fontSize: "0.74rem",
-                          fontWeight: 600,
-                          color: "#18181B",
-                          textDecoration: "none",
-                          flexShrink: 0,
-                        }}
-                      >
+                      <a href={`mailto:${activeDrawerBooking.client_email}`} className="atelier-action-pill atelier-pill-neutral">
                         Email
                       </a>
                     )}
@@ -3718,7 +3750,7 @@ function AdminPortalContent() {
 
                 {/* Email Delivery Warning Card if Failed */}
                 {["bounced", "failed", "suppressed", "complained"].includes(activeDrawerBooking.email_status || "") && (
-                  <div className="drawer-email-panel" style={{ display: "block" }}>
+                  <div className="drawer-email-panel" style={{ display: "block", marginBottom: "14px" }}>
                     <div className="drawer-email-head">
                       <span className="drawer-email-status is-failed">Confirmation not delivered</span>
                       <span className="drawer-email-hint">Fix the address and resend</span>
@@ -3773,34 +3805,17 @@ function AdminPortalContent() {
                   </div>
                 )}
 
-                {/* Service */}
-                <div className="modal-section-title">Service</div>
-                <div className="modal-detail-list">
-                  <div className="modal-detail-row">
-                    <span className="modal-detail-label">Treatment</span>
-                    <strong>{activeDrawerBooking.service_name || "Single Gem"}</strong>
-                  </div>
-                  <div className="modal-detail-row">
-                    <span className="modal-detail-label">Price</span>
-                    <strong>{activeDrawerBooking.service_price ? `${activeDrawerBooking.service_price} kr` : "350 kr"}</strong>
-                  </div>
-                  <div className="modal-detail-row">
-                    <span className="modal-detail-label">Status</span>
-                    <span className={`status-pill-badge ${activeDrawerBooking.status}`}>
-                      {activeDrawerBooking.status === "pending" ? "PENDING REVIEW" : activeDrawerBooking.status.toUpperCase()}
-                    </span>
-                  </div>
+                {/* 4. Studio Notes / Remarks */}
+                <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "var(--admin-sheet-muted)", letterSpacing: "0.05em", marginBottom: "6px", marginLeft: "2px" }}>
+                  Studio Remarks & Notes
                 </div>
-
-                {/* Notes */}
-                <div className="modal-section-title">Notes</div>
-                <div className="modal-note">
-                  {activeDrawerBooking.notes || "No client notes recorded."}
+                <div className="modal-note" style={{ borderRadius: "14px", border: "1px solid rgba(0, 0, 0, 0.05)", background: "#FFFFFF", padding: "12px 14px", fontStyle: activeDrawerBooking.notes ? "normal" : "italic", color: activeDrawerBooking.notes ? "#111827" : "#9CA3AF" }}>
+                  {activeDrawerBooking.notes ? `“${activeDrawerBooking.notes}”` : "No special client requests recorded."}
                 </div>
 
                 {/* Subtle Delivered Notice (if delivered) */}
                 {activeDrawerBooking.email_status === "delivered" && (
-                  <div style={{ fontSize: "0.76rem", color: "#15803D", marginTop: "12px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <div style={{ fontSize: "0.74rem", color: "#15803D", marginTop: "10px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
                     <span>✓</span> Confirmation email delivered to {activeDrawerBooking.client_email}
                   </div>
                 )}
@@ -4043,8 +4058,8 @@ function AdminPortalContent() {
                 <div className="modal-sheet-dock" style={{ paddingTop: "12px", borderTop: "1px solid rgba(0, 0, 0, 0.06)", display: "flex", gap: "10px" }}>
                   <button
                     type="button"
-                    className="btn-triage-dock"
-                    style={{ flex: 1, background: "rgba(0, 0, 0, 0.05)", color: "#18181B" }}
+                    className="modal-action-btn modal-cancel-btn"
+                    style={{ flex: 1, height: "46px", padding: "10px 16px", borderRadius: "9999px", background: "rgba(0, 0, 0, 0.05)", color: "#18181B", fontWeight: 700, fontSize: "0.85rem", border: "none", cursor: "pointer" }}
                     onClick={() => setShowNewBookingModal(false)}
                   >
                     Cancel
@@ -4052,14 +4067,14 @@ function AdminPortalContent() {
                   <button
                     type="submit"
                     id="manual-booking-submit-btn"
-                    className="modal-submit-btn"
+                    className="modal-action-btn modal-submit-btn"
                     disabled={isSubmittingBooking}
-                    style={{ flex: 2, margin: 0, opacity: isSubmittingBooking ? 0.7 : 1 }}
+                    style={{ flex: 1, height: "46px", padding: "10px 16px", borderRadius: "9999px", background: "#111827", color: "#FFFFFF", fontWeight: 700, fontSize: "0.85rem", border: "none", cursor: "pointer", margin: 0, opacity: isSubmittingBooking ? 0.7 : 1 }}
                   >
                     {isSubmittingBooking ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
                         <span className="save-spinner" aria-hidden="true" />
-                        Creating appointment…
+                        Creating…
                       </span>
                     ) : (
                       "Create Appointment"

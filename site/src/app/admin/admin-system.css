@@ -826,7 +826,7 @@ body.is-sheet-dragging {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 16px 120px; /* 120px bottom padding for floating dock clearance */
+  padding: 0 16px 120px; /* Flush top to eliminate slit under drag handle; 120px bottom padding for floating dock clearance */
   z-index: 1;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
@@ -834,7 +834,7 @@ body.is-sheet-dragging {
 
 @media (min-width: 960px) {
   .sheet-content-scroller {
-    padding: 24px 32px 96px;
+    padding: 0 32px 96px;
   }
 }
 
@@ -888,13 +888,14 @@ body.is-sheet-dragging {
   margin-top: 2px;
 }
 
-/* Pinned Sticky Dual Header (Daily Agenda & Review Banner) */
+/* Pinned Sticky Dual Header (Daily Agenda & Review Banner - Flush to top with zero slit) */
 .calendar-sticky-header {
   position: sticky;
   top: 0;
-  z-index: 15;
-  background: var(--admin-sheet-bg, #FAFAFA);
-  padding: 4px 0 8px;
+  z-index: 20;
+  background: var(--admin-sheet-bg, #FFFFFF);
+  padding: 10px 0 8px;
+  margin-top: 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   margin-bottom: 14px;
 }
@@ -4767,34 +4768,31 @@ body.is-sheet-dragging {
   color: #111827;
 }
 
-/* Schedule View Segmented Switcher (Sticky & Compact) */
+/* Schedule View Segmented Switcher (Sticky & Compact - Flush to top with zero slit) */
 .schedule-segmented-tabs {
   position: sticky;
   top: 0;
   z-index: 25;
   display: flex;
-  gap: 4px;
-  background: rgba(250, 250, 250, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  padding: 4px 6px;
-  border-radius: 12px;
+  gap: 6px;
+  background: var(--admin-sheet-bg, #FFFFFF);
+  padding: 10px 0 10px;
+  margin-top: 0;
   margin-bottom: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .schedule-segment-btn {
   flex: 1;
-  padding: 6px 10px;
+  padding: 8px 10px;
   font-size: 0.74rem;
   font-weight: 700;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: #6B7280;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  background: #F4F4F5;
+  color: #71717A;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4803,9 +4801,10 @@ body.is-sheet-dragging {
 }
 
 .schedule-segment-btn.active {
-  background: #FFFFFF;
-  color: #111827;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: #111827;
+  color: #FFFFFF;
+  border-color: #111827;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 /* Plan Ahead Calendar Layout */
@@ -5110,4 +5109,272 @@ body.is-sheet-dragging {
   background: #FFFFFF;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+/* ==========================================================================
+   The Atelier Studio Ticket (Option 1 - Luxury Physical Voucher Aesthetic)
+   ========================================================================== */
+.atelier-ticket-card {
+  position: relative;
+  background: #FFFFFF;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  margin-bottom: 16px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Status-Differentiated Card Surface Accents */
+.atelier-ticket-card.is-status-confirmed {
+  border-color: rgba(16, 185, 129, 0.28);
+  box-shadow: 0 4px 24px rgba(16, 185, 129, 0.06);
+}
+
+.atelier-ticket-card.is-status-pending {
+  border-color: rgba(217, 119, 6, 0.35);
+  box-shadow: 0 4px 24px rgba(217, 119, 6, 0.08);
+  background: linear-gradient(180deg, #FFFDFB 0%, #FFFFFF 100%);
+}
+
+.atelier-ticket-card.is-status-cancelled {
+  border-color: rgba(220, 38, 38, 0.22);
+  background: #FAFAFA;
+}
+
+.atelier-ticket-card.is-status-completed {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: #FFFFFF;
+}
+
+/* Perforated Deckle Divider with Edge Notches */
+.atelier-ticket-tear {
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 -16px;
+}
+
+.atelier-ticket-tear::before,
+.atelier-ticket-tear::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--admin-sheet-bg, #FAFAFA);
+  transform: translateY(-50%);
+  z-index: 2;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.atelier-ticket-tear::before {
+  left: -7px;
+}
+
+.atelier-ticket-tear::after {
+  right: -7px;
+}
+
+.atelier-ticket-dashed-line {
+  width: 100%;
+  border-top: 1.5px dashed rgba(0, 0, 0, 0.12);
+}
+
+/* Luxury Status Wax-Seal Pill */
+.status-seal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.status-seal-pill.confirmed {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-seal-pill.pending {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+}
+
+.status-seal-pill.cancelled {
+  background: #FEF2F2;
+  color: #B91C1C;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.status-seal-pill.completed {
+  background: #F4F4F5;
+  color: #3F3F46;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Pulse Dot */
+.status-seal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-seal-pill.confirmed .status-seal-dot {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+.status-seal-pill.pending .status-seal-dot {
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.3);
+  animation: pulseDot 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.6; }
+}
+
+/* Hero Schedule Bento Block */
+.atelier-schedule-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.atelier-bento-tile {
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.atelier-time-hero {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.atelier-date-sub {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--admin-sheet-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.atelier-service-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atelier-price-tag {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #111827;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Client Contact Dossier Tile */
+.atelier-contact-box {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+}
+
+.atelier-contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.atelier-contact-row:not(:last-child) {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.atelier-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  cursor: pointer;
+}
+
+.atelier-action-pill:active {
+  transform: scale(0.96);
+}
+
+.atelier-pill-neutral {
+  background: rgba(0, 0, 0, 0.05);
+  color: #18181B;
+}
+
+.atelier-pill-whatsapp {
+  background: #E6F4EA;
+  color: #137333;
+}
+
+/* Status-Differentiated List Cards (Calendar Timeline & Appointments Tab) */
+.timeline-slot-row.is-pending {
+  border-left: 3px solid #D97706 !important;
+  background: #FFFDF9 !important;
+}
+
+.timeline-slot-row.is-confirmed {
+  border-left: 3px solid #111827 !important;
+  background: #FFFFFF !important;
+}
+
+.timeline-slot-row.is-cancelled {
+  border-left: 3px solid #DC2626 !important;
+  opacity: 0.75 !important;
+  background: #FAFAFA !important;
+}
+
+.booking-card.is-pending {
+  border-left: 3px solid #D97706 !important;
+  background: #FFFDF9 !important;
+}
+
+.booking-card.is-confirmed {
+  border-left: 3px solid #111827 !important;
+  background: #FFFFFF !important;
+}
+
+.booking-card.is-cancelled {
+  border-left: 3px solid #DC2626 !important;
+  opacity: 0.75 !important;
+  background: #FAFAFA !important;
 }
