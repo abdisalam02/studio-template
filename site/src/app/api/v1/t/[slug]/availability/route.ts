@@ -235,6 +235,7 @@ export async function GET(
       hours: dbHours,
       blackouts,
       bookings: blockingBookings,
+      dateOverrides: (tenant.profile as Record<string, any>)?.date_overrides,
       range: queryRange,
       nowUtc,
     });

@@ -1824,37 +1824,46 @@ input:checked + .switch-slider:before {
 /* Palette Swatches */
 .palette-swatches-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (min-width: 600px) {
+  .palette-swatches-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .palette-btn {
   background: #FFFFFF;
   border: 1px solid var(--admin-card-border);
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
   transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
 }
 
 .palette-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(0,0,0,0.2);
+  border-color: rgba(0, 0, 0, 0.2);
 }
 
 .palette-btn.active {
   border-color: #111827;
   box-shadow: 0 0 0 1.5px #111827, 0 4px 14px rgba(0, 0, 0, 0.05);
+  background: #FAFAFA;
 }
 
 .swatch-chip {
-  width: 26px;
-  height: 34px;
-  border-radius: 8px;
+  width: 32px;
+  height: 42px;
+  border-radius: 9px;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
@@ -1869,19 +1878,33 @@ input:checked + .switch-slider:before {
 }
 
 .swatch-chip-canopy {
-  flex: 1.2;
+  flex: 1;
   width: 100%;
 }
 
 .swatch-chip-accent {
   flex: 1;
   width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .swatch-chip-custom {
   flex: 1;
   width: 100%;
-  background: linear-gradient(135deg, #111827, #6366F1 50%, #EC4899);
+  background: conic-gradient(from 210deg, #C9A876 0deg, #A3B18A 90deg, #3B82F6 180deg, #E0A899 270deg, #C9A876 360deg);
+}
+
+.palette-active-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: #111827;
+  color: #FFFFFF;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .swatch-circle {
@@ -4095,35 +4118,35 @@ body.is-sheet-dragging {
 /* Docked Action Bar: permanently pinned above bottom nav */
 .docked-save-bar {
   position: fixed;
-  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-  left: 16px;
-  right: 16px;
-  max-width: 440px;
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  left: 18px;
+  right: 18px;
+  max-width: 400px;
   margin: 0 auto;
-  z-index: 40;
+  z-index: 90;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 9999px;
-  padding: 8px 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.docked-save-bar .btn-ny-time {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22) !important;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 @media (min-width: 960px) {
   .docked-save-bar {
     left: calc(380px + 24px);
     right: 24px;
-    max-width: 520px;
+    max-width: 480px;
     margin: 0;
   }
 }
 
 .tab-pane-padded {
-  padding-bottom: 150px !important;
+  padding-bottom: 170px !important;
 }
 
 /* 6. Admin Toast Notification: elevated above bottom dock */
@@ -4413,4 +4436,342 @@ body.is-sheet-dragging {
   text-align: right;
   margin-top: 3px;
   display: block;
+}
+
+/* --------------------------------------------------------------------------
+   14. TODAY ACTION, SMART UPCOMING FEED & PLAN AHEAD STYLES
+-------------------------------------------------------------------------- */
+.cal-today-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #E5E7EB;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--admin-radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.cal-today-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+}
+
+.cal-today-btn.is-jump {
+  background: rgba(196, 164, 130, 0.22);
+  border-color: rgba(196, 164, 130, 0.45);
+  color: #F3E8DC;
+}
+
+.cal-today-btn.is-jump:hover {
+  background: rgba(196, 164, 130, 0.32);
+  color: #FFFFFF;
+}
+
+.cal-today-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--admin-accent, #C4A482);
+  display: inline-block;
+}
+
+/* Today Cell Ring Indicator on Week & Month Grids */
+.week-day-pill.is-today:not(.active) {
+  border: 1px solid rgba(196, 164, 130, 0.6) !important;
+}
+
+.month-grid-cell.is-today:not(.active),
+.month-day-cell.is-today:not(.active) {
+  border: 1px solid rgba(196, 164, 130, 0.55) !important;
+}
+
+/* Transparent Brand Watermarks on Sheets and Drawers */
+.drawer-brand-watermark {
+  position: absolute;
+  right: 12px;
+  bottom: 18px;
+  width: 220px;
+  height: 220px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.04;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.drawer-brand-watermark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: grayscale(100%);
+}
+
+.sheet-tenant-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4B5563;
+}
+
+/* Today Empty State Banner */
+.today-empty-banner {
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.today-empty-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--admin-sheet-muted, #6B7280);
+}
+
+.today-book-shortcut {
+  background: var(--admin-accent, #C4A482);
+  color: #121214;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease;
+}
+
+.today-book-shortcut:hover {
+  transform: translateY(-1px);
+}
+
+/* Upcoming Schedule Section in Today Empty View */
+.upcoming-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.upcoming-section-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--admin-sheet-muted, #6B7280);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.upcoming-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(196, 164, 130, 0.15);
+  border: 1px solid rgba(196, 164, 130, 0.35);
+  color: #78350F;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.upcoming-jump-link {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--admin-sheet-muted, #6B7280);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s;
+}
+
+.upcoming-jump-link:hover {
+  color: #111827;
+}
+
+/* Schedule View Segmented Switcher */
+.schedule-segmented-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 3px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.schedule-segment-btn {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.schedule-segment-btn.active {
+  background: #FFFFFF;
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Plan Ahead Calendar Layout */
+.plan-ahead-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.plan-ahead-month-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.plan-ahead-quick-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.plan-ahead-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4B5563;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.plan-ahead-chip:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #111827;
+}
+
+.plan-ahead-grid-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9CA3AF;
+  margin-bottom: 6px;
+}
+
+.plan-ahead-grid-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.plan-ahead-cell {
+  position: relative;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.plan-ahead-cell:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.plan-ahead-cell.is-selected {
+  background: #111827 !important;
+  color: #FFFFFF !important;
+  border-color: #111827 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.plan-ahead-cell.is-selected .plan-ahead-cell-num {
+  color: #FFFFFF !important;
+}
+
+.plan-ahead-cell.is-selected .plan-ahead-override-badge {
+  background: var(--admin-accent, #C4A482) !important;
+  color: #121214 !important;
+}
+
+.plan-ahead-cell-num {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1F2937;
+  line-height: 1;
+}
+
+.plan-ahead-override-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  background: rgba(196, 164, 130, 0.25);
+  color: #78350F;
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-top: 3px;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-ahead-override-badge.is-closed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #DC2626;
+}
+
+/* Plan Ahead Batch Config Dock */
+.plan-ahead-dock-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 }

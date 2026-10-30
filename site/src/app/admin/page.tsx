@@ -249,6 +249,16 @@ function AdminPortalContent() {
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("12:00");
 
+  // Plan Ahead Date Overrides State
+  const [scheduleSubTab, setScheduleSubTab] = useState<"weekly" | "plan_ahead">("weekly");
+  const [dateOverrides, setDateOverrides] = useState<Record<string, { open: boolean; start?: string; end?: string; shifts?: { start: string; end: string }[] }>>({});
+  const [planAheadYear, setPlanAheadYear] = useState(() => new Date().getUTCFullYear());
+  const [planAheadMonth, setPlanAheadMonth] = useState(() => new Date().getUTCMonth());
+  const [selectedPlanDates, setSelectedPlanDates] = useState<string[]>([]);
+  const [planCustomStart, setPlanCustomStart] = useState("09:00");
+  const [planCustomEnd, setPlanCustomEnd] = useState("17:00");
+  const [planIsClosed, setPlanIsClosed] = useState(false);
+
   // New Booking Form State
   const [servicesList, setServicesList] = useState<{ id: number | string; name: string; price_nok: number; duration_min: number }[]>([]);
   const [newClientName, setNewClientName] = useState("");
@@ -380,6 +390,26 @@ function AdminPortalContent() {
       return dateStr;
     } catch (_) {
       return dateStr;
+    }
+  }
+
+  function formatUpcomingDate(isoStr?: string): { badge: string; isTomorrow: boolean; dateText: string; timeText: string } {
+    if (!isoStr) return { badge: "Upcoming", isTomorrow: false, dateText: "", timeText: "" };
+    try {
+      const [dPart, tPart] = isoStr.split("T");
+      const [y, m, d] = dPart.split("-").map(Number);
+      const targetDate = new Date(Date.UTC(y, m - 1, d));
+      const today = new Date();
+      const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+      const diffDays = Math.round((targetDate.getTime() - todayUtc.getTime()) / (1000 * 60 * 60 * 24));
+      const timeText = tPart ? tPart.slice(0, 5) : "";
+      const dateText = targetDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      if (diffDays === 1) {
+        return { badge: "Tomorrow", isTomorrow: true, dateText, timeText };
+      }
+      return { badge: dateText, isTomorrow: false, dateText, timeText };
+    } catch (_) {
+      return { badge: "Upcoming", isTomorrow: false, dateText: isoStr, timeText: "" };
     }
   }
 
@@ -847,6 +877,7 @@ function AdminPortalContent() {
           const hData = await hoursRes.json();
           if (hData.shifts) setShifts(hData.shifts);
           if (hData.interval_min) setSlotInterval(String(hData.interval_min));
+          if (hData.date_overrides) setDateOverrides(hData.date_overrides);
         }
 
         if (blackRes.ok) {
@@ -1538,7 +1569,7 @@ function AdminPortalContent() {
           </div>
 
           <div className="canopy-watermark" aria-hidden="true">
-            <img src="/img/logo-v2.png" alt="" className="canopy-watermark-img" />
+            <img src={tenantProfile.logo_url || "/img/logo-v2.png"} alt="" className="canopy-watermark-img" />
           </div>
 
           {/* Calendar Header & View Switcher */}
@@ -1589,36 +1620,50 @@ function AdminPortalContent() {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="cal-toggle-pill"
-              id="cal-mode-toggle"
-              onClick={() => {
-                const nextMode = calendarMode === "week" ? "month" : "week";
-                setCalendarMode(nextMode);
-                if (nextMode === "month") {
-                  setSheetDetent("peek");
-                } else {
-                  setSheetDetent("mid");
-                }
-              }}
-            >
-              <span id="cal-toggle-icon">📅</span>
-              <span id="cal-toggle-label">{calendarMode === "week" ? "Month" : "Week"}</span>
-            </button>
+            {(() => {
+              const now = new Date();
+              const todayIso = now.toISOString().split("T")[0];
+              const isToday = selectedDate === todayIso;
+
+              return (
+                <button
+                  type="button"
+                  className={`cal-today-btn ${!isToday ? "is-jump" : ""}`}
+                  id="cal-today-btn"
+                  onClick={() => {
+                    const todayDate = new Date();
+                    const nowIso = todayDate.toISOString().split("T")[0];
+                    setSelectedDate(nowIso);
+                    setViewYear(todayDate.getUTCFullYear());
+                    setViewMonth(todayDate.getUTCMonth());
+                    setCalendarMode("week");
+                    setSheetDetent("mid");
+                  }}
+                  title="Jump to Today"
+                >
+                  <span className="cal-today-dot" aria-hidden="true" />
+                  <span>
+                    {isToday
+                      ? "Today"
+                      : `Today · ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                  </span>
+                </button>
+              );
+            })()}
           </div>
 
           {/* 7-Day Week Strip */}
           <div className="canopy-week-strip" id="canopy-week-strip">
             {getWeekDaysForDate(selectedDate).map((day) => {
               const isSelected = day.iso === selectedDate;
+              const isToday = day.iso === new Date().toISOString().split("T")[0];
               const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(day.iso));
 
               return (
                 <button
                   key={day.iso}
                   type="button"
-                  className={`week-day-pill ${isSelected ? "active" : ""}`}
+                  className={`week-day-pill ${isSelected ? "active" : ""} ${isToday ? "is-today" : ""}`}
                   onClick={() => {
                     setSelectedDate(day.iso);
                     setViewYear(day.year);
@@ -1647,13 +1692,14 @@ function AdminPortalContent() {
             <div className="month-grid-days" id="month-grid-days">
               {getMonthGridDays(viewYear, viewMonth).map((cell, idx) => {
                 const isSelected = cell.iso === selectedDate;
+                const isToday = cell.iso === new Date().toISOString().split("T")[0];
                 const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(cell.iso));
 
                 return (
                   <button
                     key={`${cell.iso}-${idx}`}
                     type="button"
-                    className={`month-grid-cell month-day-cell ${isSelected ? "active" : ""}`}
+                    className={`month-grid-cell month-day-cell ${isSelected ? "active" : ""} ${isToday ? "is-today" : ""}`}
                     style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
                     onClick={() => {
                       setSelectedDate(cell.iso);
@@ -1693,7 +1739,7 @@ function AdminPortalContent() {
           </div>
 
           <div className="sheet-watermark" aria-hidden="true">
-            <img src="/img/logo-v2.png" alt="" className="sheet-watermark-img" />
+            <img src={tenantProfile.logo_url || "/img/logo-v2.png"} alt="" className="sheet-watermark-img" />
           </div>
 
           {/* Scrollable Sheet Content */}
@@ -1765,9 +1811,183 @@ function AdminPortalContent() {
                 {/* Chronological Timeline Stack */}
                 <div className="dagsagenda-timeline" id="dagsagenda-timeline">
                   {bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate)).length === 0 ? (
-                    <div className="timeline-empty-card">
-                      <p>No appointments scheduled for this date.</p>
-                    </div>
+                    (() => {
+                      const todayIso = new Date().toISOString().split("T")[0];
+                      const isToday = selectedDate === todayIso;
+
+                      if (isToday) {
+                        const upcomingBookings = bookings
+                          .filter((b) => (b.status === "confirmed" || b.status === "pending") && (b.scheduled_at && b.scheduled_at > `${todayIso}T23:59:59`))
+                          .sort((a, b) => (a.scheduled_at || "").localeCompare(b.scheduled_at || ""))
+                          .slice(0, 6);
+
+                        return (
+                          <div className="today-empty-flow">
+                            {/* 1. Clear status banner for Today */}
+                            <div className="today-empty-banner" id="today-empty-banner">
+                              <div>
+                                <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827", marginBottom: "2px" }}>
+                                  ✓ No sessions scheduled today
+                                </div>
+                                <div className="today-empty-text">
+                                  Your schedule is completely clear for {formatEnglishDate(todayIso)}.
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="today-book-shortcut"
+                                onClick={() => {
+                                  setNewDate(todayIso);
+                                  setShowNewBookingModal(true);
+                                }}
+                              >
+                                + Book Today
+                              </button>
+                            </div>
+
+                            {/* 2. Upcoming Schedule Section */}
+                            <div className="upcoming-section-header">
+                              <div>
+                                <span className="upcoming-section-title">Upcoming Schedule · Next Sessions</span>
+                                <div style={{ fontSize: "0.72rem", color: "var(--admin-sheet-muted)", marginTop: "1px" }}>
+                                  Chronological overview of future studio appointments
+                                </div>
+                              </div>
+                              {upcomingBookings.length > 0 && (
+                                <span className="upcoming-date-chip">
+                                  {upcomingBookings.length} upcoming
+                                </span>
+                              )}
+                            </div>
+
+                            {upcomingBookings.length === 0 ? (
+                              <div className="timeline-empty-card" style={{ marginTop: "12px" }}>
+                                <p>No future bookings recorded yet.</p>
+                              </div>
+                            ) : (
+                              upcomingBookings.map((b) => {
+                                const isPending = b.status === "pending";
+                                const { badge, isTomorrow, dateText, timeText } = formatUpcomingDate(b.scheduled_at);
+
+                                return (
+                                  <div
+                                    key={b.ref}
+                                    className={`timeline-slot-row ${isPending ? "is-pending" : "is-confirmed"}`}
+                                    onClick={() => setActiveDrawerBooking(b)}
+                                    role="button"
+                                    tabIndex={0}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "stretch",
+                                      gap: "12px",
+                                      marginBottom: "10px",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <div className="timeline-time-col">
+                                      <strong>{timeText || "12:00"}</strong>
+                                      <span>{b.duration_min || 45}m</span>
+                                    </div>
+                                    <div
+                                      className="timeline-card-content"
+                                      style={{
+                                        flex: 1,
+                                        borderRadius: "18px",
+                                        padding: "14px 16px",
+                                        background: isPending ? "var(--admin-pulse-bg, #FBEBC8)" : "#FFFFFF",
+                                        border: isPending ? "1px solid rgba(217, 119, 6, 0.28)" : "1px solid rgba(0, 0, 0, 0.06)",
+                                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.02)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "6px",
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                          <span className="upcoming-date-chip" style={{ background: isTomorrow ? "rgba(22, 163, 74, 0.12)" : "rgba(196, 164, 130, 0.2)", color: isTomorrow ? "#15803D" : "#78350F", borderColor: isTomorrow ? "rgba(22, 163, 74, 0.3)" : "rgba(196, 164, 130, 0.4)" }}>
+                                            {badge}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            className="upcoming-jump-link"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const dPart = b.scheduled_at?.split("T")[0];
+                                              if (dPart) {
+                                                setSelectedDate(dPart);
+                                                const [y, m] = dPart.split("-").map(Number);
+                                                setViewYear(y);
+                                                setViewMonth(m - 1);
+                                              }
+                                            }}
+                                            title={`Go to ${dateText}`}
+                                          >
+                                            View day →
+                                          </button>
+                                        </div>
+                                        <span
+                                          className={`status-pill-badge ${b.status}`}
+                                          style={{
+                                            fontSize: "0.62rem",
+                                            padding: "2px 7px",
+                                            borderRadius: "999px",
+                                            fontWeight: 700,
+                                            textTransform: "uppercase",
+                                          }}
+                                        >
+                                          {b.status}
+                                        </span>
+                                      </div>
+
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                          <span
+                                            style={{
+                                              width: "32px",
+                                              height: "32px",
+                                              borderRadius: "50%",
+                                              background: isPending ? "#D97706" : "var(--admin-accent, #111)",
+                                              color: "#FFFFFF",
+                                              fontSize: "0.72rem",
+                                              fontWeight: 700,
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            {(b.client_name ?? "G").charAt(0).toUpperCase()}
+                                          </span>
+                                          <div>
+                                            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>
+                                              {b.client_name}
+                                            </div>
+                                            <div style={{ fontSize: "0.76rem", color: "var(--admin-sheet-muted, #6B7280)" }}>
+                                              {b.service_name}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div style={{ textAlign: "right" }}>
+                                          <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827" }}>
+                                            {b.service_price ? `${b.service_price} kr` : "850 kr"}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="timeline-empty-card">
+                          <p>No appointments scheduled for this date.</p>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <>
                       {/* Morning Sessions (< 12:00) */}
@@ -2205,142 +2425,385 @@ function AdminPortalContent() {
             {/* ============================================================= */}
             {activeTab === "schedule" && (
               <section className="tab-panel active tab-pane-padded" id="panel-schedule">
-                <div className="squircle-card">
-                  <div className="card-section-head">
-                    <div>
-                      <h3 className="card-title-main">Studio Operating Hours</h3>
-                      <span className="card-subtitle">Weekly shifts and appointment slot duration</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-ny-time"
-                      id="btn-copy-monday"
-                      style={{ fontSize: "0.72rem", padding: "6px 12px" }}
-                      onClick={() => {
-                        const mon = shifts["Monday"];
-                        setShifts({
-                          Monday: { ...mon },
-                          Tuesday: { ...mon },
-                          Wednesday: { ...mon },
-                          Thursday: { ...mon },
-                          Friday: { ...mon },
-                          Saturday: { ...mon },
-                          Sunday: { ...mon },
-                        });
-                        showToast("✓ Copied Monday hours to all days");
-                      }}
-                    >
-                      Copy Monday
-                    </button>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "14px",
-                      fontSize: "0.8rem",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                    }}
+                {/* Segmented Control: Weekly vs Plan Ahead */}
+                <div className="schedule-segmented-tabs">
+                  <button
+                    type="button"
+                    className={`schedule-segment-btn ${scheduleSubTab === "weekly" ? "active" : ""}`}
+                    onClick={() => setScheduleSubTab("weekly")}
                   >
-                    <span style={{ fontWeight: 600, color: "var(--admin-sheet-muted)" }}>
-                      Appointment Slot Duration:
-                    </span>
-                    <select
-                      id="sched-interval"
-                      className="pill-time-input"
-                      value={slotInterval}
-                      onChange={(e) => setSlotInterval(e.target.value)}
-                      style={{ padding: "6px 12px" }}
-                    >
-                      <option value="15">15 min</option>
-                      <option value="30">30 min</option>
-                      <option value="45">45 min</option>
-                      <option value="60">60 min</option>
-                    </select>
-                  </div>
+                    Weekly Operating Hours
+                  </button>
+                  <button
+                    type="button"
+                    className={`schedule-segment-btn ${scheduleSubTab === "plan_ahead" ? "active" : ""}`}
+                    onClick={() => setScheduleSubTab("plan_ahead")}
+                  >
+                    Plan Ahead & Custom Dates
+                  </button>
+                </div>
 
-                  {/* 7-Day Responsive Shift Cards (Tier 1: Day & Toggle, Tier 2: Time Pickers) */}
-                  <div id="schedule-days-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    {Object.entries(shifts).map(([day, shift]) => (
-                      <div
-                        key={day}
-                        style={{
-                          padding: "12px 14px",
-                          borderRadius: "14px",
-                          background: shift.open ? "#FFFFFF" : "rgba(0, 0, 0, 0.02)",
-                          border: "1px solid rgba(0, 0, 0, 0.06)",
-                          marginBottom: "8px",
+                {scheduleSubTab === "weekly" ? (
+                  <div className="squircle-card">
+                    <div className="card-section-head">
+                      <div>
+                        <h3 className="card-title-main">Studio Operating Hours</h3>
+                        <span className="card-subtitle">Weekly shifts and appointment slot duration</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-ny-time"
+                        id="btn-copy-monday"
+                        style={{ fontSize: "0.72rem", padding: "6px 12px" }}
+                        onClick={() => {
+                          const mon = shifts["Monday"];
+                          setShifts({
+                            Monday: { ...mon },
+                            Tuesday: { ...mon },
+                            Wednesday: { ...mon },
+                            Thursday: { ...mon },
+                            Friday: { ...mon },
+                            Saturday: { ...mon },
+                            Sunday: { ...mon },
+                          });
+                          showToast("✓ Copied Monday hours to all days");
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontWeight: 700, fontSize: "0.88rem", color: shift.open ? "#111827" : "#9CA3AF" }}>
-                              {day}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "0.68rem",
-                                fontWeight: 700,
-                                padding: "2px 7px",
-                                borderRadius: "6px",
-                                background: shift.open ? "rgba(22, 163, 74, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                                color: shift.open ? "#15803D" : "#6B7280",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              {shift.open ? "Open" : "Closed"}
-                            </span>
+                        Copy Monday
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "14px",
+                        fontSize: "0.8rem",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: "var(--admin-sheet-muted)" }}>
+                        Appointment Slot Duration:
+                      </span>
+                      <select
+                        id="sched-interval"
+                        className="pill-time-input"
+                        value={slotInterval}
+                        onChange={(e) => setSlotInterval(e.target.value)}
+                        style={{ padding: "6px 12px" }}
+                      >
+                        <option value="15">15 min</option>
+                        <option value="30">30 min</option>
+                        <option value="45">45 min</option>
+                        <option value="60">60 min</option>
+                      </select>
+                    </div>
+
+                    {/* 7-Day Responsive Shift Cards (Tier 1: Day & Toggle, Tier 2: Time Pickers) */}
+                    <div id="schedule-days-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                      {Object.entries(shifts).map(([day, shift]) => (
+                        <div
+                          key={day}
+                          style={{
+                            padding: "12px 14px",
+                            borderRadius: "14px",
+                            background: shift.open ? "#FFFFFF" : "rgba(0, 0, 0, 0.02)",
+                            border: "1px solid rgba(0, 0, 0, 0.06)",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontWeight: 700, fontSize: "0.88rem", color: shift.open ? "#111827" : "#9CA3AF" }}>
+                                {day}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.68rem",
+                                  fontWeight: 700,
+                                  padding: "2px 7px",
+                                  borderRadius: "6px",
+                                  background: shift.open ? "rgba(22, 163, 74, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                                  color: shift.open ? "#15803D" : "#6B7280",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                {shift.open ? "Open" : "Closed"}
+                              </span>
+                            </div>
+                            <label className="switch-label">
+                              <input
+                                type="checkbox"
+                                checked={shift.open}
+                                onChange={(e) =>
+                                  setShifts({
+                                    ...shifts,
+                                    [day]: { ...shift, open: e.target.checked },
+                                  })
+                                }
+                              />
+                              <span className="switch-slider" />
+                            </label>
                           </div>
-                          <label className="switch-label">
+                          {shift.open && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+                              <input
+                                type="time"
+                                className="recessed-input"
+                                style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                                value={shift.start}
+                                onChange={(e) =>
+                                  setShifts({
+                                    ...shifts,
+                                    [day]: { ...shift, start: e.target.value },
+                                  })
+                                }
+                              />
+                              <span style={{ color: "var(--admin-sheet-muted)", fontSize: "0.85rem" }}>–</span>
+                              <input
+                                type="time"
+                                className="recessed-input"
+                                style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                                value={shift.end}
+                                onChange={(e) =>
+                                  setShifts({
+                                    ...shifts,
+                                    [day]: { ...shift, end: e.target.value },
+                                  })
+                                }
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="squircle-card">
+                    <div className="card-section-head">
+                      <div>
+                        <h3 className="card-title-main">Plan Ahead & Date Overrides</h3>
+                        <span className="card-subtitle">Select dates to set custom hours or mark closed</span>
+                      </div>
+                    </div>
+
+                    {/* Month Navigator Header */}
+                    <div className="plan-ahead-month-header">
+                      <button
+                        type="button"
+                        className="quick-action-btn"
+                        style={{ padding: "6px 12px", minWidth: "36px" }}
+                        onClick={() => {
+                          if (planAheadMonth === 0) {
+                            setPlanAheadMonth(11);
+                            setPlanAheadYear((y) => y - 1);
+                          } else {
+                            setPlanAheadMonth((m) => m - 1);
+                          }
+                        }}
+                      >
+                        ‹
+                      </button>
+                      <h4 style={{ margin: 0, fontSize: "0.96rem", fontWeight: 700, color: "#111827" }}>
+                        {new Date(Date.UTC(planAheadYear, planAheadMonth, 1)).toLocaleDateString("en-US", {
+                          month: "long",
+                          year: "numeric",
+                          timeZone: "UTC",
+                        })}
+                      </h4>
+                      <button
+                        type="button"
+                        className="quick-action-btn"
+                        style={{ padding: "6px 12px", minWidth: "36px" }}
+                        onClick={() => {
+                          if (planAheadMonth === 11) {
+                            setPlanAheadMonth(0);
+                            setPlanAheadYear((y) => y + 1);
+                          } else {
+                            setPlanAheadMonth((m) => m + 1);
+                          }
+                        }}
+                      >
+                        ›
+                      </button>
+                    </div>
+
+                    {/* Quick Selection Helpers */}
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+                      <button
+                        type="button"
+                        className="plan-ahead-chip"
+                        onClick={() => {
+                          const monthCells = getMonthGridDays(planAheadYear, planAheadMonth).filter((c) => c.isCurrentMonth);
+                          setSelectedPlanDates(monthCells.map((c) => c.iso));
+                        }}
+                      >
+                        Select Entire Month
+                      </button>
+                      <button
+                        type="button"
+                        className="plan-ahead-chip"
+                        onClick={() => {
+                          const monthCells = getMonthGridDays(planAheadYear, planAheadMonth).filter((c) => {
+                            if (!c.isCurrentMonth) return false;
+                            const d = new Date(c.iso).getUTCDay();
+                            return d === 0 || d === 6;
+                          });
+                          setSelectedPlanDates(monthCells.map((c) => c.iso));
+                        }}
+                      >
+                        Weekends Only
+                      </button>
+                      <button
+                        type="button"
+                        className="plan-ahead-chip"
+                        onClick={() => {
+                          const monthCells = getMonthGridDays(planAheadYear, planAheadMonth).filter((c) => {
+                            if (!c.isCurrentMonth) return false;
+                            const d = new Date(c.iso).getUTCDay();
+                            return d >= 1 && d <= 5;
+                          });
+                          setSelectedPlanDates(monthCells.map((c) => c.iso));
+                        }}
+                      >
+                        Weekdays Only
+                      </button>
+                      {selectedPlanDates.length > 0 && (
+                        <button
+                          type="button"
+                          className="plan-ahead-chip"
+                          style={{ borderColor: "#DC2626", color: "#DC2626" }}
+                          onClick={() => setSelectedPlanDates([])}
+                        >
+                          Clear ({selectedPlanDates.length})
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Calendar Grid for Plan Ahead */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "16px" }}>
+                      {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                        <div key={i} style={{ textAlign: "center", fontSize: "0.68rem", fontWeight: 700, color: "var(--admin-sheet-muted)", padding: "4px 0" }}>
+                          {d}
+                        </div>
+                      ))}
+                      {getMonthGridDays(planAheadYear, planAheadMonth).map((cell, idx) => {
+                        const isSelected = selectedPlanDates.includes(cell.iso);
+                        const override = dateOverrides[cell.iso];
+                        const isToday = cell.iso === new Date().toISOString().split("T")[0];
+
+                        return (
+                          <button
+                            key={`${cell.iso}-${idx}`}
+                            type="button"
+                            className={`plan-ahead-cell ${isSelected ? "is-selected" : ""} ${override ? "has-override" : ""}`}
+                            style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
+                            onClick={() => {
+                              setSelectedPlanDates((prev) =>
+                                prev.includes(cell.iso) ? prev.filter((d) => d !== cell.iso) : [...prev, cell.iso]
+                              );
+                            }}
+                          >
+                            <span style={{ fontSize: "0.82rem", fontWeight: isToday ? 800 : 600 }}>{cell.dayNum}</span>
+                            {override && (
+                              <span className={`plan-ahead-override-badge ${override.open === false ? "is-closed" : ""}`}>
+                                {override.open === false ? "Closed" : `${override.start?.slice(0, 5)}`}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Configuration Dock Card when dates are selected */}
+                    {selectedPlanDates.length > 0 && (
+                      <div className="plan-ahead-dock-card">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#111827" }}>
+                            {selectedPlanDates.length} date{selectedPlanDates.length === 1 ? "" : "s"} selected
+                          </span>
+                          <label className="switch-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 600, color: planIsClosed ? "#DC2626" : "#15803D" }}>
+                              {planIsClosed ? "Mark Closed" : "Open with Hours"}
+                            </span>
                             <input
                               type="checkbox"
-                              checked={shift.open}
-                              onChange={(e) =>
-                                setShifts({
-                                  ...shifts,
-                                  [day]: { ...shift, open: e.target.checked },
-                                })
-                              }
+                              checked={!planIsClosed}
+                              onChange={(e) => setPlanIsClosed(!e.target.checked)}
                             />
                             <span className="switch-slider" />
                           </label>
                         </div>
-                        {shift.open && (
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+
+                        {!planIsClosed && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                             <input
                               type="time"
                               className="recessed-input"
                               style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
-                              value={shift.start}
-                              onChange={(e) =>
-                                setShifts({
-                                  ...shifts,
-                                  [day]: { ...shift, start: e.target.value },
-                                })
-                              }
+                              value={planCustomStart}
+                              onChange={(e) => setPlanCustomStart(e.target.value)}
                             />
                             <span style={{ color: "var(--admin-sheet-muted)", fontSize: "0.85rem" }}>–</span>
                             <input
                               type="time"
                               className="recessed-input"
                               style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
-                              value={shift.end}
-                              onChange={(e) =>
-                                setShifts({
-                                  ...shifts,
-                                  [day]: { ...shift, end: e.target.value },
-                                })
-                              }
+                              value={planCustomEnd}
+                              onChange={(e) => setPlanCustomEnd(e.target.value)}
                             />
                           </div>
                         )}
+
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            type="button"
+                            className="btn-ny-time"
+                            style={{ flex: 1, padding: "8px 12px", fontSize: "0.76rem", justifyContent: "center" }}
+                            onClick={() => {
+                              const nextOverrides = { ...dateOverrides };
+                              selectedPlanDates.forEach((d) => {
+                                if (planIsClosed) {
+                                  nextOverrides[d] = { open: false };
+                                } else {
+                                  nextOverrides[d] = {
+                                    open: true,
+                                    start: planCustomStart,
+                                    end: planCustomEnd,
+                                    shifts: [{ start: planCustomStart, end: planCustomEnd }],
+                                  };
+                                }
+                              });
+                              setDateOverrides(nextOverrides);
+                              setSelectedPlanDates([]);
+                              showToast(`✓ Applied override to ${selectedPlanDates.length} date(s)`);
+                            }}
+                          >
+                            Apply Override ({selectedPlanDates.length})
+                          </button>
+                          <button
+                            type="button"
+                            className="quick-action-btn"
+                            style={{ padding: "8px 12px", fontSize: "0.76rem" }}
+                            onClick={() => {
+                              const nextOverrides = { ...dateOverrides };
+                              selectedPlanDates.forEach((d) => {
+                                delete nextOverrides[d];
+                              });
+                              setDateOverrides(nextOverrides);
+                              setSelectedPlanDates([]);
+                              showToast(`✓ Reset ${selectedPlanDates.length} date(s) to defaults`);
+                            }}
+                          >
+                            Reset Defaults
+                          </button>
+                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
+                )}
 
                 {/* Active Blackouts Table Card */}
                 <div className="squircle-card">
@@ -2410,14 +2873,17 @@ function AdminPortalContent() {
                         data-preset={p.id}
                         onClick={() => handleSelectPreset(p.id)}
                       >
-                        <div className="swatch-chip">
-                          <div className="swatch-chip-canopy" style={{ backgroundColor: p.canopy }} />
-                          <div className="swatch-chip-accent" style={{ backgroundColor: p.accent }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+                          <div className="swatch-chip">
+                            <div className="swatch-chip-canopy" style={{ backgroundColor: p.canopy }} />
+                            <div className="swatch-chip-accent" style={{ backgroundColor: p.accent }} />
+                          </div>
+                          <div style={{ textAlign: "left" }}>
+                            <span className="palette-name" style={{ display: "block" }}>{p.name}</span>
+                            <span style={{ fontSize: "0.72rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>{p.desc}</span>
+                          </div>
                         </div>
-                        <div style={{ textAlign: "left" }}>
-                          <span className="palette-name" style={{ display: "block" }}>{p.name}</span>
-                          <span style={{ fontSize: "0.66rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>{p.desc}</span>
-                        </div>
+                        {activeTheme === p.id && <span className="palette-active-pill">Active</span>}
                       </button>
                     ))}
                     <button
@@ -2426,13 +2892,16 @@ function AdminPortalContent() {
                       data-preset="custom"
                       onClick={() => setShowCustomThemeSheet(true)}
                     >
-                      <div className="swatch-chip">
-                        <div className="swatch-chip-custom" />
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+                        <div className="swatch-chip">
+                          <div className="swatch-chip-custom" />
+                        </div>
+                        <div style={{ textAlign: "left" }}>
+                          <span className="palette-name" style={{ display: "block" }}>Custom</span>
+                          <span style={{ fontSize: "0.72rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>Manual HEX Palette</span>
+                        </div>
                       </div>
-                      <div style={{ textAlign: "left" }}>
-                        <span className="palette-name" style={{ display: "block" }}>Custom</span>
-                        <span style={{ fontSize: "0.66rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>Manual HEX</span>
-                      </div>
+                      {activeTheme === "custom" && <span className="palette-active-pill">Active</span>}
                     </button>
                   </div>
                 </div>
@@ -2601,6 +3070,7 @@ function AdminPortalContent() {
                       tenant_id: activeTenant,
                       shifts,
                       interval_min: Number(slotInterval),
+                      date_overrides: dateOverrides,
                     }),
                   });
                   if (res.ok) {
@@ -2765,6 +3235,11 @@ function AdminPortalContent() {
                 }
               }}
             >
+              {/* Brand Watermark Backdrop Layer */}
+              <div className="drawer-brand-watermark" aria-hidden="true">
+                <img src={tenantProfile.logo_url || "/img/logo-v2.png"} alt="" className="drawer-brand-watermark-img" />
+              </div>
+
               <div className="modal-top-handle" role="button" aria-label="Dismiss sheet" onClick={() => setActiveDrawerBooking(null)} />
               <div className="modal-sheet-head">
                 <div className="modal-identity">
@@ -2777,9 +3252,12 @@ function AdminPortalContent() {
                       .toUpperCase()}
                   </div>
                   <div className="modal-identity-text">
-                    <span className="modal-eyebrow" id="drawer-ref-pill">
-                      REF {activeDrawerBooking.ref}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                      <span className="modal-eyebrow" id="drawer-ref-pill">
+                        REF {activeDrawerBooking.ref}
+                      </span>
+                      <span className="sheet-tenant-badge">{tenantProfile.name || "Studio"}</span>
+                    </div>
                     <h3 className="modal-sheet-title" id="drawer-client-name">
                       {activeDrawerBooking.client_name ?? "Guest Appointment"}
                     </h3>
@@ -3103,6 +3581,11 @@ function AdminPortalContent() {
                 }
               }}
             >
+              {/* Brand Watermark Backdrop Layer */}
+              <div className="drawer-brand-watermark" aria-hidden="true">
+                <img src={tenantProfile.logo_url || "/img/logo-v2.png"} alt="" className="drawer-brand-watermark-img" />
+              </div>
+
               <div className="modal-top-handle" onClick={() => setShowNewBookingModal(false)} />
               <div className="modal-sheet-head">
                 <div className="modal-identity">
@@ -3110,7 +3593,10 @@ function AdminPortalContent() {
                     +
                   </div>
                   <div className="modal-identity-text">
-                    <span className="modal-eyebrow">NEW RESERVATION</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                      <span className="modal-eyebrow">NEW RESERVATION</span>
+                      <span className="sheet-tenant-badge">{tenantProfile.name || "Studio"}</span>
+                    </div>
                     <h3 className="modal-sheet-title">Manual Appointment</h3>
                   </div>
                 </div>
@@ -3278,9 +3764,17 @@ function AdminPortalContent() {
                 }
               }}
             >
+              {/* Brand Watermark Backdrop Layer */}
+              <div className="drawer-brand-watermark" aria-hidden="true">
+                <img src={tenantProfile.logo_url || "/img/logo-v2.png"} alt="" className="drawer-brand-watermark-img" />
+              </div>
+
               <div className="modal-top-handle" onClick={() => setShowBlockTimeModal(false)} />
               <div className="modal-sheet-head">
-                <h3 className="modal-sheet-title">Block Time</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <h3 className="modal-sheet-title">Block Time</h3>
+                  <span className="sheet-tenant-badge">{tenantProfile.name || "Studio"}</span>
+                </div>
                 <button
                   type="button"
                   className="modal-sheet-close"
@@ -3377,9 +3871,17 @@ function AdminPortalContent() {
                 }
               }}
             >
+              {/* Brand Watermark Backdrop Layer */}
+              <div className="drawer-brand-watermark" aria-hidden="true">
+                <img src={tenantProfile.logo_url || "/img/logo-v2.png"} alt="" className="drawer-brand-watermark-img" />
+              </div>
+
               <div className="modal-top-handle" onClick={() => setShowRescheduleModal(false)} />
               <div className="modal-sheet-head">
-                <h3 className="modal-sheet-title">Reschedule Appointment</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <h3 className="modal-sheet-title">Reschedule Appointment</h3>
+                  <span className="sheet-tenant-badge">{tenantProfile.name || "Studio"}</span>
+                </div>
                 <button
                   type="button"
                   className="modal-sheet-close"

@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
         .order("open_min", { ascending: true }),
       supabaseAdmin
         .from("tenants")
-        .select("slot_step_min")
+        .select("slot_step_min, profile")
         .eq("id", tenantId)
         .maybeSingle(),
     ]);
@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
         hours: rows,
         // Contract used by the admin portal (shifts[day] = { open, start, end }).
         shifts: shiftsFromRows(rows),
+        date_overrides: (tenantRes.data?.profile as Record<string, any>)?.date_overrides || {},
         slot_step_min: interval,
         interval_min: interval,
       },
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { tenant_id, hours, shifts, slot_step_min, interval_min } = body;
+    const { tenant_id, hours, shifts, slot_step_min, interval_min, date_overrides } = body;
     const targetTenantId = tenant_id || auth.tenantId || "";
     if (!targetTenantId) {
       return NextResponse.json({ error: "tenant_required" }, { status: 400, headers: CORS_HEADERS });
@@ -302,6 +303,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4. Persist date_overrides into tenant profile if provided
+    if (date_overrides !== undefined) {
+      const { data: curTenant } = await supabaseAdmin
+        .from("tenants")
+        .select("profile")
+        .eq("id", targetTenantId)
+        .maybeSingle();
+      const currentProfile = (curTenant?.profile as Record<string, any>) || {};
+      const updatedProfile = { ...currentProfile, date_overrides };
+      await supabaseAdmin
+        .from("tenants")
+        .update({ profile: updatedProfile })
+        .eq("id", targetTenantId);
+    }
+
     const [persistedHours, persistedTenant] = await Promise.all([
       supabaseAdmin
         .from("hours")
@@ -311,7 +327,7 @@ export async function POST(req: NextRequest) {
         .order("open_min", { ascending: true }),
       supabaseAdmin
         .from("tenants")
-        .select("slot_step_min")
+        .select("slot_step_min, profile")
         .eq("id", targetTenantId)
         .maybeSingle(),
     ]);
@@ -324,6 +340,7 @@ export async function POST(req: NextRequest) {
         success: true,
         hours: persistedRows,
         shifts: shiftsFromRows(persistedRows),
+        date_overrides: (persistedTenant.data?.profile as Record<string, any>)?.date_overrides || date_overrides || {},
         slot_step_min: interval,
         interval_min: interval,
       },

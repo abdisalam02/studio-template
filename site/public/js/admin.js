@@ -1830,7 +1830,20 @@
     if (saveSettingsBtn) {
       saveSettingsBtn.onclick = async () => {
         const emailInput = document.getElementById('studio-email-input') || document.getElementById('settings-email');
+        const nameInput = document.getElementById('studio-name-input');
+        const addressInput = document.getElementById('studio-address-input');
+        const orgInput = document.getElementById('studio-org-input');
+        const waInput = document.getElementById('studio-whatsapp-input');
+        const leadInput = document.getElementById('rule-lead-time');
+        const horizonInput = document.getElementById('rule-horizon');
+
         const newEmail = emailInput ? emailInput.value.trim() : '';
+        const newName = nameInput ? nameInput.value.trim() : '';
+        const newAddress = addressInput ? addressInput.value.trim() : '';
+        const newOrg = orgInput ? orgInput.value.trim() : '';
+        const newWa = waInput ? waInput.value.trim() : '';
+        const leadHours = leadInput ? parseFloat(leadInput.value) : NaN;
+        const horizonDays = horizonInput ? parseInt(horizonInput.value, 10) : NaN;
 
         if (newEmail) {
           localStorage.setItem(storageKey('studio_email'), newEmail);
@@ -1840,14 +1853,21 @@
         showToast('✓ Saving studio settings...');
 
         try {
+          const payload = {
+            tenant_id: TENANT_ID,
+            owner_email: newEmail || undefined,
+            name: newName || undefined,
+            address: newAddress,
+            org_number: newOrg,
+            whatsapp: newWa,
+            min_notice_min: Number.isFinite(leadHours) ? Math.round(leadHours * 60) : undefined,
+            max_days_ahead: Number.isFinite(horizonDays) ? horizonDays : undefined
+          };
           const res = await fetch(`${getApiBase()}/api/admin/settings`, {
             method: 'POST',
             headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             credentials: 'include',
-            body: JSON.stringify({
-              tenant_id: TENANT_ID,
-              email: newEmail
-            })
+            body: JSON.stringify(payload)
           });
           if (res.ok) {
             showToast('✓ Studio settings saved to database');
@@ -2557,19 +2577,27 @@
     if (emailInputEl) {
       let detectTimer = null;
       const detectTenantFromEmail = () => {
+        if (HAS_TENANT_PARAM) {
+          applyLoginBranding(TENANT_ID);
+          return;
+        }
         const matched = resolveTenantByAdminEmail(emailInputEl.value);
         if (matched) {
           setActiveTenant(matched, { applyBranding: false });
           applyLoginBranding(matched);
         } else {
-          applyLoginBranding(HAS_TENANT_PARAM ? TENANT_ID : '');
+          applyLoginBranding('');
         }
       };
       emailInputEl.addEventListener('input', () => {
+        clearStepErrors();
         if (detectTimer) clearTimeout(detectTimer);
         detectTimer = setTimeout(detectTenantFromEmail, 200);
       });
       emailInputEl.addEventListener('blur', detectTenantFromEmail);
+    }
+    if (pinInput) {
+      pinInput.addEventListener('input', () => clearStepErrors());
     }
 
     async function sendOtp(isResend) {
@@ -2585,7 +2613,9 @@
         return;
       }
 
-      const requestedTenant = resolveTenantByAdminEmail(requestedEmail) || TENANT_ID;
+      const requestedTenant = HAS_TENANT_PARAM
+        ? TENANT_ID
+        : (resolveTenantByAdminEmail(requestedEmail) || TENANT_ID);
       const button = isResend ? resendBtn : otpBtn;
       const idleLabel = isResend ? RESEND_LABEL : OTP_LABEL;
 
@@ -2650,12 +2680,14 @@
 
     const session = await fetchSession();
     if (session) {
-      if (session.tenant_id) setActiveTenant(session.tenant_id, { applyBranding: true });
+      const initialTenant = HAS_TENANT_PARAM ? TENANT_ID : (session.tenant_id || TENANT_ID);
+      setActiveTenant(initialTenant, { applyBranding: true });
       isGateLocked = false;
       overlay.classList.remove('unlocking');
       overlay.style.display = 'none';
       document.body.classList.remove('is-locked');
       document.body.classList.remove('is-unlocked');
+      hydrateAccessibleTenants();
     } else {
       isGateLocked = true;
       overlay.classList.remove('unlocking');
@@ -2771,6 +2803,7 @@
               overlay.style.display = 'none';
               overlay.classList.remove('unlocking');
               document.body.classList.remove('is-unlocked');
+              hydrateAccessibleTenants();
               loadAllData();
             }, 750);
           } else {
@@ -2792,27 +2825,141 @@
   // ----------------------------------------------------------------------------
   // 13. DYNAMIC TENANT BRANDING
   // ----------------------------------------------------------------------------
+  function computeMonogram(name, customMonogram) {
+    if (customMonogram && String(customMonogram).trim()) {
+      return String(customMonogram).trim().slice(0, 3).toUpperCase();
+    }
+    const clean = String(name || 'Studio').replace(/^by\s+/i, '').trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return (clean.slice(0, 2) || 'ST').toUpperCase();
+  }
+
+  async function hydrateAccessibleTenants() {
+    const switcher = document.getElementById('header-tenant-switcher');
+    const platformLink = document.getElementById('header-platform-link');
+    if (!switcher) return;
+    try {
+      const res = await fetch(`${getApiBase()}/api/admin/tenants`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (!data || !Array.isArray(data.tenants)) return;
+
+      if (platformLink) {
+        platformLink.style.display = data.is_platform_admin ? 'inline-flex' : 'none';
+      }
+
+      if (data.tenants.length > 1 || data.is_platform_admin) {
+        switcher.innerHTML = '';
+        data.tenants.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = `${t.name} (${t.id})`;
+          opt.style.color = '#121214';
+          opt.style.background = '#FFFFFF';
+          if (t.id === TENANT_ID) opt.selected = true;
+          switcher.appendChild(opt);
+        });
+        switcher.style.display = 'inline-flex';
+        if (!switcher._wired) {
+          switcher._wired = true;
+          switcher.addEventListener('change', () => {
+            const nextSlug = switcher.value;
+            if (!nextSlug || nextSlug === TENANT_ID) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('tenant', nextSlug);
+            window.history.replaceState({}, '', url.toString());
+            setActiveTenant(nextSlug, { applyBranding: true });
+            hydrateTenantFromPublicProfile(nextSlug);
+            syncWithSupabase(false);
+            loadActivity(true);
+          });
+        }
+      } else {
+        switcher.style.display = 'none';
+      }
+    } catch (_) {}
+  }
+
+  async function hydrateTenantFromPublicProfile(slug) {
+    const target = slug || TENANT_ID;
+    if (!target) return;
+    try {
+      const res = await fetch(`${getApiBase()}/api/v1/t/${encodeURIComponent(target)}/profile`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) return;
+      const prof = await res.json().catch(() => null);
+      if (!prof) return;
+      const b = prof.branding || {};
+      const c = prof.contact || {};
+      const id = prof.identity || {};
+
+      if (!window.GANGINA_CONFIG) window.GANGINA_CONFIG = { profiles: {} };
+      if (!window.GANGINA_CONFIG.profiles) window.GANGINA_CONFIG.profiles = {};
+      const existing = window.GANGINA_CONFIG.profiles[target] || {};
+
+      const merged = Object.assign({}, existing, {
+        name: id.brandName || existing.name || target,
+        fullName: id.brandName || existing.fullName || target,
+        monogram: b.monogram || id.monogram || existing.monogram || computeMonogram(id.brandName || target),
+        subtitle: b.tagline || existing.subtitle || 'Studio Manager',
+        loginSubtitle: b.tagline || existing.loginSubtitle || 'Studio Manager',
+        logoUrl: b.logo_url || existing.logoUrl || '',
+        watermarkUrl: b.watermark_url || existing.watermarkUrl || '',
+        whatsapp: c.whatsapp || existing.whatsapp || '',
+        address: c.address || existing.address || '',
+        org: c.orgNumber ? `${c.orgNumber}${c.mvaStatus ? ' ' + c.mvaStatus : ''}` : (existing.org || '')
+      });
+      window.GANGINA_CONFIG.profiles[target] = merged;
+      if (target === TENANT_ID) {
+        TENANT_PROFILE = merged;
+        applyTenantBranding();
+        if (b.palette && b.palette.accent) {
+          applyCustomTheme({
+            accent: b.palette.accent,
+            card: b.palette.card || '#18181B',
+            canvas: b.palette.canvas || '#0A0A0A'
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
   /** Styles the frosted gate capsule. Empty id renders the neutral atelier view. */
   function applyLoginBranding(tenantId) {
     const card = document.getElementById('admin-login-card');
     const heading = document.getElementById('login-studio-name');
     const subtitle = document.getElementById('login-subtitle');
     const badge = document.getElementById('admin-login-badge');
+    const markSpan = badge ? badge.querySelector('.login-brand-badge-mark span') : null;
     const logoImg = document.getElementById('admin-login-logo');
     const profile = tenantId ? tenantProfileById(tenantId) : null;
 
     if (profile) {
-      if (heading) heading.textContent = profile.fullName || profile.name || tenantId;
+      const displayTitle = profile.fullName || profile.name || tenantId;
+      if (heading) heading.textContent = displayTitle;
       if (card) card.setAttribute('data-tenant', tenantId);
-      // Cross-fade the glass badge from the "A.G" monogram to the studio logo.
+      const monogram = computeMonogram(displayTitle, profile.monogram);
+      if (markSpan) markSpan.textContent = monogram;
+
+      const hasLogo = Boolean(profile.logoUrl && String(profile.logoUrl).trim());
       if (logoImg) {
-        logoImg.setAttribute('src', profile.logoUrl || '');
-        logoImg.setAttribute('alt', profile.name || '');
+        logoImg.setAttribute('src', hasLogo ? profile.logoUrl : '');
+        logoImg.setAttribute('alt', hasLogo ? (profile.name || '') : '');
       }
-      if (badge) badge.classList.add('is-resolved');
+      if (badge) {
+        badge.classList.toggle('is-resolved', hasLogo);
+      }
     } else {
       if (heading) heading.textContent = 'Atelier Portal';
       if (card) card.removeAttribute('data-tenant');
+      if (markSpan) markSpan.textContent = 'A.G';
       if (badge) badge.classList.remove('is-resolved');
     }
     // Subtitle stays constant per the frosted-capsule design.
@@ -2822,8 +2969,10 @@
   function applyTenantBranding() {
     const name = (TENANT_PROFILE && TENANT_PROFILE.name) || TENANT_ID;
     const fullName = (TENANT_PROFILE && TENANT_PROFILE.fullName) || name;
-    const subtitle = (TENANT_PROFILE && TENANT_PROFILE.subtitle) || '';
+    const subtitle = (TENANT_PROFILE && TENANT_PROFILE.subtitle) || 'Studio Manager';
     const logo = (TENANT_PROFILE && TENANT_PROFILE.logoUrl) || '';
+    const watermark = (TENANT_PROFILE && TENANT_PROFILE.watermarkUrl) || logo || '';
+    const monogram = computeMonogram(name, TENANT_PROFILE && TENANT_PROFILE.monogram);
 
     document.title = `${name} Studio Manager · Executive Portal`;
 
@@ -2831,16 +2980,33 @@
     if (brandEl) brandEl.textContent = name;
 
     const subEl = document.querySelector('.studio-subtext');
-    if (subEl && subtitle) subEl.textContent = subtitle;
+    if (subEl) subEl.textContent = subtitle;
 
+    const headerLogoImg = document.getElementById('canopy-logo-img') || document.querySelector('.canopy-logo-img');
+    const headerMonogram = document.getElementById('canopy-logo-monogram');
     if (logo) {
-      document
-        .querySelectorAll('.canopy-logo-img, .canopy-watermark-img, .sheet-watermark-img')
-        .forEach((img) => {
-          img.setAttribute('src', logo);
-          if (img.getAttribute('alt')) img.setAttribute('alt', name);
-        });
+      if (headerLogoImg) {
+        headerLogoImg.setAttribute('src', logo);
+        headerLogoImg.setAttribute('alt', name);
+        headerLogoImg.style.display = 'block';
+      }
+      if (headerMonogram) headerMonogram.style.display = 'none';
+    } else {
+      if (headerLogoImg) headerLogoImg.style.display = 'none';
+      if (headerMonogram) {
+        headerMonogram.textContent = monogram;
+        headerMonogram.style.display = 'inline-block';
+      }
     }
+
+    document.querySelectorAll('.canopy-watermark-img, .sheet-watermark-img').forEach((img) => {
+      if (watermark) {
+        img.setAttribute('src', watermark);
+        img.style.display = 'block';
+      } else {
+        img.style.display = 'none';
+      }
+    });
 
     // Login gate is branded only when a tenant was explicitly requested; the
     // email handlers repaint it once an owner email resolves a tenant.
@@ -2853,7 +3019,13 @@
 
     if (TENANT_PROFILE) {
       const nameInput = document.getElementById('studio-name-input');
-      if (nameInput && !nameInput._userEdited && !nameInput.value) nameInput.value = fullName;
+      if (nameInput && !nameInput._userEdited) nameInput.value = fullName;
+      const addrInput = document.getElementById('studio-address-input');
+      if (addrInput && !addrInput._userEdited) addrInput.value = TENANT_PROFILE.address || '';
+      const orgInput = document.getElementById('studio-org-input');
+      if (orgInput && !orgInput._userEdited) orgInput.value = TENANT_PROFILE.org || '';
+      const waInput = document.getElementById('studio-whatsapp-input');
+      if (waInput && !waInput._userEdited) waInput.value = TENANT_PROFILE.whatsapp || '';
     }
   }
 
@@ -2986,6 +3158,7 @@
     // Remove customer data persisted by older builds.
     try { localStorage.removeItem(storageKey('bookings')); } catch (e) {}
     applyTenantBranding();
+    hydrateTenantFromPublicProfile(TENANT_ID);
     initTouchGestures();
     initNavigation();
     initModals();

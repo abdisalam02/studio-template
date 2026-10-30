@@ -32,6 +32,7 @@ export interface AvailabilityParams {
   hours: AvailabilityHour[];
   blackouts: AvailabilityBlackout[];
   bookings: AvailabilityBooking[];
+  dateOverrides?: Record<string, { open: boolean; start?: string; end?: string; shifts?: { start: string; end: string }[] }>;
   range: {
     fromUtc: number; // Epoch seconds (inclusive start of range)
     toUtc: number; // Epoch seconds (exclusive end of range)
@@ -118,7 +119,7 @@ function getWeekdayMondayZero(year: number, month: number, day: number): number 
 }
 
 export function computeAvailability(params: AvailabilityParams): string[] {
-  const { tenant, service, hours, blackouts, bookings, range } = params;
+  const { tenant, service, hours, blackouts, bookings, range, dateOverrides } = params;
   const now = params.nowUtc ?? Math.floor(Date.now() / 1000);
   const minNoticeSeconds = tenant.min_notice_min * 60;
   const minEarliestStart = now + minNoticeSeconds;
@@ -145,6 +146,49 @@ export function computeAvailability(params: AvailabilityParams): string[] {
     const y = curDate.getUTCFullYear();
     const m = curDate.getUTCMonth() + 1;
     const d = curDate.getUTCDate();
+    const ymd = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+    // 1. Date-specific Plan Ahead override check
+    const override = dateOverrides?.[ymd];
+    if (override) {
+      if (override.open === false) {
+        continue; // Studio closed on this specific date
+      }
+      const customShifts = override.shifts || (override.start && override.end ? [{ start: override.start, end: override.end }] : []);
+      if (customShifts.length > 0) {
+        for (const cs of customShifts) {
+          const [sh, sm] = cs.start.split(":").map(Number);
+          const [eh, em] = cs.end.split(":").map(Number);
+          const openMin = (sh || 0) * 60 + (sm || 0);
+          const closeMin = (eh || 0) * 60 + (em || 0);
+          if (closeMin <= openMin) continue;
+
+          const shiftCloseUtc = localDateTimeToUtc(y, m, d, closeMin, tenant.timezone);
+          for (let slotMin = openMin; slotMin < closeMin; slotMin += tenant.slot_step_min) {
+            const startUtc = localDateTimeToUtc(y, m, d, slotMin, tenant.timezone);
+            if (startUtc < range.fromUtc || startUtc >= range.toUtc) continue;
+            if (startUtc < minEarliestStart) continue;
+
+            const endUtc = startUtc + serviceDurationSec;
+            const blockEndUtc = endUtc + effectiveBufferSec;
+            if (blockEndUtc > shiftCloseUtc) continue;
+
+            const hasBlackoutConflict = blackouts.some(
+              (b) => startUtc < b.end_utc && blockEndUtc > b.start_utc
+            );
+            if (hasBlackoutConflict) continue;
+
+            const hasBookingConflict = bookings.some(
+              (b) => startUtc < b.block_end_utc && blockEndUtc > b.start_utc
+            );
+            if (hasBookingConflict) continue;
+
+            validSlotStarts.push(startUtc);
+          }
+        }
+        continue;
+      }
+    }
 
     const weekday = getWeekdayMondayZero(y, m, d);
 
