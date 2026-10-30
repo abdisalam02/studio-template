@@ -4015,6 +4015,7 @@ html, body, .admin-app-root {
 .porcelain-sheet {
   will-change: transform;
   touch-action: pan-y;
+  overscroll-behavior-y: none;
 }
 
 .porcelain-sheet.is-dragging {
@@ -4022,8 +4023,52 @@ html, body, .admin-app-root {
   will-change: transform;
 }
 
+.sheet-content-scroller {
+  overscroll-behavior-y: none;
+}
+
+body.is-sheet-dragging {
+  overscroll-behavior-y: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .sheet-handle-bar {
   touch-action: none;
+}
+
+/* Docked Action Bar: permanently pinned above bottom nav */
+.docked-save-bar {
+  position: fixed;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  max-width: 440px;
+  margin: 0 auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+  padding: 8px 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+@media (min-width: 960px) {
+  .docked-save-bar {
+    left: calc(380px + 24px);
+    right: 24px;
+    max-width: 520px;
+    margin: 0;
+  }
+}
+
+.tab-pane-padded {
+  padding-bottom: 150px !important;
 }
 
 /* 6. Admin Toast Notification: elevated above bottom dock */

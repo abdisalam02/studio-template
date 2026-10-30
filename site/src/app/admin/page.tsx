@@ -90,7 +90,9 @@ function AdminPortalContent() {
     scope?: string;
   } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [isLocked, setIsLocked] = useState(true);
+  const [authStatus, setAuthStatus] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
+  const isLocked = authStatus !== "authenticated";
+  const setIsLocked = (locked: boolean) => setAuthStatus(locked ? "unauthenticated" : "authenticated");
   const [loginStep, setLoginStep] = useState<"email" | "code">("email");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPin, setLoginPin] = useState("");
@@ -237,10 +239,13 @@ function AdminPortalContent() {
   const [toastMessage, setToastMessage] = useState("");
 
   // New Booking Form State
+  const [servicesList, setServicesList] = useState<{ id: number | string; name: string; price_nok: number; duration_min: number }[]>([]);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
-  const [newService, setNewService] = useState("Signature Session");
+  const [newService, setNewService] = useState("18k Gold Tooth Gem · Upper Canine");
+  const [newPrice, setNewPrice] = useState(850);
+  const [newDuration, setNewDuration] = useState(45);
   const [newDate, setNewDate] = useState("2026-10-30");
   const [newTime, setNewTime] = useState("12:00");
 
@@ -375,111 +380,153 @@ function AdminPortalContent() {
   const dockRef = useRef<HTMLElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
 
-  const gestureRef = useRef<{
-    startY: number;
-    startX: number;
-    lastY: number;
-    startTime: number;
-    isDragging: boolean;
-    isHandle: boolean;
-    startScrollTop: number;
-    startDetent: "mid" | "upper" | "peek";
-  } | null>(null);
+  const suppressClickUntilRef = useRef<number>(0);
 
-  const handleSheetPointerDown = (e: React.PointerEvent) => {
-    if (typeof window !== "undefined" && window.innerWidth >= 960) return;
-    const target = e.target as HTMLElement;
-    if (target.closest("button, input, select, a, textarea, [role='button']:not(#sheet-handle-bar)")) return;
+  // 60fps Native Sheet Touch Gesture Engine (Full Parity with site/public/js/admin.js)
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    const sheet = sheetRef.current;
+    const scroller = sheetScrollerRef.current;
+    if (!sheet || !scroller) return;
 
-    const isHandle = target.closest("#sheet-handle-bar") !== null;
-    const scrollTop = sheetScrollerRef.current ? sheetScrollerRef.current.scrollTop : 0;
+    const PEEK_HEIGHT = 250;
+    const TOP_ZONE = 136;
+    const TOP_GAIN = 1.35;
+    const CONTENT_GAIN = 1.0;
+    const TAP_SLOP = 6;
+    const FLICK_VELOCITY = 0.55;
+    const SNAP_MS = 320;
 
-    gestureRef.current = {
-      startY: e.clientY,
-      startX: e.clientX,
-      lastY: e.clientY,
-      startTime: performance.now(),
-      isDragging: false,
-      isHandle,
-      startScrollTop: scrollTop,
-      startDetent: sheetDetent,
+    let gesture: {
+      x: number;
+      y: number;
+      startDetent: "mid" | "upper" | "peek";
+      gain: number;
+      active: boolean;
+      cancelled: boolean;
+      moved: boolean;
+      velocity: number;
+      lastY: number;
+      lastT: number;
+      startScrollTop: number;
+    } | null = null;
+
+    // Ghost-click guard: dragging must never click a card or button
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (Date.now() < suppressClickUntilRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    };
+    document.addEventListener("click", handleDocumentClick, true);
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (typeof window !== "undefined" && window.innerWidth >= 960) return;
+      if (e.touches.length !== 1) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button, input, select, a, textarea, [role='button']:not(#sheet-handle-bar)")) return;
+
+      const touch = e.touches[0];
+      const rect = sheet.getBoundingClientRect();
+
+      gesture = {
+        x: touch.clientX,
+        y: touch.clientY,
+        startDetent: sheetDetent,
+        gain: touch.clientY - rect.top < TOP_ZONE ? TOP_GAIN : CONTENT_GAIN,
+        active: false,
+        cancelled: false,
+        moved: false,
+        velocity: 0,
+        lastY: touch.clientY,
+        lastT: performance.now(),
+        startScrollTop: scroller.scrollTop,
+      };
     };
 
-    if (isHandle) {
-      gestureRef.current.isDragging = true;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      if (sheetRef.current) {
-        sheetRef.current.classList.add("is-dragging");
-      }
-    }
-  };
+    const onTouchMove = (e: TouchEvent) => {
+      if (typeof window !== "undefined" && window.innerWidth >= 960) return;
+      if (!gesture || e.touches.length !== 1) return;
+      if (gesture.cancelled) return;
 
-  const handleSheetPointerMove = (e: React.PointerEvent) => {
-    const g = gestureRef.current;
-    if (!g || !sheetRef.current) return;
-    const dy = e.clientY - g.startY;
-    const dx = e.clientX - g.startX;
-    g.lastY = e.clientY;
+      const touch = e.touches[0];
+      const dx = touch.clientX - gesture.x;
+      const dy = touch.clientY - gesture.y;
 
-    if (!g.isDragging) {
-      if (!g.isHandle) {
-        // Surface pull-down: allow sliding down from anywhere on the sheet when scrolled to top
-        if (g.startScrollTop <= 0 && dy > 6 && Math.abs(dy) > Math.abs(dx)) {
-          g.isDragging = true;
-          sheetRef.current.classList.add("is-dragging");
-          try {
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-          } catch (_) {}
-        } else if (g.startDetent === "mid" && dy < -6 && Math.abs(dy) > Math.abs(dx) && g.startScrollTop <= 0) {
-          // Allow upward pull from mid to upper detent
-          g.isDragging = true;
-          sheetRef.current.classList.add("is-dragging");
-          try {
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-          } catch (_) {}
+      if (!gesture.active) {
+        // Wait until clear movement
+        if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) return;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          gesture.cancelled = true;
+          return;
         }
+
+        // Sheet limit boundary guards
+        if (gesture.startDetent === "peek" && dy > 0) {
+          gesture.cancelled = true;
+          return;
+        }
+        if (gesture.startDetent === "upper" && dy < 0) {
+          gesture.cancelled = true;
+          return;
+        }
+
+        // Allow feed to scroll first; hand over at scrollTop <= 0
+        if (dy > 0 && scroller.scrollTop > 0) return;
+
+        gesture.active = true;
+        gesture.lastY = touch.clientY;
+        gesture.lastT = performance.now();
+        sheet.classList.add("is-dragging");
+        document.body.classList.add("is-sheet-dragging");
       }
-    }
 
-    if (g.isDragging) {
-      const baseOffset = g.startDetent === "upper" ? 80 : g.startDetent === "peek" ? (typeof window !== "undefined" ? window.innerHeight - 250 : 360) : 195;
-      let offset = baseOffset + dy;
-      if (offset < 80) offset = 80 + (offset - 80) * 0.2;
+      // CRITICAL: Block native mobile browser pull-to-refresh
+      if (e.cancelable) e.preventDefault();
 
-      sheetRef.current.style.transform = `translate3d(0, ${offset}px, 0)`;
-    }
-  };
+      const baseOffset = gesture.startDetent === "upper" ? 80 : gesture.startDetent === "peek" ? (typeof window !== "undefined" ? window.innerHeight - 250 : 360) : 195;
+      let next = baseOffset + dy * gesture.gain;
+      if (next < 80) next = 80 + (next - 80) * 0.25;
 
-  const handleSheetPointerUp = (e: React.PointerEvent) => {
-    const g = gestureRef.current;
-    if (!g || !sheetRef.current) return;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch (_) {}
+      sheet.style.transform = `translate3d(0, ${next}px, 0)`;
 
-    const dy = g.lastY - g.startY;
-    const dt = Math.max(1, performance.now() - g.startTime);
-    const velocity = dy / dt;
+      const now = performance.now();
+      const dt = now - gesture.lastT;
+      if (dt > 0) {
+        gesture.velocity = (touch.clientY - gesture.lastY) / dt;
+        gesture.lastY = touch.clientY;
+        gesture.lastT = now;
+      }
+    };
 
-    const start = g.startDetent;
-    const wasDragging = g.isDragging;
-    gestureRef.current = null;
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!gesture) return;
+      const state = gesture;
+      gesture = null;
+      if (!state.active) return;
 
-    if (wasDragging) {
-      let targetDetent = start;
-      if (start === "mid") {
-        if (dy > 45 || velocity > 0.25) {
+      if (e.cancelable) e.preventDefault();
+      sheet.classList.remove("is-dragging");
+      document.body.classList.remove("is-sheet-dragging");
+
+      const dy = state.lastY - state.y;
+      const flick = Math.abs(state.velocity) > FLICK_VELOCITY;
+      let targetDetent = state.startDetent;
+
+      if (state.startDetent === "mid") {
+        if (flick ? state.velocity > 0 : dy > 60) {
           targetDetent = "peek";
           setCalendarMode("month");
-        } else if (dy < -45 || velocity < -0.25) {
+        } else if (flick ? state.velocity < 0 : dy < -60) {
           targetDetent = "upper";
         }
-      } else if (start === "upper") {
-        if (dy > 45 || velocity > 0.25) {
+      } else if (state.startDetent === "upper") {
+        if (flick ? state.velocity > 0 : dy > 60) {
           targetDetent = "mid";
         }
-      } else if (start === "peek") {
-        if (dy < -45 || velocity < -0.25) {
+      } else if (state.startDetent === "peek") {
+        if (flick ? state.velocity < 0 : dy < -60) {
           targetDetent = "mid";
           setCalendarMode("week");
         }
@@ -487,26 +534,33 @@ function AdminPortalContent() {
 
       setSheetDetent(targetDetent);
 
-      // Industry-standard fluid spring settling: animate smoothly to target detent without snapping
-      sheetRef.current.classList.remove("is-dragging");
-      sheetRef.current.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
       const targetOffset = targetDetent === "upper" ? 80 : targetDetent === "peek" ? (typeof window !== "undefined" ? window.innerHeight - 250 : 360) : 195;
-      sheetRef.current.style.transform = `translate3d(0, ${targetOffset}px, 0)`;
+      sheet.style.transition = `transform ${SNAP_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+      sheet.style.transform = `translate3d(0, ${targetOffset}px, 0)`;
 
       setTimeout(() => {
-        if (sheetRef.current) {
-          sheetRef.current.style.transition = "";
-          sheetRef.current.style.transform = "";
-        }
-      }, 320);
-    } else {
-      sheetRef.current.classList.remove("is-dragging");
-      sheetRef.current.style.transform = "";
-    }
-  };
+        sheet.style.transition = "";
+        sheet.style.transform = "";
+      }, SNAP_MS + 20);
+
+      if (state.moved) suppressClickUntilRef.current = Date.now() + 420;
+    };
+
+    sheet.addEventListener("touchstart", onTouchStart, { passive: true });
+    sheet.addEventListener("touchmove", onTouchMove, { passive: false });
+    sheet.addEventListener("touchend", onTouchEnd);
+    sheet.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      document.removeEventListener("click", handleDocumentClick, true);
+      sheet.removeEventListener("touchstart", onTouchStart);
+      sheet.removeEventListener("touchmove", onTouchMove);
+      sheet.removeEventListener("touchend", onTouchEnd);
+      sheet.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [authStatus, sheetDetent, activeTab]);
 
   const handleSheetHandleClick = () => {
-    if (gestureRef.current?.isDragging) return;
     if (activeTab === "kalender") {
       if (sheetDetent === "peek") {
         setSheetDetent("mid");
@@ -583,7 +637,7 @@ function AdminPortalContent() {
 
   const enterDemoSandbox = () => {
     setActiveTenant("noire");
-    setIsLocked(false);
+    setAuthStatus("authenticated");
     setTenantProfile({
       id: "noire",
       name: "Atelier Noire",
@@ -667,6 +721,7 @@ function AdminPortalContent() {
     async function checkAuth() {
       if (searchParams.get("demo") === "1" || searchParams.get("demo") === "true" || tenantParam === "demo-studio") {
         enterDemoSandbox();
+        setAuthStatus("authenticated");
         return;
       }
       try {
@@ -675,20 +730,24 @@ function AdminPortalContent() {
           const data = await res.json();
           if (data.authenticated) {
             setSession(data);
-            setIsLocked(false);
+            setAuthStatus("authenticated");
             // The session's tenant is authoritative. Never fall back to noire.
             if (data.tenant_id) {
               setActiveTenant(data.tenant_id);
             }
           } else {
             setSession(null);
-            setIsLocked(true);
+            setAuthStatus("unauthenticated");
             setActiveTenant("");
             setTenantProfile(EMPTY_TENANT_PROFILE);
           }
+        } else {
+          setSession(null);
+          setAuthStatus("unauthenticated");
         }
       } catch (err) {
-        setIsLocked(true);
+        setSession(null);
+        setAuthStatus("unauthenticated");
       }
     }
     checkAuth();
@@ -724,12 +783,13 @@ function AdminPortalContent() {
         return;
       }
       try {
-        const [profRes, bookRes, hoursRes, blackRes, auditRes] = await Promise.all([
+        const [profRes, bookRes, hoursRes, blackRes, auditRes, servRes] = await Promise.all([
           fetch(`/api/admin/settings?tenant_id=${encodeURIComponent(activeTenant)}`),
           fetch(`/api/admin/bookings?tenant_id=${encodeURIComponent(activeTenant)}`),
           fetch(`/api/admin/hours?tenant_id=${encodeURIComponent(activeTenant)}`),
           fetch(`/api/admin/blackouts?tenant_id=${encodeURIComponent(activeTenant)}`),
           fetch(`/api/admin/audit?tenant_id=${encodeURIComponent(activeTenant)}`),
+          fetch(`/api/v1/t/${encodeURIComponent(activeTenant)}/services`).catch(() => null),
         ]);
 
         if (profRes.ok) {
@@ -779,6 +839,16 @@ function AdminPortalContent() {
         if (auditRes.ok) {
           const aData = await auditRes.json();
           if (Array.isArray(aData.events)) setActivityLogs(aData.events);
+        }
+
+        if (servRes && servRes.ok) {
+          const sData = await servRes.json();
+          if (Array.isArray(sData.services) && sData.services.length > 0) {
+            setServicesList(sData.services);
+            setNewService(sData.services[0].name);
+            setNewPrice(sData.services[0].price_nok);
+            setNewDuration(sData.services[0].duration_min);
+          }
         }
       } catch (err) {
         console.error("Failed to load tenant data:", err);
@@ -858,7 +928,7 @@ function AdminPortalContent() {
       if (res.ok && data.success) {
         const verifiedTenant =
           typeof data.tenant_id === "string" ? data.tenant_id : "";
-        setIsLocked(false);
+        setAuthStatus("authenticated");
         setSession({
           authenticated: true,
           email: data.email || loginEmail,
@@ -878,10 +948,8 @@ function AdminPortalContent() {
   }
 
   async function handleLock() {
-    try {
-      await fetch("/api/admin/auth/logout", { method: "POST" });
-    } catch (_) {}
-    setIsLocked(true);
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+    setAuthStatus("unauthenticated");
     setSession(null);
     setLoginStep("email");
     setLoginEmail("");
@@ -908,6 +976,9 @@ function AdminPortalContent() {
     setSearchFilter("");
     // Drop ?tenant=... and ?demo=... so the next visit starts neutral.
     router.replace("/admin");
+    try {
+      await fetch("/api/admin/auth/logout", { method: "POST" });
+    } catch (_) {}
     showToast("Studio Manager locked");
   }
 
@@ -1025,8 +1096,242 @@ function AdminPortalContent() {
 
   const monogram = tenantProfile.monogram || activeTenant.slice(0, 2).toUpperCase();
 
+  if (authStatus === "checking") {
+    return (
+      <div
+        id="admin-page-root"
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "var(--admin-canopy-bg, #121214)",
+          zIndex: 9999,
+        }}
+      />
+    );
+  }
+
+  if (authStatus === "unauthenticated") {
+    return (
+      <div
+        id="admin-page-root"
+        data-theme={activeTheme}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100dvh",
+          overflow: "hidden",
+          backgroundColor: "var(--admin-canopy-bg, #121214)",
+        }}
+      >
+        <div
+          id="admin-login-overlay"
+          className="login-gate-overlay"
+          style={{ display: "flex", zIndex: 2000 }}
+        >
+          <div className="login-arch-watermark" aria-hidden="true">
+            PORTAL
+          </div>
+
+          <div
+            id="admin-login-card"
+            className="login-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="login-studio-name"
+          >
+            {(tenantProfile.logo_url || tenantProfile.monogram) && (
+              <div
+                className={`login-brand-badge ${tenantProfile.logo_url ? "is-resolved" : ""}`}
+                id="admin-login-badge"
+                aria-hidden="true"
+              >
+                {tenantProfile.logo_url ? (
+                  <span className="login-brand-badge-logo" style={{ opacity: 1 }}>
+                    <img id="admin-login-logo" src={tenantProfile.logo_url} alt={tenantProfile.name} />
+                  </span>
+                ) : (
+                  <span className="login-brand-badge-mark" style={{ opacity: 1 }}>
+                    <span style={{ fontFamily: "var(--font-display, 'Cinzel', serif)" }}>{monogram}</span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            <h2 id="login-studio-name" className="login-card-title">
+              {tenantProfile.name || "Admin Portal"}
+            </h2>
+            <p id="login-subtitle" className="login-card-subtitle">
+              {loginStep === "email" ? "Enter email to open portal" : "Enter verification code"}
+            </p>
+
+            {/* STEP 1: Email */}
+            {loginStep === "email" ? (
+              <div className="login-step" id="login-step-email">
+                <form id="admin-email-form" onSubmit={handleSendOtp} noValidate>
+                  <input
+                    type="email"
+                    id="admin-login-email"
+                    className="login-gate-input"
+                    placeholder="Email address"
+                    value={loginEmail}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLoginEmail(val);
+                      setLoginError("");
+                      handleEmailLookup(val);
+                    }}
+                    autoComplete="email"
+                    required
+                  />
+                  {loginError && (
+                    <div id="admin-email-error" className="login-gate-error" style={{ display: "block" }}>
+                      {loginError}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    id="admin-send-otp-btn"
+                    className="login-gate-submit"
+                    disabled={isSubmittingLogin}
+                  >
+                    {isSubmittingLogin ? "Sending code..." : "Send verification code →"}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* STEP 2: 6-Digit PIN */
+              <div className="login-step" id="login-step-code">
+                <div className="login-code-chip" id="login-code-chip">
+                  <span className="login-code-chip-text">
+                    Code sent to <strong id="login-code-chip-email">{loginEmail}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    id="login-change-email-btn"
+                    className="login-code-chip-change"
+                    onClick={() => setLoginStep("email")}
+                  >
+                    Change
+                  </button>
+                </div>
+                <form id="admin-login-form" onSubmit={handleVerifyOtp} noValidate>
+                  <input
+                    type="password"
+                    id="admin-pin-input"
+                    className="login-gate-input login-gate-pin"
+                    maxLength={6}
+                    inputMode="numeric"
+                    placeholder="• • • • • •"
+                    value={loginPin}
+                    onChange={(e) => {
+                      setLoginPin(e.target.value);
+                      setLoginError("");
+                    }}
+                    autoComplete="one-time-code"
+                    required
+                  />
+                  {loginError && (
+                    <div id="admin-login-error" className="login-gate-error" style={{ display: "block" }}>
+                      {loginError}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    id="admin-verify-btn"
+                    className="login-gate-submit"
+                    disabled={isSubmittingLogin}
+                  >
+                    {isSubmittingLogin ? "Verifying..." : "Open Studio Manager →"}
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  id="login-resend-btn"
+                  className="login-gate-otp"
+                  onClick={handleSendOtp}
+                  disabled={isSubmittingLogin}
+                >
+                  Resend code
+                </button>
+              </div>
+            )}
+
+            {/* Dedicated Demo Sandbox Access */}
+            <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", textAlign: "center" }}>
+              <button
+                type="button"
+                id="admin-demo-sandbox-btn"
+                onClick={enterDemoSandbox}
+                style={{
+                  background: "rgba(196, 164, 130, 0.08)",
+                  color: "#C4A482",
+                  border: "1px dashed rgba(196, 164, 130, 0.4)",
+                  borderRadius: "9999px",
+                  padding: "10px 18px",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  transition: "all 0.15s ease",
+                  width: "100%",
+                  justifyContent: "center",
+                }}
+              >
+                <span>Try Demo Sandbox (No Login Required)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {confirmModal?.isOpen && (
+          <div className="modal-backdrop open" style={{ zIndex: 3000 }}>
+            <motion.div
+              className="confirm-modal-card"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 420, damping: 30 }}
+            >
+              <h3 className="confirm-modal-title">{confirmModal.title}</h3>
+              <p className="confirm-modal-message">{confirmModal.message}</p>
+              <div className="confirm-modal-actions">
+                <button
+                  type="button"
+                  className="confirm-btn-cancel"
+                  onClick={() => setConfirmModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="confirm-btn-confirm"
+                  onClick={() => {
+                    const cb = confirmModal.onConfirm;
+                    setConfirmModal(null);
+                    cb();
+                  }}
+                >
+                  {confirmModal.confirmLabel}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {toastMessage && (
+          <div className="admin-toast" id="admin-toast" role="status">
+            {toastMessage}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
+      id="admin-page-root"
       data-theme={activeTheme}
       style={{
         position: "relative",
@@ -1036,178 +1341,6 @@ function AdminPortalContent() {
         backgroundColor: "var(--admin-canopy-bg, #121214)",
       }}
     >
-      {/* =================================================================== */}
-      {/* 1. STUDIO MANAGER SECURITY GATE (Zero-Card Veil Over Dashboard)     */}
-      {/* =================================================================== */}
-      <AnimatePresence>
-        {isMounted && isLocked && (
-          <motion.div
-            id="admin-login-overlay"
-            className="login-gate-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.6 } }}
-            style={{ display: "flex", zIndex: 2000 }}
-          >
-            <div className="login-arch-watermark" aria-hidden="true">
-              PORTAL
-            </div>
-
-            <div
-              id="admin-login-card"
-              className="login-card"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="login-studio-name"
-            >
-              {(tenantProfile.logo_url || tenantProfile.monogram) && (
-                <div
-                  className={`login-brand-badge ${tenantProfile.logo_url ? "is-resolved" : ""}`}
-                  id="admin-login-badge"
-                  aria-hidden="true"
-                >
-                  {tenantProfile.logo_url ? (
-                    <span className="login-brand-badge-logo" style={{ opacity: 1 }}>
-                      <img id="admin-login-logo" src={tenantProfile.logo_url} alt={tenantProfile.name} />
-                    </span>
-                  ) : (
-                    <span className="login-brand-badge-mark" style={{ opacity: 1 }}>
-                      <span style={{ fontFamily: "var(--font-display, 'Cinzel', serif)" }}>{monogram}</span>
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <h2 id="login-studio-name" className="login-card-title">
-                {tenantProfile.name || "Admin Portal"}
-              </h2>
-              <p id="login-subtitle" className="login-card-subtitle">
-                {loginStep === "email" ? "Enter email to open portal" : "Enter verification code"}
-              </p>
-
-              {/* STEP 1: Email */}
-              {loginStep === "email" ? (
-                <div className="login-step" id="login-step-email">
-                  <form id="admin-email-form" onSubmit={handleSendOtp} noValidate>
-                    <input
-                      type="email"
-                      id="admin-login-email"
-                      className="login-gate-input"
-                      placeholder="Email address"
-                      value={loginEmail}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setLoginEmail(val);
-                        setLoginError("");
-                        handleEmailLookup(val);
-                      }}
-                      autoComplete="email"
-                      required
-                    />
-                    {loginError && (
-                      <div id="admin-email-error" className="login-gate-error" style={{ display: "block" }}>
-                        {loginError}
-                      </div>
-                    )}
-                    <button
-                      type="submit"
-                      id="admin-send-otp-btn"
-                      className="login-gate-submit"
-                      disabled={isSubmittingLogin}
-                    >
-                      {isSubmittingLogin ? "Sending code..." : "Send verification code →"}
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                /* STEP 2: 6-Digit PIN */
-                <div className="login-step" id="login-step-code">
-                  <div className="login-code-chip" id="login-code-chip">
-                    <span className="login-code-chip-text">
-                      Code sent to <strong id="login-code-chip-email">{loginEmail}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      id="login-change-email-btn"
-                      className="login-code-chip-change"
-                      onClick={() => setLoginStep("email")}
-                    >
-                      Change
-                    </button>
-                  </div>
-                  <form id="admin-login-form" onSubmit={handleVerifyOtp} noValidate>
-                    <input
-                      type="password"
-                      id="admin-pin-input"
-                      className="login-gate-input login-gate-pin"
-                      maxLength={6}
-                      inputMode="numeric"
-                      placeholder="• • • • • •"
-                      value={loginPin}
-                      onChange={(e) => {
-                        setLoginPin(e.target.value);
-                        setLoginError("");
-                      }}
-                      autoComplete="one-time-code"
-                      required
-                    />
-                    {loginError && (
-                      <div id="admin-login-error" className="login-gate-error" style={{ display: "block" }}>
-                        {loginError}
-                      </div>
-                    )}
-                    <button
-                      type="submit"
-                      id="admin-verify-btn"
-                      className="login-gate-submit"
-                      disabled={isSubmittingLogin}
-                    >
-                      {isSubmittingLogin ? "Verifying..." : "Open Studio Manager →"}
-                    </button>
-                  </form>
-                  <button
-                    type="button"
-                    id="login-resend-btn"
-                    className="login-gate-otp"
-                    onClick={handleSendOtp}
-                    disabled={isSubmittingLogin}
-                  >
-                    Resend code
-                  </button>
-                </div>
-              )}
-
-              {/* Dedicated Demo Sandbox Access */}
-              <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", textAlign: "center" }}>
-                <button
-                  type="button"
-                  id="admin-demo-sandbox-btn"
-                  onClick={enterDemoSandbox}
-                  style={{
-                    background: "rgba(196, 164, 130, 0.08)",
-                    color: "#C4A482",
-                    border: "1px dashed rgba(196, 164, 130, 0.4)",
-                    borderRadius: "9999px",
-                    padding: "10px 18px",
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    transition: "all 0.15s ease",
-                    width: "100%",
-                    justifyContent: "center",
-                  }}
-                >
-                  <span>Try Demo Sandbox (No Login Required)</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* =================================================================== */}
       {/* 2. DUAL-SURFACE APP SHELL: Obsidian Canopy + Draggable Porcelain    */}
       {/* =================================================================== */}
@@ -1400,69 +1533,67 @@ function AdminPortalContent() {
           </div>
 
           {/* 7-Day Week Strip */}
-          {calendarMode === "week" ? (
-            <div className="canopy-week-strip" id="canopy-week-strip">
-              {getWeekDaysForDate(selectedDate).map((day) => {
-                const isSelected = day.iso === selectedDate;
-                const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(day.iso));
+          <div className="canopy-week-strip" id="canopy-week-strip">
+            {getWeekDaysForDate(selectedDate).map((day) => {
+              const isSelected = day.iso === selectedDate;
+              const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(day.iso));
+
+              return (
+                <button
+                  key={day.iso}
+                  type="button"
+                  className={`week-day-pill ${isSelected ? "active" : ""}`}
+                  onClick={() => {
+                    setSelectedDate(day.iso);
+                    setViewYear(day.year);
+                    setViewMonth(day.month);
+                  }}
+                >
+                  <span className="week-day-name">{day.name}</span>
+                  <span className="week-day-num">{day.num}</span>
+                  {hasBookings && <span className="day-dot-indicator" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Accurate Offset-Aligned Month Grid (Both views remain in DOM for 60fps CSS transitions) */}
+          <div className="canopy-month-grid" id="canopy-month-grid">
+            <div className="month-grid-weekdays">
+              <span>M</span>
+              <span>T</span>
+              <span>W</span>
+              <span>T</span>
+              <span>F</span>
+              <span>S</span>
+              <span>S</span>
+            </div>
+            <div className="month-grid-days" id="month-grid-days">
+              {getMonthGridDays(viewYear, viewMonth).map((cell, idx) => {
+                const isSelected = cell.iso === selectedDate;
+                const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(cell.iso));
 
                 return (
                   <button
-                    key={day.iso}
+                    key={`${cell.iso}-${idx}`}
                     type="button"
-                    className={`week-day-pill ${isSelected ? "active" : ""}`}
+                    className={`month-grid-cell month-day-cell ${isSelected ? "active" : ""}`}
+                    style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
                     onClick={() => {
-                      setSelectedDate(day.iso);
-                      setViewYear(day.year);
-                      setViewMonth(day.month);
+                      setSelectedDate(cell.iso);
+                      setViewYear(cell.year);
+                      setViewMonth(cell.month);
+                      setCalendarMode("week");
+                      setSheetDetent("mid");
                     }}
                   >
-                    <span className="week-day-name">{day.name}</span>
-                    <span className="week-day-num">{day.num}</span>
-                    {hasBookings && <span className="day-dot-indicator" />}
+                    <span>{cell.dayNum}</span>
+                    {hasBookings && <span className="cell-dot" />}
                   </button>
                 );
               })}
             </div>
-          ) : (
-            /* Accurate Offset-Aligned Month Grid */
-            <div className="canopy-month-grid" id="canopy-month-grid" style={{ display: "block" }}>
-              <div className="month-grid-weekdays">
-                <span>M</span>
-                <span>T</span>
-                <span>W</span>
-                <span>T</span>
-                <span>F</span>
-                <span>S</span>
-                <span>S</span>
-              </div>
-              <div className="month-grid-days" id="month-grid-days">
-                {getMonthGridDays(viewYear, viewMonth).map((cell, idx) => {
-                  const isSelected = cell.iso === selectedDate;
-                  const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(cell.iso));
-
-                  return (
-                    <button
-                      key={`${cell.iso}-${idx}`}
-                      type="button"
-                      className={`month-grid-cell month-day-cell ${isSelected ? "active" : ""}`}
-                      style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
-                      onClick={() => {
-                        setSelectedDate(cell.iso);
-                        setViewYear(cell.year);
-                        setViewMonth(cell.month);
-                        setCalendarMode("week");
-                        setSheetDetent("mid");
-                      }}
-                    >
-                      <span>{cell.dayNum}</span>
-                      {hasBookings && <span className="cell-dot" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          </div>
         </header>
 
         {/* LOWER DRAGGABLE PORCELAIN SHEET (#FAFAFA) */}
@@ -1470,10 +1601,6 @@ function AdminPortalContent() {
           ref={sheetRef}
           className="porcelain-sheet"
           id="porcelain-sheet"
-          onPointerDown={handleSheetPointerDown}
-          onPointerMove={handleSheetPointerMove}
-          onPointerUp={handleSheetPointerUp}
-          onPointerCancel={handleSheetPointerUp}
         >
           {/* Top Centered Drag Handle Pill (Dedicated Gesture Zone) */}
           <div
@@ -1991,7 +2118,7 @@ function AdminPortalContent() {
             {/* TAB 3: OPENING HOURS & SHIFTS                                */}
             {/* ============================================================= */}
             {activeTab === "schedule" && (
-              <section className="tab-panel active" id="panel-schedule">
+              <section className="tab-panel active tab-pane-padded" id="panel-schedule">
                 <div className="squircle-card">
                   <div className="card-section-head">
                     <div>
@@ -2127,33 +2254,6 @@ function AdminPortalContent() {
                       </div>
                     ))}
                   </div>
-
-                  <div className="sticky-tab-action-bar" style={{ marginTop: "16px" }}>
-                    <button
-                      type="button"
-                      id="save-sched-btn"
-                      className="btn-ny-time"
-                      style={{ width: "100%", justifyContent: "center", padding: "12px", borderRadius: "9999px" }}
-                      onClick={async () => {
-                        try {
-                          await fetch("/api/admin/hours", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              tenant_id: activeTenant,
-                              shifts,
-                              interval_min: Number(slotInterval),
-                            }),
-                          });
-                          showToast("✓ Operating hours saved");
-                        } catch (_) {
-                          showToast("Could not save operating hours");
-                        }
-                      }}
-                    >
-                      Save Operating Hours
-                    </button>
-                  </div>
                 </div>
 
                 {/* Active Blackouts Table Card */}
@@ -2205,7 +2305,7 @@ function AdminPortalContent() {
             {/* TAB 4: STUDIO SETTINGS & THEME                               */}
             {/* ============================================================= */}
             {activeTab === "settings" && (
-              <section className="tab-panel active" id="panel-settings">
+              <section className="tab-panel active tab-pane-padded" id="panel-settings">
                 {/* Theme Palette Swatches (Moved to Top) */}
                 <div className="squircle-card">
                   <div className="card-section-head">
@@ -2343,38 +2443,6 @@ function AdminPortalContent() {
                       onChange={(e) => setTenantProfile({ ...tenantProfile, owner_email: e.target.value })}
                     />
                   </div>
-
-                  <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                    <button
-                      type="button"
-                      id="save-settings-btn"
-                      className="btn-ny-time"
-                      style={{ flex: 1, justifyContent: "center", padding: "11px" }}
-                      onClick={handleSaveSettings}
-                    >
-                      Save Settings
-                    </button>
-                    <button
-                      type="button"
-                      id="send-test-alert-btn"
-                      className="quick-action-btn"
-                      style={{ flex: 1 }}
-                      onClick={async () => {
-                        try {
-                          await fetch("/api/admin/settings/test-email", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ tenant_id: activeTenant }),
-                          });
-                          showToast("✓ Test ping email delivered");
-                        } catch (_) {
-                          showToast("Could not send test email");
-                        }
-                      }}
-                    >
-                      Send Test Ping
-                    </button>
-                  </div>
                 </div>
 
                 {/* Activity Log Audit Feed */}
@@ -2427,6 +2495,72 @@ function AdminPortalContent() {
             )}
           </div>
         </main>
+
+        {/* Permanently Docked Action Bar: Opening Hours */}
+        {activeTab === "schedule" && (
+          <div className="docked-save-bar" id="docked-schedule-bar">
+            <button
+              type="button"
+              id="save-sched-btn"
+              className="btn-ny-time"
+              style={{ width: "100%", justifyContent: "center", padding: "12px", borderRadius: "9999px" }}
+              onClick={async () => {
+                try {
+                  await fetch("/api/admin/hours", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      tenant_id: activeTenant,
+                      shifts,
+                      interval_min: Number(slotInterval),
+                    }),
+                  });
+                  showToast("✓ Operating hours saved");
+                } catch (_) {
+                  showToast("Could not save operating hours");
+                }
+              }}
+            >
+              Save Operating Hours
+            </button>
+          </div>
+        )}
+
+        {/* Permanently Docked Action Bar: Settings */}
+        {activeTab === "settings" && (
+          <div className="docked-save-bar" id="docked-settings-bar">
+            <button
+              type="button"
+              id="save-settings-btn"
+              className="btn-ny-time"
+              style={{ flex: 1, justifyContent: "center", padding: "12px", borderRadius: "9999px" }}
+              onClick={handleSaveSettings}
+            >
+              Save Studio Settings
+            </button>
+            <button
+              type="button"
+              id="send-test-alert-btn"
+              className="quick-action-btn"
+              style={{ padding: "12px 18px", borderRadius: "9999px", flexShrink: 0 }}
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/admin/settings/test-email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tenant_id: activeTenant }),
+                  });
+                  if (res.ok) showToast("✓ Test ping email delivered");
+                  else showToast("Could not send test email");
+                } catch (_) {
+                  showToast("Network error sending test email");
+                }
+              }}
+            >
+              Send Test Ping
+            </button>
+          </div>
+        )}
 
         {/* =================================================================== */}
         {/* 3. ADAPTIVE FLOATING BOTTOM NAVIGATION DOCK                         */}
@@ -2796,7 +2930,13 @@ function AdminPortalContent() {
       {/* MODAL 2: New Manual Booking Modal */}
       <AnimatePresence>
         {showNewBookingModal && (
-          <div className="modal-backdrop open" id="modal-new-booking">
+          <div
+            className="modal-backdrop open"
+            id="modal-new-booking"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowNewBookingModal(false);
+            }}
+          >
             <motion.div
               className="modal-sheet"
               initial={{ y: "100%" }}
@@ -2814,7 +2954,15 @@ function AdminPortalContent() {
             >
               <div className="modal-top-handle" onClick={() => setShowNewBookingModal(false)} />
               <div className="modal-sheet-head">
-                <h3 className="modal-sheet-title">New Appointment</h3>
+                <div className="modal-identity">
+                  <div className="client-avatar-circle" style={{ background: "var(--admin-accent, #C4A482)", color: "#121214" }}>
+                    +
+                  </div>
+                  <div className="modal-identity-text">
+                    <span className="modal-eyebrow">NEW RESERVATION</span>
+                    <h3 className="modal-sheet-title">Manual Appointment</h3>
+                  </div>
+                </div>
                 <button
                   type="button"
                   className="modal-sheet-close"
@@ -2824,80 +2972,127 @@ function AdminPortalContent() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateManualBooking}>
-                <div className="recessed-input-group">
-                  <label className="recessed-label">Full Client Name</label>
-                  <input
-                    type="text"
-                    className="recessed-input"
-                    placeholder="Astrid Lindgren"
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="modal-grid-2">
-                  <div className="recessed-input-group">
-                    <label className="recessed-label">Phone</label>
-                    <input
-                      type="tel"
+              <form id="manual-booking-form" onSubmit={handleCreateManualBooking} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                <div className="modal-sheet-scroll-body" style={{ paddingBottom: "16px" }}>
+                  {/* 1. Treatment Selection */}
+                  <div className="modal-section-title">Treatment Service</div>
+                  <div className="recessed-input-group" style={{ marginBottom: "16px" }}>
+                    <select
+                      id="new-booking-service-select"
                       className="recessed-input"
-                      placeholder="+47 900 00 000"
-                      value={newClientPhone}
-                      onChange={(e) => setNewClientPhone(e.target.value)}
+                      value={newService}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewService(val);
+                        const s = servicesList.find((srv) => srv.name === val);
+                        if (s) {
+                          setNewPrice(s.price_nok);
+                          setNewDuration(s.duration_min);
+                        }
+                      }}
+                      style={{ fontWeight: 600, fontSize: "0.88rem", padding: "10px 12px" }}
+                    >
+                      {servicesList.length > 0 ? (
+                        servicesList.map((srv) => (
+                          <option key={srv.id} value={srv.name}>
+                            {srv.name} · {srv.price_nok} kr ({srv.duration_min} min)
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="Single Gem">Single Gem · 350 kr (20 min)</option>
+                          <option value="Signature Treatment">Signature Treatment · 950 kr (75 min)</option>
+                          <option value="18k Gold Tooth Gem · Upper Canine">18k Gold Tooth Gem · Upper Canine · 850 kr (45 min)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* 2. Schedule: Date & Time in single cohesive row */}
+                  <div className="modal-section-title">Schedule</div>
+                  <div className="modal-grid-2" style={{ marginBottom: "16px" }}>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label">Date</label>
+                      <input
+                        type="date"
+                        className="recessed-input"
+                        value={newDate}
+                        onChange={(e) => setNewDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label">Time</label>
+                      <input
+                        type="time"
+                        className="recessed-input"
+                        value={newTime}
+                        onChange={(e) => setNewTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3. Client Contact */}
+                  <div className="modal-section-title">Client Details</div>
+                  <div className="recessed-input-group" style={{ marginBottom: "12px" }}>
+                    <label className="recessed-label">Full Name</label>
+                    <input
+                      type="text"
+                      id="new-client-name"
+                      className="recessed-input"
+                      placeholder="Full client name"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
                       required
                     />
                   </div>
-                  <div className="recessed-input-group">
-                    <label className="recessed-label">Email (optional)</label>
-                    <input
-                      type="email"
-                      className="recessed-input"
-                      placeholder="client@post.no"
-                      value={newClientEmail}
-                      onChange={(e) => setNewClientEmail(e.target.value)}
-                    />
+
+                  <div className="modal-grid-2" style={{ marginBottom: "16px" }}>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label">Phone</label>
+                      <input
+                        type="tel"
+                        id="new-client-phone"
+                        className="recessed-input"
+                        placeholder="+47 000 00 000"
+                        value={newClientPhone}
+                        onChange={(e) => setNewClientPhone(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label">Email (optional)</label>
+                      <input
+                        type="email"
+                        id="new-client-email"
+                        className="recessed-input"
+                        placeholder="client@domain.no"
+                        value={newClientEmail}
+                        onChange={(e) => setNewClientEmail(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="recessed-input-group">
-                  <label className="recessed-label">Treatment Service</label>
-                  <input
-                    type="text"
-                    className="recessed-input"
-                    value={newService}
-                    onChange={(e) => setNewService(e.target.value)}
-                    required
-                  />
+                {/* Pinned Bottom Actions */}
+                <div className="modal-sheet-dock" style={{ paddingTop: "12px", borderTop: "1px solid rgba(0, 0, 0, 0.06)", display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-triage-dock"
+                    style={{ flex: 1, background: "rgba(0, 0, 0, 0.05)", color: "#18181B" }}
+                    onClick={() => setShowNewBookingModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="modal-submit-btn"
+                    style={{ flex: 2, margin: 0 }}
+                  >
+                    Create Appointment
+                  </button>
                 </div>
-
-                <div className="modal-grid-2">
-                  <div className="recessed-input-group">
-                    <label className="recessed-label">Date</label>
-                    <input
-                      type="date"
-                      className="recessed-input"
-                      value={newDate}
-                      onChange={(e) => setNewDate(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="recessed-input-group">
-                    <label className="recessed-label">Time</label>
-                    <input
-                      type="time"
-                      className="recessed-input"
-                      value={newTime}
-                      onChange={(e) => setNewTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <button type="submit" className="modal-submit-btn modal-submit-block">
-                  Create Appointment
-                </button>
               </form>
             </motion.div>
           </div>
