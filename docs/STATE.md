@@ -22,9 +22,9 @@ Updated: 2026-10-30
 - TODO-CLIENT: confirm each tenant's public contact details.
 
 ## Recent (max 5, one line each)
-- 2026-10-30 — Admin Atelier Ticket pass: Option 1 status-aware voucher card, zero-slit sticky headers, balanced modal buttons, direct DB override persistence (`site/src/app/admin/`)
+- 2026-10-30 — Admin ticket audit: Scandinavian voucher pass, placement intake parsing, authentic icons, compact email alert (`site/src/app/admin/`)
+- 2026-10-30 — Admin Atelier Ticket pass: Option 1 status-aware voucher card, zero-slit sticky headers, balanced modal buttons (`site/src/app/admin/`)
 - 2026-10-30 — Admin visual overhaul: card design options artifact, zero-overflow palette grid, hairline loading skeleton screen (`site/src/app/admin/`)
-- 2026-10-30 — Admin mobile pass: instant login lookup, sticky schedule tabs, custom EditorialTimePicker, granular plan-ahead customizer, 2-col theme rows (`site/src/app/admin/`)
+- 2026-10-30 — Admin mobile pass: instant login lookup, sticky schedule tabs, custom EditorialTimePicker, granular plan-ahead customizer (`site/src/app/admin/`)
 - 2026-10-30 — Admin mobile polish: today jump, upcoming feed, lacquer theme cards, plan-ahead overrides, and brand watermarks (`site/src/app/admin/`)
-- 2026-10-30 — Admin design pass: A.G login placeholder, month grid fills canopy, save spinners, owner reauth (`site/src/app/admin/`)
 

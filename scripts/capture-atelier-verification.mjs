@@ -20,13 +20,12 @@ async function main() {
   // 1. Capture Calendar sticky header (verify zero slit)
   await page.screenshot({ path: "artifacts/admin-visual-pass-v2/07-calendar-header-no-slit.png" });
 
-  // 2. Click on the first appointment card to open the Atelier Studio Ticket drawer
-  const apptCard = await page.$(".timeline-slot-row, .dagsagenda-booking-card, [data-ref]");
-  if (apptCard) {
-    await apptCard.click();
+  // 2. Click on appointment cards to open the Atelier Studio Pass drawer
+  const apptCards = await page.$$(".timeline-slot-row, .dagsagenda-booking-card, [data-ref]");
+  for (let i = 0; i < Math.min(apptCards.length, 3); i++) {
+    await apptCards[i].click();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: "artifacts/admin-visual-pass-v2/08-atelier-ticket-drawer.png" });
-    // close drawer
+    await page.screenshot({ path: `artifacts/admin-visual-pass-v2/08-atelier-ticket-drawer-${i}.png` });
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);
   }

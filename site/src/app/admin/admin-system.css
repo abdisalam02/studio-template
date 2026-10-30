@@ -2287,8 +2287,6 @@ input:checked + .switch-slider:before {
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-  transform: translateY(100%);
-  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
   will-change: transform;
 }
@@ -2296,11 +2294,18 @@ input:checked + .switch-slider:before {
 .modal-sheet-scroll-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 24px 24px;
+  padding: 16px 20px calc(24px + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
-.modal-backdrop.open .modal-sheet {
+/* Fallback for static/non-Framer open state */
+.modal-backdrop:not(:has(.modal-sheet[style])) .modal-sheet {
+  transform: translateY(100%);
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-backdrop:not(:has(.modal-sheet[style])).open .modal-sheet {
   transform: translateY(0);
 }
 
@@ -5112,39 +5117,215 @@ body.is-sheet-dragging {
 }
 
 /* ==========================================================================
-   The Atelier Studio Ticket (Option 1 - Luxury Physical Voucher Aesthetic)
+   The Atelier Studio Pass (Authentic Scandinavian Editorial Aesthetic)
    ========================================================================== */
-.atelier-ticket-card {
+.atelier-header-block {
+  margin-bottom: 14px;
+}
+
+.atelier-header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.atelier-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atelier-ref-text {
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--admin-sheet-muted);
+}
+
+.atelier-meta-dot {
+  color: #D4D4D8;
+  font-size: 0.75rem;
+}
+
+.atelier-tenant-text {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-sheet-muted);
+}
+
+.atelier-client-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.atelier-client-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.atelier-client-title {
+  font-size: 1.32rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #09090B;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 2. Unified Studio Voucher Pass Card */
+.atelier-pass-card {
   position: relative;
   background: #FFFFFF;
   border-radius: 20px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   overflow: hidden;
   margin-bottom: 16px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Status-Differentiated Card Surface Accents */
-.atelier-ticket-card.is-status-confirmed {
+.atelier-pass-card.is-status-confirmed {
   border-color: rgba(16, 185, 129, 0.28);
   box-shadow: 0 4px 24px rgba(16, 185, 129, 0.06);
 }
 
-.atelier-ticket-card.is-status-pending {
+.atelier-pass-card.is-status-pending {
   border-color: rgba(217, 119, 6, 0.35);
   box-shadow: 0 4px 24px rgba(217, 119, 6, 0.08);
   background: linear-gradient(180deg, #FFFDFB 0%, #FFFFFF 100%);
 }
 
-.atelier-ticket-card.is-status-cancelled {
+.atelier-pass-card.is-status-cancelled {
   border-color: rgba(220, 38, 38, 0.22);
   background: #FAFAFA;
 }
 
-.atelier-ticket-card.is-status-completed {
+.atelier-pass-card.is-status-completed {
   border-color: rgba(0, 0, 0, 0.12);
   background: #FFFFFF;
+}
+
+.atelier-pass-section {
+  padding: 14px 16px;
+}
+
+.atelier-pass-header-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.atelier-time-hero {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #09090B;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.atelier-duration-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #52525B;
+  letter-spacing: 0.01em;
+}
+
+.atelier-date-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #52525B;
+  margin-top: 6px;
+}
+
+.atelier-service-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.atelier-service-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.atelier-service-label,
+.atelier-rate-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-sheet-muted);
+  margin-bottom: 2px;
+}
+
+.atelier-service-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #09090B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atelier-rate-info {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.atelier-price-tag {
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #09090B;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Bespoke Placement Intake Tag */
+.atelier-placement-chip {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #F4F4F5;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.atelier-placement-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #71717A;
+  letter-spacing: 0.04em;
+}
+
+.atelier-placement-val {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #09090B;
 }
 
 /* Perforated Deckle Divider with Edge Notches */
@@ -5245,85 +5426,73 @@ body.is-sheet-dragging {
   50% { transform: scale(1.3); opacity: 0.6; }
 }
 
-/* Hero Schedule Bento Block */
-.atelier-schedule-grid {
-  display: grid;
-  grid-template-columns: 1.25fr 1fr;
-  gap: 8px;
-  padding: 14px 16px;
-}
-
-.atelier-bento-tile {
-  background: rgba(0, 0, 0, 0.025);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  border-radius: 14px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.atelier-time-hero {
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #111827;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-.atelier-date-sub {
-  font-size: 0.74rem;
-  font-weight: 600;
+/* 3. Client Contact Block */
+.atelier-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--admin-sheet-muted);
-  margin-top: 4px;
+  margin: 0 0 6px 2px;
+}
+
+.atelier-contact-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding: 4px 14px;
+  margin-bottom: 14px;
+}
+
+.atelier-contact-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 0;
 }
 
-.atelier-service-name {
-  font-size: 0.88rem;
-  font-weight: 700;
+.atelier-contact-item:not(:last-child) {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.atelier-contact-lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.atelier-contact-icon {
+  color: #71717A;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.atelier-contact-val {
+  font-size: 0.85rem;
+  font-weight: 600;
   color: #111827;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.01em;
 }
 
-.atelier-price-tag {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #111827;
-  margin-top: 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Client Contact Dossier Tile */
-.atelier-contact-box {
-  background: #FFFFFF;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
-  padding: 8px 14px;
-  margin-bottom: 14px;
-}
-
-.atelier-contact-row {
+.atelier-contact-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 0;
-}
-
-.atelier-contact-row:not(:last-child) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .atelier-action-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 5px 12px;
   border-radius: 9999px;
   font-size: 0.74rem;
   font-weight: 600;
@@ -5344,6 +5513,78 @@ body.is-sheet-dragging {
 .atelier-pill-whatsapp {
   background: #E6F4EA;
   color: #137333;
+  border: 1px solid rgba(19, 115, 51, 0.15);
+}
+
+.atelier-pill-whatsapp:hover {
+  background: #CEEAD6;
+}
+
+/* 4. Compact Email Warning Dropdown */
+.atelier-email-alert-accordion {
+  background: #FFFBEB;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  border-radius: 14px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.atelier-email-alert-summary {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.atelier-email-alert-summary::-webkit-details-marker {
+  display: none;
+}
+
+.atelier-email-alert-lead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atelier-alert-icon {
+  font-size: 0.85rem;
+}
+
+.atelier-alert-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #92400E;
+}
+
+.atelier-alert-chevron {
+  font-size: 0.85rem;
+  color: #B45309;
+  transition: transform 0.2s ease;
+}
+
+.atelier-email-alert-accordion[open] .atelier-alert-chevron {
+  transform: rotate(180deg);
+}
+
+.atelier-email-alert-body {
+  padding: 0 14px 12px;
+  border-top: 1px solid rgba(217, 119, 6, 0.12);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+/* 5. Studio Remarks Box */
+.atelier-notes-box {
+  margin-bottom: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: #FFFFFF;
+  padding: 12px 14px;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 /* Status-Differentiated List Cards (Calendar Timeline & Appointments Tab) */
