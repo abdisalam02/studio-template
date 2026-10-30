@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
         success: true,
         email: targetEmail,
         scope: "tenant",
-        tenant_id: tenantId || requestedTenant,
+        tenant_id: tenantId || requestedTenant || null,
         challengeId: dummyChallengeId,
         expiresAt,
       });

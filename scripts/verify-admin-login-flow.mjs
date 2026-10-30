@@ -4,7 +4,7 @@
  *
  * Verifies:
  *   - the login wall is neutral (no studio name/logo) until an email resolves;
- *   - niwache15@gmail.com resolves Gangina branding;
+ *   - niwache12@gmail.com resolves Gangina branding;
  *   - clearing the email clears the branding;
  *   - an authenticated Gangina session survives a refresh (never falls back to noire);
  *   - Lock clears the session and returns a neutral login wall.
@@ -68,7 +68,7 @@ try {
   check("login.initial.empty_email", (await page.locator("#admin-login-email").inputValue()) === "");
 
   /* 2. Email lookup resolves Gangina branding. */
-  await page.fill("#admin-login-email", "niwache15@gmail.com");
+  await page.fill("#admin-login-email", "niwache12@gmail.com");
   await page.waitForFunction(
     () => /gangina/i.test(document.querySelector("#login-studio-name")?.textContent || ""),
     null,
@@ -98,7 +98,7 @@ try {
 
   /* 4. Authenticate as Gangina (dev-only shortcut), then load /admin. */
   const loginRes = await context.request.post(`${BASE}/api/admin/dev-login`, {
-    data: { email: "niwache15@gmail.com" },
+    data: { email: "niwache12@gmail.com" },
   });
   check("session.dev_login", loginRes.status() === 200, `HTTP ${loginRes.status()}`);
 

@@ -41,7 +41,7 @@ const RESEND_KEY = env.RESEND_API_KEY || "";
 const LOG_PATH = process.env.ADMIN_LOG_PATH || "";
 
 const GANGINA = "gangina";
-const OWNER = "niwache15@gmail.com";
+const OWNER = "niwache12@gmail.com";
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in site/.env.local");

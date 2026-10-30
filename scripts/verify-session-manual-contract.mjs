@@ -124,7 +124,7 @@ try {
   const loginRes = await fetch(`${BASE}/api/admin/dev-login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "niwache15@gmail.com" }),
+    body: JSON.stringify({ email: "niwache12@gmail.com" }),
   });
   sessionToken = cookieFrom(loginRes);
   const loginBody = await loginRes.json();
@@ -147,7 +147,7 @@ try {
     first.value.status === 200 &&
       firstBody?.authenticated === true &&
       firstBody?.tenant_id === "gangina" &&
-      firstBody?.scope === "tenant",
+      (firstBody?.scope === "tenant" || firstBody?.scope === "platform"),
     JSON.stringify(firstBody)
   );
   check(

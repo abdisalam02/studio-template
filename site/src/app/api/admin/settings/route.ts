@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { verifyAdminRequest } from "@/lib/adminAuth";
+import { verifyAdminRequest, revokeAdminSession, ADMIN_SESSION_COOKIE } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
 import type { Database } from "@/types/database";
 
@@ -105,6 +105,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    // Capture the current owner before the update so an ownership transfer can
+    // revoke the displaced owner instead of leaving both emails active.
+    const { data: currentTenant } = await supabaseAdmin
+      .from("tenants")
+      .select("owner_email")
+      .eq("id", targetTenantId)
+      .maybeSingle();
+    const previousOwner = (currentTenant?.owner_email || "").toLowerCase().trim();
+
     const updateData: TenantUpdate = { updated_at: new Date().toISOString() };
 
     for (const field of STRING_FIELDS) {
@@ -154,6 +163,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const ownerChanged = Boolean(ownerEmail && previousOwner && ownerEmail !== previousOwner);
+    const callerWasPreviousOwner = Boolean(
+      ownerChanged && auth.email && auth.email.toLowerCase().trim() === previousOwner
+    );
+
     if (ownerEmail) {
       await supabaseAdmin.from("tenant_admins").upsert(
         {
@@ -164,9 +178,47 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: "tenant_id,email" }
       );
+
+      // Exactly one active owner per tenant. Deactivate the displaced owner
+      // even if their row had a non-owner role, then enforce a single owner.
+      if (ownerChanged) {
+        await supabaseAdmin
+          .from("tenant_admins")
+          .update({ active: false })
+          .eq("tenant_id", targetTenantId)
+          .eq("email", previousOwner);
+      }
+      await supabaseAdmin
+        .from("tenant_admins")
+        .update({ active: false })
+        .eq("tenant_id", targetTenantId)
+        .eq("role", "owner")
+        .neq("email", ownerEmail);
+
+      if (ownerChanged) {
+        // Revoke the displaced owner's live sessions for this tenant.
+        await supabaseAdmin
+          .from("admin_sessions")
+          .update({ revoked_at: new Date().toISOString() })
+          .eq("tenant_id", targetTenantId)
+          .eq("email", previousOwner)
+          .is("revoked_at", null);
+
+        // If the caller just gave away their own access, evict their current
+        // token from the in-memory cache immediately.
+        if (callerWasPreviousOwner) {
+          const currentToken = req.cookies.get(ADMIN_SESSION_COOKIE)?.value || "";
+          if (currentToken) await revokeAdminSession(currentToken);
+        }
+      }
     }
 
-    return NextResponse.json({ success: true, tenant });
+    return NextResponse.json({
+      success: true,
+      tenant,
+      owner_changed: ownerChanged,
+      reauthentication_required: callerWasPreviousOwner,
+    });
   } catch (err) {
     console.error("POST settings error:", err);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
