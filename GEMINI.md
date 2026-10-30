@@ -7,7 +7,7 @@ Global working and token-saving rules apply. **This workspace file wins on confl
 1. Read `docs/STATE.md` (resume point, <30 lines), then `docs/ARCHITECTURE.md` (route and component map). Both are concise.
 2. Open files strictly by line range. Never read files over 500 lines whole.
 3. Finish with `npm run verify` (`tsc` + `check:legal` + `check:design`). Full builds only for structural changes or prior to approved deployment.
-4. After each task, update `docs/STATE.md` (at most 5 lines).
+4. After each task, update `docs/STATE.md` (at most 5 lines). Older history lives in `docs/archive/`; never read it unless explicitly asked.
 
 | File | Read when |
 |---|---|
@@ -23,7 +23,7 @@ Global working and token-saving rules apply. **This workspace file wins on confl
   - `widget/`: Standalone embeddable booking modal/component (can be embedded into any external site).
   - `supabase/`: Schema migrations, Row Level Security (RLS) policies, Edge Functions (booking notifications, webhooks).
   - `docs/`: Agency runbooks and token-saving guardrails.
-- **Client Configuration:** All tenant details (business name, address, org number, services, opening hours) live in `site/src/config/client.ts` or Supabase `tenants` table. Never hardcode client details across components.
+- **Client Configuration:** Runtime tenant details live in the Supabase `tenants` table and are resolved by `site/src/lib/tenantResolver.ts`. `site/src/config/tenant.config.ts` is seed data for development only. `owner_email` is private; `contact_email` is public. Never hardcode client details across components.
 - **Supabase Security:** Every table MUST have Row Level Security (RLS) enabled. Public users only read public active services and available time slots. Personal client data (phone, name, email) is accessible only by service-role or authenticated studio owner.
 
 ## 2. Token-Saving & Working Rules

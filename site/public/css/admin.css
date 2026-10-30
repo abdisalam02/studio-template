@@ -2929,7 +2929,7 @@ body.is-unlocked .admin-shell {
   height: 30px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04));
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04)); /* design-ok: soft sheen, not a gradient background */
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 

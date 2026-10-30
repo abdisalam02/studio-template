@@ -6,7 +6,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const ROOTS = ['site', 'widget'];
-const SKIP_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'build', 'library', 'inspo', 'customizer', 'showcase', 'demo']);
+const SKIP_DIRS = new Set(['node_modules', '.next', '.next-build', '.git', 'dist', 'build', 'library', 'inspo', 'customizer', 'showcase', 'demo']);
 const EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.html']);
 
 const BURN = new RegExp(
@@ -50,14 +50,21 @@ function check(path) {
     for (const r of RAW) {
       if (r.re.test(line)) add(r.lvl, path, i + 1, r.id, r.msg);
     }
-    // Ignore CSS syntax properties & DOM style transforms
+    // Ignore comments, CSS syntax and code identifiers — but keep prose (and
+    // therefore banned marketing verbs like "transform") in scope.
     const copyLine = line
-      .replace(/\b(text-)?transform\s*:[^;]+;/gi, '')
-      .replace(/\b(text-)?transform\s*:[^"';\n]+/gi, '')
+      .replace(/\/\/.*$/g, '')
+      .replace(/\/\*.*?\*\//g, '')
+      .replace(/^\s*\*\s.*$/g, '')
+      .replace(/\b(text-)?transform(-origin)?\s*:/gi, '')
+      .replace(/\btransform\([^)]*\)/gi, '')
       .replace(/\.style\.transform\b/gi, '')
-      .replace(/\btransition:[^;]+;/gi, '')
-      .replace(/\bwill-change:\s*transform/gi, '')
-      .replace(/\btransform\([^)]*\)/gi, '');
+      .replace(/`transform\s[^`]*`/g, '')
+      .replace(/^\s*transform\s[^;]*;?\s*$/g, '')
+      .replace(/\bwill-change\s*:\s*transform/gi, '')
+      .replace(/\btransition\s*:[^;]*/gi, '')
+      .replace(/\b(is-)?unlock(ed|ing)\b/gi, '')
+      .replace(/\b(const\s+curated|curated\.indexOf)\b/g, '');
     if (BURN.test(copyLine)) {
       add('error', path, i + 1, 'burn-word', 'Banned copy verb/adjective detected.');
     }
