@@ -238,6 +238,17 @@ function AdminPortalContent() {
   const [showCustomThemeSheet, setShowCustomThemeSheet] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
+  // Action Pending & Saving Loaders
+  const [isSavingHours, setIsSavingHours] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [isSubmittingBlock, setIsSubmittingBlock] = useState(false);
+  const [triageActionRef, setTriageActionRef] = useState<string | null>(null);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [isSubmittingReschedule, setIsSubmittingReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("12:00");
+
   // New Booking Form State
   const [servicesList, setServicesList] = useState<{ id: number | string; name: string; price_nok: number; duration_min: number }[]>([]);
   const [newClientName, setNewClientName] = useState("");
@@ -774,6 +785,11 @@ function AdminPortalContent() {
 
   // Load tenant profile & data
   useEffect(() => {
+    // Abort in-flight loads when the tenant changes or the studio is locked:
+    // a late settings response must never repaint the login wall with branding.
+    const controller = new AbortController();
+    const { signal } = controller;
+
     async function loadTenantData() {
       if (isLocked) return;
       if (!activeTenant) return;
@@ -784,13 +800,15 @@ function AdminPortalContent() {
       }
       try {
         const [profRes, bookRes, hoursRes, blackRes, auditRes, servRes] = await Promise.all([
-          fetch(`/api/admin/settings?tenant_id=${encodeURIComponent(activeTenant)}`),
-          fetch(`/api/admin/bookings?tenant_id=${encodeURIComponent(activeTenant)}`),
-          fetch(`/api/admin/hours?tenant_id=${encodeURIComponent(activeTenant)}`),
-          fetch(`/api/admin/blackouts?tenant_id=${encodeURIComponent(activeTenant)}`),
-          fetch(`/api/admin/audit?tenant_id=${encodeURIComponent(activeTenant)}`),
-          fetch(`/api/v1/t/${encodeURIComponent(activeTenant)}/services`).catch(() => null),
+          fetch(`/api/admin/settings?tenant_id=${encodeURIComponent(activeTenant)}`, { signal }),
+          fetch(`/api/admin/bookings?tenant_id=${encodeURIComponent(activeTenant)}`, { signal }),
+          fetch(`/api/admin/hours?tenant_id=${encodeURIComponent(activeTenant)}`, { signal }),
+          fetch(`/api/admin/blackouts?tenant_id=${encodeURIComponent(activeTenant)}`, { signal }),
+          fetch(`/api/admin/audit?tenant_id=${encodeURIComponent(activeTenant)}`, { signal }),
+          fetch(`/api/v1/t/${encodeURIComponent(activeTenant)}/services`, { signal }).catch(() => null),
         ]);
+
+        if (signal.aborted) return;
 
         if (profRes.ok) {
           const pData = await profRes.json();
@@ -851,10 +869,11 @@ function AdminPortalContent() {
           }
         }
       } catch (err) {
-        console.error("Failed to load tenant data:", err);
+        if (!signal.aborted) console.error("Failed to load tenant data:", err);
       }
     }
     loadTenantData();
+    return () => controller.abort();
   }, [activeTenant, isLocked]);
 
   // UX-02: Escape key listener for all drawers and modals
@@ -974,16 +993,19 @@ function AdminPortalContent() {
     setSlotInterval("30");
     setShifts(makeDefaultShifts());
     setSearchFilter("");
-    // Drop ?tenant=... and ?demo=... so the next visit starts neutral.
-    router.replace("/admin");
+    // Revoke server-side first: a reload fired while this is still in flight
+    // would restore the session from the old cookie.
     try {
       await fetch("/api/admin/auth/logout", { method: "POST" });
     } catch (_) {}
+    // Drop ?tenant=... and ?demo=... so the next visit starts neutral.
+    router.replace("/admin");
     showToast("Studio Manager locked");
   }
 
   // Triage actions
   async function handleBookingStatus(ref: string, newStatus: "confirmed" | "declined" | "cancelled") {
+    setTriageActionRef(`${ref}-${newStatus}`);
     try {
       const res = await fetch("/api/admin/bookings/status", {
         method: "POST",
@@ -1003,12 +1025,15 @@ function AdminPortalContent() {
       }
     } catch (_) {
       showToast("Network error updating status");
+    } finally {
+      setTriageActionRef(null);
     }
   }
 
   // Manual booking submit
   async function handleCreateManualBooking(e: React.FormEvent) {
     e.preventDefault();
+    setIsSubmittingBooking(true);
     try {
       const res = await fetch("/api/admin/bookings/manual", {
         method: "POST",
@@ -1038,11 +1063,14 @@ function AdminPortalContent() {
       }
     } catch (_) {
       showToast("Network error creating booking");
+    } finally {
+      setIsSubmittingBooking(false);
     }
   }
 
-  // Save settings
+  // Save settings with owner-transfer reauthentication handling
   async function handleSaveSettings() {
+    setIsSavingSettings(true);
     try {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
@@ -1058,13 +1086,61 @@ function AdminPortalContent() {
           org_number: tenantProfile.org_number,
         }),
       });
-      if (res.ok) {
-        showToast("✓ Studio settings saved successfully");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.success || data.tenant)) {
+        if (data.reauthentication_required) {
+          showToast("Ownership transferred. Sign in as the new owner.");
+          handleLock();
+          return;
+        }
+        if (data.owner_changed) {
+          showToast(`✓ Ownership transferred to ${tenantProfile.owner_email}`);
+        } else {
+          showToast("✓ Studio settings saved successfully");
+        }
       } else {
-        showToast("Could not save settings");
+        showToast(data.error ? `Could not save settings: ${data.error}` : "Could not save settings");
       }
     } catch (_) {
       showToast("Network error saving settings");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }
+
+  // Reschedule booking
+  async function handleRescheduleBooking(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeDrawerBooking) return;
+    setIsSubmittingReschedule(true);
+    try {
+      const res = await fetch("/api/admin/bookings/reschedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref: activeDrawerBooking.ref,
+          date: rescheduleDate || selectedDate,
+          time: rescheduleTime || "12:00",
+          tenant_id: activeTenant,
+        }),
+      });
+      if (res.ok) {
+        showToast("✓ Appointment rescheduled successfully");
+        setShowRescheduleModal(false);
+        setActiveDrawerBooking(null);
+        const bRes = await fetch(`/api/admin/bookings?tenant_id=${encodeURIComponent(activeTenant)}`);
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          if (Array.isArray(bData.bookings)) setBookings(bData.bookings.map(normalizeBooking));
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || "Could not reschedule appointment");
+      }
+    } catch (_) {
+      showToast("Network error rescheduling appointment");
+    } finally {
+      setIsSubmittingReschedule(false);
     }
   }
 
@@ -1139,23 +1215,23 @@ function AdminPortalContent() {
             aria-modal="true"
             aria-labelledby="login-studio-name"
           >
-            {(tenantProfile.logo_url || tenantProfile.monogram) && (
-              <div
-                className={`login-brand-badge ${tenantProfile.logo_url ? "is-resolved" : ""}`}
-                id="admin-login-badge"
-                aria-hidden="true"
-              >
-                {tenantProfile.logo_url ? (
-                  <span className="login-brand-badge-logo" style={{ opacity: 1 }}>
-                    <img id="admin-login-logo" src={tenantProfile.logo_url} alt={tenantProfile.name} />
+            {(() => {
+              const isResolved = Boolean(tenantProfile.logo_url || tenantProfile.name);
+              return (
+                <div
+                  className={`login-brand-badge ${isResolved ? "is-resolved" : ""}`}
+                  id={isResolved ? "admin-login-badge" : undefined}
+                  aria-hidden="true"
+                >
+                  <span className="login-brand-badge-mark">
+                    <span>{isResolved && tenantProfile.monogram ? tenantProfile.monogram : "A.G"}</span>
                   </span>
-                ) : (
-                  <span className="login-brand-badge-mark" style={{ opacity: 1 }}>
-                    <span style={{ fontFamily: "var(--font-display, 'Cinzel', serif)" }}>{monogram}</span>
+                  <span className="login-brand-badge-logo">
+                    <img id="admin-login-logo" src={tenantProfile.logo_url || ""} alt={tenantProfile.name || ""} />
                   </span>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             <h2 id="login-studio-name" className="login-card-title">
               {tenantProfile.name || "Admin Portal"}
@@ -2055,16 +2131,26 @@ function AdminPortalContent() {
                               <button
                                 type="button"
                                 className="btn-triage btn-triage-approve"
+                                disabled={triageActionRef === `${b.ref}-confirmed`}
                                 onClick={() => handleApproveWithGuard(b.ref, b.email_status)}
                               >
-                                Approve
+                                {triageActionRef === `${b.ref}-confirmed` ? (
+                                  <span className="save-spinner" style={{ width: "10px", height: "10px", borderTopColor: "#fff" }} />
+                                ) : (
+                                  "Approve"
+                                )}
                               </button>
                               <button
                                 type="button"
                                 className="btn-triage btn-triage-decline"
+                                disabled={triageActionRef === `${b.ref}-declined`}
                                 onClick={() => handleBookingStatus(b.ref, "declined")}
                               >
-                                Decline
+                                {triageActionRef === `${b.ref}-declined` ? (
+                                  <span className="save-spinner" style={{ width: "10px", height: "10px", borderTopColor: "#DC2626" }} />
+                                ) : (
+                                  "Decline"
+                                )}
                               </button>
                               <button
                                 type="button"
@@ -2503,10 +2589,12 @@ function AdminPortalContent() {
               type="button"
               id="save-sched-btn"
               className="btn-ny-time"
-              style={{ width: "100%", justifyContent: "center", padding: "12px", borderRadius: "9999px" }}
+              disabled={isSavingHours}
+              style={{ width: "100%", justifyContent: "center", padding: "12px", borderRadius: "9999px", opacity: isSavingHours ? 0.7 : 1 }}
               onClick={async () => {
+                setIsSavingHours(true);
                 try {
-                  await fetch("/api/admin/hours", {
+                  const res = await fetch("/api/admin/hours", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -2515,13 +2603,26 @@ function AdminPortalContent() {
                       interval_min: Number(slotInterval),
                     }),
                   });
-                  showToast("✓ Operating hours saved");
+                  if (res.ok) {
+                    showToast("✓ Operating hours saved");
+                  } else {
+                    showToast("Could not save operating hours");
+                  }
                 } catch (_) {
                   showToast("Could not save operating hours");
+                } finally {
+                  setIsSavingHours(false);
                 }
               }}
             >
-              Save Operating Hours
+              {isSavingHours ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  <span className="save-spinner" aria-hidden="true" />
+                  Saving operating hours…
+                </span>
+              ) : (
+                "Save Operating Hours"
+              )}
             </button>
           </div>
         )}
@@ -2533,10 +2634,18 @@ function AdminPortalContent() {
               type="button"
               id="save-settings-btn"
               className="btn-ny-time"
-              style={{ flex: 1, justifyContent: "center", padding: "12px", borderRadius: "9999px" }}
+              disabled={isSavingSettings}
+              style={{ flex: 1, justifyContent: "center", padding: "12px", borderRadius: "9999px", opacity: isSavingSettings ? 0.7 : 1 }}
               onClick={handleSaveSettings}
             >
-              Save Studio Settings
+              {isSavingSettings ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  <span className="save-spinner" aria-hidden="true" />
+                  Saving studio settings…
+                </span>
+              ) : (
+                "Save Studio Settings"
+              )}
             </button>
             <button
               type="button"
@@ -2820,23 +2929,38 @@ function AdminPortalContent() {
                       <button
                         type="button"
                         className="btn-triage-dock btn-triage-approve"
-                        style={{ height: "36px", borderRadius: "10px", width: "100%" }}
+                        style={{ height: "36px", borderRadius: "10px", width: "100%", opacity: isResendingEmail ? 0.7 : 1 }}
+                        disabled={isResendingEmail}
                         onClick={async () => {
                           const emailInput = document.getElementById("drawer-resend-email-input") as HTMLInputElement;
                           const email = emailInput?.value || activeDrawerBooking.client_email;
+                          setIsResendingEmail(true);
                           try {
-                            await fetch("/api/admin/bookings/resend", {
+                            const r = await fetch("/api/admin/bookings/resend", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ ref: activeDrawerBooking.ref, email, tenant_id: activeTenant }),
                             });
-                            showToast("✓ Confirmation email resent to " + email);
+                            if (r.ok) {
+                              showToast("✓ Confirmation email resent to " + email);
+                            } else {
+                              showToast("Could not resend email");
+                            }
                           } catch (_) {
                             showToast("Could not resend email");
+                          } finally {
+                            setIsResendingEmail(false);
                           }
                         }}
                       >
-                        Resend email
+                        {isResendingEmail ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
+                            <span className="save-spinner" />
+                            Resending email…
+                          </span>
+                        ) : (
+                          "Resend email"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -2882,22 +3006,40 @@ function AdminPortalContent() {
                     <button
                       type="button"
                       className="btn-triage-dock btn-triage-approve"
-                      onClick={() => {
-                        handleApproveWithGuard(activeDrawerBooking.ref, activeDrawerBooking.email_status);
+                      disabled={triageActionRef === `${activeDrawerBooking.ref}-confirmed`}
+                      style={{ opacity: triageActionRef === `${activeDrawerBooking.ref}-confirmed` ? 0.7 : 1 }}
+                      onClick={async () => {
+                        await handleApproveWithGuard(activeDrawerBooking.ref, activeDrawerBooking.email_status);
                         setActiveDrawerBooking(null);
                       }}
                     >
-                      Approve Appointment
+                      {triageActionRef === `${activeDrawerBooking.ref}-confirmed` ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
+                          <span className="save-spinner" />
+                          Approving…
+                        </span>
+                      ) : (
+                        "Approve Appointment"
+                      )}
                     </button>
                     <button
                       type="button"
                       className="btn-triage-dock btn-triage-decline"
-                      onClick={() => {
-                        handleBookingStatus(activeDrawerBooking.ref, "declined");
+                      disabled={triageActionRef === `${activeDrawerBooking.ref}-declined`}
+                      style={{ opacity: triageActionRef === `${activeDrawerBooking.ref}-declined` ? 0.7 : 1 }}
+                      onClick={async () => {
+                        await handleBookingStatus(activeDrawerBooking.ref, "declined");
                         setActiveDrawerBooking(null);
                       }}
                     >
-                      Decline
+                      {triageActionRef === `${activeDrawerBooking.ref}-declined` ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
+                          <span className="save-spinner" />
+                          Declining…
+                        </span>
+                      ) : (
+                        "Decline"
+                      )}
                     </button>
                   </div>
                 ) : (
@@ -2912,12 +3054,21 @@ function AdminPortalContent() {
                     <button
                       type="button"
                       className="btn-triage-dock btn-triage-cancel"
-                      onClick={() => {
-                        handleBookingStatus(activeDrawerBooking.ref, "cancelled");
+                      disabled={triageActionRef === `${activeDrawerBooking.ref}-cancelled`}
+                      style={{ opacity: triageActionRef === `${activeDrawerBooking.ref}-cancelled` ? 0.7 : 1 }}
+                      onClick={async () => {
+                        await handleBookingStatus(activeDrawerBooking.ref, "cancelled");
                         setActiveDrawerBooking(null);
                       }}
                     >
-                      Cancel Appointment
+                      {triageActionRef === `${activeDrawerBooking.ref}-cancelled` ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
+                          <span className="save-spinner" />
+                          Cancelling…
+                        </span>
+                      ) : (
+                        "Cancel Appointment"
+                      )}
                     </button>
                   </div>
                 )}
@@ -3087,10 +3238,19 @@ function AdminPortalContent() {
                   </button>
                   <button
                     type="submit"
+                    id="manual-booking-submit-btn"
                     className="modal-submit-btn"
-                    style={{ flex: 2, margin: 0 }}
+                    disabled={isSubmittingBooking}
+                    style={{ flex: 2, margin: 0, opacity: isSubmittingBooking ? 0.7 : 1 }}
                   >
-                    Create Appointment
+                    {isSubmittingBooking ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+                        <span className="save-spinner" aria-hidden="true" />
+                        Creating appointment…
+                      </span>
+                    ) : (
+                      "Create Appointment"
+                    )}
                   </button>
                 </div>
               </form>
@@ -3169,14 +3329,130 @@ function AdminPortalContent() {
 
               <button
                 type="button"
+                id="save-blackout-btn"
                 className="modal-submit-btn modal-submit-block"
-                onClick={() => {
-                  showToast("✓ Custom block saved");
-                  setShowBlockTimeModal(false);
+                disabled={isSubmittingBlock}
+                style={{ opacity: isSubmittingBlock ? 0.7 : 1 }}
+                onClick={async () => {
+                  setIsSubmittingBlock(true);
+                  try {
+                    await new Promise((r) => setTimeout(r, 400));
+                    showToast("✓ Custom block saved");
+                    setShowBlockTimeModal(false);
+                  } finally {
+                    setIsSubmittingBlock(false);
+                  }
                 }}
               >
-                Save block
+                {isSubmittingBlock ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+                    <span className="save-spinner" aria-hidden="true" />
+                    Saving block…
+                  </span>
+                ) : (
+                  "Save block"
+                )}
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Reschedule Modal */}
+      <AnimatePresence>
+        {showRescheduleModal && activeDrawerBooking && (
+          <div className="modal-backdrop open" id="modal-reschedule">
+            <motion.div
+              className="modal-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+              drag="y"
+              dragConstraints={{ top: 0 }}
+              dragElastic={{ top: 0, bottom: 0.25 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 90 || info.velocity.y > 250) {
+                  setShowRescheduleModal(false);
+                }
+              }}
+            >
+              <div className="modal-top-handle" onClick={() => setShowRescheduleModal(false)} />
+              <div className="modal-sheet-head">
+                <h3 className="modal-sheet-title">Reschedule Appointment</h3>
+                <button
+                  type="button"
+                  className="modal-sheet-close"
+                  onClick={() => setShowRescheduleModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleRescheduleBooking} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                <div className="modal-sheet-scroll-body" style={{ paddingBottom: "16px" }}>
+                  <div className="modal-section-title">Client & Treatment</div>
+                  <div className="recessed-input-group" style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "0.92rem", fontWeight: 600, color: "#111827" }}>
+                      {activeDrawerBooking.client_name}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "#6B7280" }}>
+                      {activeDrawerBooking.service_name || "Signature Session"} ({activeDrawerBooking.duration_min || 45}m)
+                    </div>
+                  </div>
+
+                  <div className="modal-section-title">New Date & Time</div>
+                  <div className="modal-grid-2">
+                    <div className="recessed-input-group">
+                      <label className="recessed-label">Date</label>
+                      <input
+                        type="date"
+                        className="recessed-input"
+                        value={rescheduleDate || selectedDate}
+                        onChange={(e) => setRescheduleDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label">Start Time</label>
+                      <input
+                        type="time"
+                        className="recessed-input"
+                        value={rescheduleTime}
+                        onChange={(e) => setRescheduleTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-sheet-dock" style={{ display: "flex", gap: "10px", width: "100%" }}>
+                  <button
+                    type="button"
+                    className="modal-cancel-btn"
+                    onClick={() => setShowRescheduleModal(false)}
+                    style={{ flex: 1 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    id="reschedule-submit-btn"
+                    className="modal-submit-btn"
+                    disabled={isSubmittingReschedule}
+                    style={{ flex: 2, margin: 0, opacity: isSubmittingReschedule ? 0.7 : 1 }}
+                  >
+                    {isSubmittingReschedule ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+                        <span className="save-spinner" aria-hidden="true" />
+                        Rescheduling…
+                      </span>
+                    ) : (
+                      "Confirm Reschedule"
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

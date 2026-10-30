@@ -3937,22 +3937,38 @@ html, body, .admin-app-root {
   opacity: 0.015 !important;
 }
 
-/* 3. Collision-Proof Mobile Month Grid */
+/* 3. Stretched Mobile Month Grid: fills vertical height down to sheet top (no dead space) */
 @media (max-width: 959px) {
   .canopy-month-grid {
-    position: relative !important;
-    top: auto !important;
-    left: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    width: 100% !important;
-    margin-top: 10px !important;
-    display: flex !important;
+    position: absolute !important;
+    top: 104px !important;
+    left: 18px !important;
+    right: 18px !important;
+    bottom: 255px !important;
+    width: auto !important;
+    margin: 0 !important;
+    display: none !important;
     flex-direction: column !important;
+    justify-content: space-between !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: 2 !important;
+    transition: opacity 0.2s ease, visibility 0.2s ease !important;
+  }
+
+  .admin-shell.canopy-expanded .canopy-month-grid {
+    display: flex !important;
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
-    z-index: 2 !important;
+  }
+
+  .admin-shell.canopy-expanded .canopy-week-strip {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   .month-grid-weekdays {
@@ -3962,13 +3978,23 @@ html, body, .admin-app-root {
     font-size: 0.75rem !important;
     font-weight: 700 !important;
     color: #9CA3AF !important;
-    margin-bottom: 6px !important;
+    margin-bottom: 4px !important;
+    flex-shrink: 0 !important;
+    /* Match the day grid so the weekday letters sit over their columns. */
+    gap: 4px 6px !important;
   }
 
   .month-grid-days {
     display: grid !important;
     grid-template-columns: repeat(7, 1fr) !important;
-    gap: 6px !important;
+    /* Auto rows: 5-week months stretch to 1/5, 6-week months to 1/6.
+       A fixed repeat(6, 1fr) left a dead row above the collapsed sheet. */
+    grid-auto-rows: 1fr !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    gap: 4px 6px !important;
+    align-content: stretch !important;
     width: 100% !important;
   }
 }
@@ -3977,13 +4003,19 @@ html, body, .admin-app-root {
 .month-grid-cell,
 .month-day-cell {
   position: relative !important;
-  height: 40px !important;
+  height: 100% !important;
+  /* booking.css gives .month-day-cell aspect-ratio:1; with a stretched row the
+     width became the row height and pushed the last columns off-screen. */
+  aspect-ratio: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
   border-radius: 9999px !important;
-  font-size: 1rem !important;
+  font-size: 0.95rem !important;
   font-weight: 500 !important;
   color: #FFFFFF !important;
   background: transparent !important;
@@ -3991,6 +4023,29 @@ html, body, .admin-app-root {
   cursor: pointer !important;
   transition: all 0.15s ease !important;
   box-sizing: border-box !important;
+}
+
+/* Mobile month view: rows stretch to fill the canopy, but the day chip stays a
+   circle instead of becoming a tall capsule. */
+@media (max-width: 959px) {
+  .admin-shell.canopy-expanded .month-grid-days .month-grid-cell,
+  .admin-shell.canopy-expanded .month-grid-days .month-day-cell {
+    height: 46px !important;
+    align-self: center !important;
+  }
+}
+
+/* Shared Save Action Spinner */
+.save-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-top-color: currentColor;
+  animation: loginSpin 0.65s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .month-grid-cell:hover,

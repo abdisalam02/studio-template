@@ -22,9 +22,9 @@ Updated: 2026-10-30
 - TODO-CLIENT: confirm each tenant's public contact details.
 
 ## Recent (max 5, one line each)
+- 2026-10-30 — Admin design pass: A.G login placeholder, month grid fills the canopy (5/6-row months), save spinners, owner reauth; lock aborts in-flight loads (`site/src/app/admin/`)
 - 2026-10-30 — Mobile physics overhaul: 60fps sheet touch gestures, pull-to-refresh immunity, decoupled canopy, zero-flash auth veil, docked save bars (`site/src/app/admin/`)
 - 2026-10-30 — Admin UI overhaul: compact header, lacquer theme chips, zero native dialogs, dynamic Gangina lookup (`site/src/app/admin/`)
-- 2026-10-30 — Auth lookup & pre-push security audit verified (`scripts/verify-auth-lookup-security.mjs`)
-- 2026-10-30 — Owner transfer deactivates the displaced owner, revokes their sessions, and returns reauthentication_required; Gangina owner is niwache12 (`scripts/verify-owner-transfer.mjs`)
-- 2026-10-30 — Session probe cached (<50ms warm), manual booking accepts scheduled_at/duration_min with tenant-scoped active-service pricing (`scripts/verify-session-manual-contract.mjs`)
+- 2026-10-30 — Owner transfer deactivates displaced owner, revokes sessions, returns reauthentication_required; Gangina owner is niwache12 (`scripts/verify-owner-transfer.mjs`)
+- 2026-10-30 — Session probe cached (<50ms warm), manual booking accepts scheduled_at/duration_min with tenant pricing (`scripts/verify-session-manual-contract.mjs`)
 

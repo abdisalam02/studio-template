@@ -66,6 +66,12 @@ try {
   check("login.initial.neutral_title", initialTitle === "Admin Portal", initialTitle);
   check("login.initial.no_badge", (await page.locator("#admin-login-badge").count()) === 0);
   check("login.initial.empty_email", (await page.locator("#admin-login-email").inputValue()) === "");
+  const initialMark = (await page.locator(".login-brand-badge-mark").innerText().catch(() => "")).trim();
+  const initialResolved = await page
+    .locator(".login-brand-badge")
+    .evaluate((el) => el.classList.contains("is-resolved"))
+    .catch(() => null);
+  check("login.initial.ag_placeholder", initialMark === "A.G" && initialResolved === false, `${initialMark} resolved=${initialResolved}`);
 
   /* 2. Email lookup resolves Gangina branding. */
   await page.fill("#admin-login-email", "niwache12@gmail.com");
@@ -84,6 +90,11 @@ try {
     Boolean(logoSrc) || badgeText.trim().length > 0,
     logoSrc || badgeText.trim()
   );
+  const badgeResolved = await page
+    .locator(".login-brand-badge")
+    .evaluate((el) => el.classList.contains("is-resolved"))
+    .catch(() => null);
+  check("login.email.badge_resolved", badgeResolved === true, String(badgeResolved));
 
   /* 3. Clearing the email clears the branding again. */
   await page.fill("#admin-login-email", "");
@@ -95,6 +106,8 @@ try {
   const clearedTitle = (await page.locator("#login-studio-name").innerText()).trim();
   check("login.clear.neutral_again", clearedTitle === "Admin Portal", clearedTitle);
   check("login.clear.no_badge", (await page.locator("#admin-login-badge").count()) === 0);
+  const clearedMark = (await page.locator(".login-brand-badge-mark").innerText().catch(() => "")).trim();
+  check("login.clear.ag_placeholder", clearedMark === "A.G", clearedMark);
 
   /* 4. Authenticate as Gangina (dev-only shortcut), then load /admin. */
   const loginRes = await context.request.post(`${BASE}/api/admin/dev-login`, {
@@ -146,10 +159,23 @@ try {
   /* 6. Lock → neutral login wall, no stale studio branding. */
   await page.click("#admin-lock-btn");
   await page.waitForSelector("#admin-login-email", { state: "visible", timeout: 20000 });
+  // Lock revokes server-side; wait for it so the reload below cannot race the
+  // logout request and restore the old session.
+  await page.waitForFunction(
+    async () => {
+      const res = await fetch("/api/admin/auth/session", { cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      return body?.authenticated === false;
+    },
+    null,
+    { timeout: 20000, polling: 100 }
+  );
   const lockedTitle = (await page.locator("#login-studio-name").innerText()).trim();
   check("lock.login.neutral_title", lockedTitle === "Admin Portal", lockedTitle);
   check("lock.login.no_badge", (await page.locator("#admin-login-badge").count()) === 0);
   check("lock.login.empty_email", (await page.locator("#admin-login-email").inputValue()) === "");
+  const lockedMark = (await page.locator(".login-brand-badge-mark").innerText().catch(() => "")).trim();
+  check("lock.login.ag_placeholder", lockedMark === "A.G", lockedMark);
   check("lock.url.clean", page.url().replace(/\/$/, "").endsWith("/admin"), page.url());
 
   /* 7. Reload after logout stays locked. */
