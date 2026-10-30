@@ -20,12 +20,11 @@ Updated: 2026-10-30
 ## Open / TODO
 - TODO-CONFIG: production env (`NEXT_PUBLIC_SITE_URL`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`).
 - TODO-CLIENT: confirm each tenant's public contact details.
-- TODO-RLS: apply `supabase/migrations/20261030130000_harden_tenant_privacy.sql` (anon can read `tenants.owner_email`).
 
 ## Recent (max 5, one line each)
 - 2026-10-30 — Admin UI overhaul: compact header, lacquer theme chips, zero native dialogs, dynamic Gangina lookup (`site/src/app/admin/`)
 - 2026-10-30 — Auth lookup & pre-push security audit verified (`scripts/verify-auth-lookup-security.mjs`)
 - 2026-10-30 — Restored Next.js admin parity: fluid dock slider, amber dot, 80px detents & drawer triage (`site/src/app/admin/`)
 - 2026-10-30 — 60fps sheet physics, Oslo demo data & Inspo-style cards (`site/src/app/admin/`, `site/src/app/platform/`)
-- 2026-10-30 — Admin backend verified: 75/76 checks; hours/blackouts/manual contracts fixed (`scripts/verify-admin-backend.mjs`)
+- 2026-10-30 — Fixed cross-tenant login confusion: session tenant authoritative, neutral login wall, email-resolved OTP (`scripts/verify-admin-login-flow.mjs`)
 

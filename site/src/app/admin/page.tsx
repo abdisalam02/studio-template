@@ -52,10 +52,35 @@ interface TenantProfile {
   org_number?: string;
 }
 
+const EMPTY_TENANT_PROFILE: TenantProfile = {
+  id: "",
+  name: "",
+  monogram: "",
+  tagline: "Studio Manager",
+};
+
+const DEFAULT_SHIFTS: Record<string, { open: boolean; start: string; end: string }> = {
+  Monday: { open: true, start: "09:00", end: "17:00" },
+  Tuesday: { open: true, start: "09:00", end: "17:00" },
+  Wednesday: { open: true, start: "09:00", end: "17:00" },
+  Thursday: { open: true, start: "09:00", end: "17:00" },
+  Friday: { open: true, start: "09:00", end: "17:00" },
+  Saturday: { open: false, start: "10:00", end: "15:00" },
+  Sunday: { open: false, start: "10:00", end: "15:00" },
+};
+
+function makeDefaultShifts(): Record<string, { open: boolean; start: string; end: string }> {
+  return Object.fromEntries(
+    Object.entries(DEFAULT_SHIFTS).map(([day, shift]) => [day, { ...shift }])
+  );
+}
+
 function AdminPortalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tenantParam = searchParams.get("tenant") || "noire";
+  // No implicit tenant: pre-login branding is resolved from the email, and the
+  // authenticated session is authoritative afterwards.
+  const tenantParam = searchParams.get("tenant") || "";
 
   // Auth & Session
   const [session, setSession] = useState<{
@@ -84,12 +109,7 @@ function AdminPortalContent() {
   // Tenant & Branding
   const [activeTenant, setActiveTenant] = useState<string>(tenantParam);
   const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
-  const [tenantProfile, setTenantProfile] = useState<TenantProfile>({
-    id: "noire",
-    name: "Atelier Noire",
-    monogram: "N",
-    tagline: "Studio Manager",
-  });
+  const [tenantProfile, setTenantProfile] = useState<TenantProfile>(EMPTY_TENANT_PROFILE);
   const [activeTheme, setActiveTheme] = useState("wada-kurokin");
 
   // Navigation & Views
@@ -204,15 +224,7 @@ function AdminPortalContent() {
   // Data Caches
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
-  const [shifts, setShifts] = useState<Record<string, { open: boolean; start: string; end: string }>>({
-    Monday: { open: true, start: "09:00", end: "17:00" },
-    Tuesday: { open: true, start: "09:00", end: "17:00" },
-    Wednesday: { open: true, start: "09:00", end: "17:00" },
-    Thursday: { open: true, start: "09:00", end: "17:00" },
-    Friday: { open: true, start: "09:00", end: "17:00" },
-    Saturday: { open: false, start: "10:00", end: "15:00" },
-    Sunday: { open: false, start: "10:00", end: "15:00" },
-  });
+  const [shifts, setShifts] = useState<Record<string, { open: boolean; start: string; end: string }>>(makeDefaultShifts);
   const [blackouts, setBlackouts] = useState<any[]>([]);
   const [slotInterval, setSlotInterval] = useState("30");
 
@@ -589,65 +601,65 @@ function AdminPortalContent() {
     showToast("Welcome to Atelier Noire Demo Sandbox");
   };
 
-  // Dynamic email lookup to resolve studio branding while locked
+  // Dynamic email lookup to resolve studio branding while locked.
+  // Empty/unresolved input must clear the brand so the login wall never shows
+  // the previous (or a default) studio.
   const handleEmailLookup = (email: string) => {
     if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
     const cleaned = email.trim().toLowerCase();
-    if (!cleaned || !cleaned.includes("@")) return;
+
+    if (!cleaned || !cleaned.includes("@")) {
+      setActiveTenant("");
+      setTenantProfile(EMPTY_TENANT_PROFILE);
+      return;
+    }
 
     lookupTimerRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/admin/auth/lookup?email=${encodeURIComponent(cleaned)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.tenant_id) {
-            setActiveTenant(data.tenant_id);
-            setTenantProfile((prev) => ({
-              ...prev,
-              id: data.tenant_id,
-              name: data.name,
-              monogram: data.monogram || data.name.slice(0, 2).toUpperCase(),
-              logo_url: data.logo_url || "",
-              tagline: data.tagline || prev.tagline,
-            }));
-          }
+        const data = res.ok ? await res.json() : null;
+        if (data?.success && data.tenant_id) {
+          setActiveTenant(data.tenant_id);
+          setTenantProfile({
+            id: data.tenant_id,
+            name: data.name || "",
+            monogram: data.monogram || (data.name || "").slice(0, 2).toUpperCase(),
+            logo_url: data.logo_url || "",
+            tagline: "Studio Manager",
+          });
+        } else {
+          setActiveTenant("");
+          setTenantProfile(EMPTY_TENANT_PROFILE);
         }
-      } catch (_) {}
+      } catch (_) {
+        setActiveTenant("");
+        setTenantProfile(EMPTY_TENANT_PROFILE);
+      }
     }, 280);
   };
 
-  // Public studio lookup by URL parameter on mount (e.g. ?tenant=gangina)
-  useEffect(() => {
-    if (tenantParam && isLocked) {
-      fetch(`/api/admin/auth/lookup?tenant_id=${encodeURIComponent(tenantParam)}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success && data.tenant_id) {
-            setActiveTenant(data.tenant_id);
-            setTenantProfile((prev) => ({
-              ...prev,
-              id: data.tenant_id,
-              name: data.name,
-              monogram: data.monogram || data.name.slice(0, 2).toUpperCase(),
-              logo_url: data.logo_url || "",
-              tagline: data.tagline || prev.tagline,
-            }));
-          }
-        })
-        .catch(() => {});
-    }
-  }, [tenantParam, isLocked]);
+  // NOTE: do not resolve branding from `?tenant=` while locked. The login wall
+  // stays neutral until the visitor types an email that resolves to a studio;
+  // the URL parameter is only used for post-login tenant switching.
 
   // Sync with tenant query param
   useEffect(() => {
-    if (tenantParam && tenantParam !== activeTenant) {
-      if (tenantParam === "demo-studio") {
-        enterDemoSandbox();
-      } else {
-        setActiveTenant(tenantParam);
-      }
+    if (!tenantParam) return;
+    // A tenant session is authoritative; only platform admins may switch by URL.
+    if (
+      session?.authenticated &&
+      session.scope !== "platform" &&
+      session.tenant_id &&
+      tenantParam !== session.tenant_id
+    ) {
+      return;
     }
-  }, [tenantParam]);
+    if (tenantParam === "demo-studio") {
+      enterDemoSandbox();
+    } else {
+      setActiveTenant(tenantParam);
+    }
+  }, [tenantParam, session]);
 
   // Check auth session
   useEffect(() => {
@@ -664,11 +676,15 @@ function AdminPortalContent() {
           if (data.authenticated) {
             setSession(data);
             setIsLocked(false);
-            if (data.tenant_id && !tenantParam) {
+            // The session's tenant is authoritative. Never fall back to noire.
+            if (data.tenant_id) {
               setActiveTenant(data.tenant_id);
             }
           } else {
+            setSession(null);
             setIsLocked(true);
+            setActiveTenant("");
+            setTenantProfile(EMPTY_TENANT_PROFILE);
           }
         }
       } catch (err) {
@@ -687,6 +703,9 @@ function AdminPortalContent() {
           const data = await res.json();
           if (Array.isArray(data.tenants)) {
             setTenantList(data.tenants);
+            if (data.tenants.length > 0) {
+              setActiveTenant((current) => current || data.tenants[0].id);
+            }
           }
         }
       } catch (_) {}
@@ -698,6 +717,7 @@ function AdminPortalContent() {
   useEffect(() => {
     async function loadTenantData() {
       if (isLocked) return;
+      if (!activeTenant) return;
       const isDemo = searchParams.get("demo") === "1" || searchParams.get("demo") === "true";
       if (activeTenant === "demo-studio") {
         enterDemoSandbox();
@@ -797,14 +817,14 @@ function AdminPortalContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: loginEmail.trim(),
-          tenant_id: activeTenant,
-          scope: "tenant",
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setChallengeId(data.challengeId);
         setLoginStep("code");
+        // The server resolved the tenant from the email.
+        if (data.tenant_id) setActiveTenant(data.tenant_id);
         showToast("✓ Verification code sent to your inbox");
       } else {
         setLoginError(data.error || data.message || "Unauthorized email for this studio.");
@@ -832,13 +852,20 @@ function AdminPortalContent() {
           email: loginEmail.trim(),
           code: loginPin.trim(),
           challengeId,
-          tenant_id: activeTenant,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        const verifiedTenant =
+          typeof data.tenant_id === "string" ? data.tenant_id : "";
         setIsLocked(false);
-        setSession({ authenticated: true, email: loginEmail, tenant_id: activeTenant });
+        setSession({
+          authenticated: true,
+          email: data.email || loginEmail,
+          tenant_id: verifiedTenant,
+          scope: data.scope,
+        });
+        if (verifiedTenant) setActiveTenant(verifiedTenant);
         showToast("✓ Studio Manager unlocked");
       } else {
         setLoginError(data.error || data.message || "Invalid or expired code.");
@@ -855,8 +882,32 @@ function AdminPortalContent() {
       await fetch("/api/admin/auth/logout", { method: "POST" });
     } catch (_) {}
     setIsLocked(true);
+    setSession(null);
     setLoginStep("email");
+    setLoginEmail("");
     setLoginPin("");
+    setChallengeId("");
+    setLoginError("");
+    setActiveTenant("");
+    setTenantProfile(EMPTY_TENANT_PROFILE);
+    setTenantList([]);
+    setBookings([]);
+    setActivityLogs([]);
+    setBlackouts([]);
+    setActiveDrawerBooking(null);
+    setShowNewBookingModal(false);
+    setShowBlockTimeModal(false);
+    setShowRescheduleModal(false);
+    setShowCustomThemeSheet(false);
+    setNewClientName("");
+    setNewClientPhone("");
+    setNewClientEmail("");
+    setNewService("Signature Session");
+    setSlotInterval("30");
+    setShifts(makeDefaultShifts());
+    setSearchFilter("");
+    // Drop ?tenant=... and ?demo=... so the next visit starts neutral.
+    router.replace("/admin");
     showToast("Studio Manager locked");
   }
 
@@ -1009,24 +1060,26 @@ function AdminPortalContent() {
               aria-modal="true"
               aria-labelledby="login-studio-name"
             >
-              <div
-                className={`login-brand-badge ${tenantProfile.logo_url ? "is-resolved" : ""}`}
-                id="admin-login-badge"
-                aria-hidden="true"
-              >
-                {tenantProfile.logo_url ? (
-                  <span className="login-brand-badge-logo" style={{ opacity: 1 }}>
-                    <img id="admin-login-logo" src={tenantProfile.logo_url} alt={tenantProfile.name} />
-                  </span>
-                ) : (
-                  <span className="login-brand-badge-mark" style={{ opacity: 1 }}>
-                    <span style={{ fontFamily: "var(--font-display, 'Cinzel', serif)" }}>{monogram}</span>
-                  </span>
-                )}
-              </div>
+              {(tenantProfile.logo_url || tenantProfile.monogram) && (
+                <div
+                  className={`login-brand-badge ${tenantProfile.logo_url ? "is-resolved" : ""}`}
+                  id="admin-login-badge"
+                  aria-hidden="true"
+                >
+                  {tenantProfile.logo_url ? (
+                    <span className="login-brand-badge-logo" style={{ opacity: 1 }}>
+                      <img id="admin-login-logo" src={tenantProfile.logo_url} alt={tenantProfile.name} />
+                    </span>
+                  ) : (
+                    <span className="login-brand-badge-mark" style={{ opacity: 1 }}>
+                      <span style={{ fontFamily: "var(--font-display, 'Cinzel', serif)" }}>{monogram}</span>
+                    </span>
+                  )}
+                </div>
+              )}
 
               <h2 id="login-studio-name" className="login-card-title">
-                {tenantProfile.name || "Atelier Portal"}
+                {tenantProfile.name || "Admin Portal"}
               </h2>
               <p id="login-subtitle" className="login-card-subtitle">
                 {loginStep === "email" ? "Enter email to open portal" : "Enter verification code"}
