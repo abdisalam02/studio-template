@@ -1,6 +1,6 @@
 # STATE.md: resume point (read first, keep under 30 lines)
 
-Updated: 2026-10-30
+Updated: 2026-10-31
 
 ## Now
 - Mobile-first overhaul, 3-detent sheet, and pastel studio bento cards matching Inspo 1:1.
@@ -22,9 +22,9 @@ Updated: 2026-10-30
 - TODO-CLIENT: confirm each tenant's public contact details.
 
 ## Recent (max 5, one line each)
+- 2026-10-31 — Comprehensive admin audit: 10/10 automated tests passed, Plan Ahead overrides verified, Atelier Pass drawer verified (`scripts/verify-admin-comprehensive-audit.mjs`)
 - 2026-10-30 — Platform Option 3 pass: Sanzo Wada Studio Folio voucher cards, hairline SVG navigation, tactile asset plaques (`site/src/app/platform/`)
 - 2026-10-30 — Admin ticket audit: Scandinavian voucher pass, placement intake parsing, authentic icons, compact email alert (`site/src/app/admin/`)
 - 2026-10-30 — Admin Atelier Ticket pass: Option 1 status-aware voucher card, zero-slit sticky headers, balanced modal buttons (`site/src/app/admin/`)
-- 2026-10-30 — Admin visual overhaul: card design options artifact, zero-overflow palette grid, hairline loading skeleton screen (`site/src/app/admin/`)
 - 2026-10-30 — Admin mobile pass: instant login lookup, sticky schedule tabs, custom EditorialTimePicker, granular plan-ahead customizer (`site/src/app/admin/`)
 
