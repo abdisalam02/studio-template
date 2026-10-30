@@ -15,6 +15,31 @@ import {
 
 export const dynamic = "force-dynamic"; // design-ok
 
+/**
+ * Accepts ISO-8601 strings, "YYYY-MM-DDTHH:mm[:ss]" in the studio timezone,
+ * and epoch seconds or milliseconds.
+ */
+function parseScheduledAt(value: unknown, timezone: string): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const n = Math.floor(value);
+    return n > 1e12 ? Math.floor(n / 1000) : n;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      const n = Number(trimmed);
+      if (!Number.isFinite(n)) return null;
+      return n > 1e12 ? Math.floor(n / 1000) : n;
+    }
+    const naive = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(trimmed);
+    if (naive) return zonedDateTimeToUtc(naive[1], naive[2], timezone);
+    const ms = Date.parse(trimmed);
+    return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const isDev = process.env.NODE_ENV === "development";
@@ -41,6 +66,8 @@ export async function POST(req: NextRequest) {
       service_id,
       service_name,
       treatment_name,
+      scheduled_at,
+      duration_min,
       start_utc,
       date,
       time,
@@ -53,7 +80,7 @@ export async function POST(req: NextRequest) {
     const resolvedEmail = customer_email || client_email || "";
     const requestedServiceName = String(service_name || treatment_name || "").trim();
 
-    if (!tenant_id || !resolvedName || !resolvedPhone || (!start_utc && (!date || !time))) {
+    if (!tenant_id || !resolvedName || !resolvedPhone) {
       return NextResponse.json(
         { error: "missing_fields", message: "Name, phone and time are required." },
         { status: 400 }
@@ -94,7 +121,9 @@ export async function POST(req: NextRequest) {
     // still accepted for older clients.
     const timezone = tenant.timezone || "Europe/Oslo";
     const startUtc: number | null =
-      start_utc ?? (date && time ? zonedDateTimeToUtc(date, time, timezone) : null);
+      parseScheduledAt(scheduled_at, timezone) ??
+      parseScheduledAt(start_utc, timezone) ??
+      (date && time ? zonedDateTimeToUtc(date, time, timezone) : null);
 
     if (!startUtc) {
       return NextResponse.json(
@@ -103,8 +132,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const requestedDuration = Number(duration_min);
+    const explicitDuration =
+      Number.isFinite(requestedDuration) && requestedDuration >= 5 && requestedDuration <= 480
+        ? Math.round(requestedDuration)
+        : null;
+
     let serviceName = requestedServiceName || "Manual appointment";
-    let durationMin = 30;
+    let durationMin = explicitDuration ?? 30;
     let priceNok = 0;
     let bufferMin = tenant.buffer_min || 10;
 
@@ -116,6 +151,7 @@ export async function POST(req: NextRequest) {
         .select("*")
         .eq("id", serviceId)
         .eq("tenant_id", tenant_id)
+        .eq("active", true)
         .maybeSingle();
 
       if (!s) {
@@ -126,25 +162,33 @@ export async function POST(req: NextRequest) {
       }
 
       serviceName = s.name;
-      durationMin = s.duration_min;
+      durationMin = explicitDuration ?? s.duration_min;
       priceNok = s.price_nok;
       if (s.buffer_min != null) bufferMin = s.buffer_min;
     } else if (requestedServiceName) {
-      // The portal sends a service name ("Signature Treatment"), not an id.
+      // The portal sends the selected service name; resolve it against THIS
+      // tenant's catalog so another studio's price can never be used.
       const { data: s } = await supabaseAdmin
         .from("services")
         .select("*")
         .eq("tenant_id", tenant_id)
-        .eq("name", requestedServiceName)
+        .eq("active", true)
+        .ilike("name", requestedServiceName)
+        .limit(1)
         .maybeSingle();
 
-      if (s) {
-        serviceId = s.id;
-        serviceName = s.name;
-        durationMin = s.duration_min;
-        priceNok = s.price_nok;
-        if (s.buffer_min != null) bufferMin = s.buffer_min;
+      if (!s) {
+        return NextResponse.json(
+          { error: "invalid_service", message: "That treatment does not belong to this studio." },
+          { status: 400 }
+        );
       }
+
+      serviceId = s.id;
+      serviceName = s.name;
+      durationMin = explicitDuration ?? s.duration_min;
+      priceNok = s.price_nok;
+      if (s.buffer_min != null) bufferMin = s.buffer_min;
     }
 
     const endUtc = startUtc + durationMin * 60;
@@ -277,6 +321,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       booking,
+      duration_min: durationMin,
+      scheduled_at: new Date(booking.start_utc * 1000).toISOString(),
       email: emailStatus ? { status: emailStatus, error: emailError } : null,
     });
   } catch (err) {
