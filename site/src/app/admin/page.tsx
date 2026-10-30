@@ -59,6 +59,136 @@ const EMPTY_TENANT_PROFILE: TenantProfile = {
   tagline: "Studio Manager",
 };
 
+const KNOWN_TENANT_LOOKUP: Record<string, { id: string; name: string; logo_url: string; monogram: string; tagline: string }> = {
+  "niwache12@gmail.com": { id: "gangina", name: "by Gangina", logo_url: "/img/logo-chrome.png", monogram: "G", tagline: "Tooth Gems & Grillz" },
+  "niwache15@gmail.com": { id: "gangina", name: "by Gangina", logo_url: "/img/logo-chrome.png", monogram: "G", tagline: "Tooth Gems & Grillz" },
+  "ganginabeauty@gmail.com": { id: "gangina", name: "by Gangina", logo_url: "/img/logo-chrome.png", monogram: "G", tagline: "Tooth Gems & Grillz" },
+};
+const LOOKUP_MEMORY_CACHE = new Map<string, { id: string; name: string; logo_url: string; monogram: string; tagline: string } | null>();
+
+interface EditorialTimePickerProps {
+  value: string;
+  onChange: (val: string) => void;
+  id?: string;
+  style?: React.CSSProperties;
+  disabled?: boolean;
+}
+
+function EditorialTimePicker({ value, onChange, id, style, disabled }: EditorialTimePickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [typedText, setTypedText] = useState(value || "09:00");
+
+  useEffect(() => {
+    setTypedText(value || "09:00");
+  }, [value]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTypedText(val);
+
+    const digitsOnly = val.replace(/\D/g, "");
+    if (digitsOnly.length === 4) {
+      const hh = Math.min(23, Math.max(0, Number(digitsOnly.slice(0, 2))));
+      const mm = Math.min(59, Math.max(0, Number(digitsOnly.slice(2, 4))));
+      const formatted = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      setTypedText(formatted);
+      onChange(formatted);
+    } else if (/^([01]?\d|2[0-3]):[0-5]\d$/.test(val)) {
+      onChange(val);
+    }
+  };
+
+  const handleBlur = () => {
+    if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(typedText)) {
+      setTypedText(value || "09:00");
+    }
+  };
+
+  const adjustMinutes = (delta: number) => {
+    const [hh, mm] = (value || "09:00").split(":").map(Number);
+    const totalMin = ((hh || 0) * 60 + (mm || 0) + delta + 1440) % 1440;
+    const newH = Math.floor(totalMin / 60);
+    const newM = totalMin % 60;
+    const formatted = `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+    onChange(formatted);
+    setTypedText(formatted);
+  };
+
+  const TIME_PRESETS = [
+    "08:00", "09:00", "10:00", "11:00", "12:00", "13:00",
+    "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
+  ];
+
+  return (
+    <div className="editorial-time-picker-wrapper" style={style}>
+      <div className={`editorial-time-pill ${isOpen ? "is-focused" : ""}`}>
+        <span className="editorial-time-clock-icon" aria-hidden="true">⏱</span>
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          className="editorial-time-raw-input"
+          value={typedText}
+          onChange={handleInputChange}
+          onBlur={handleBlur}
+          placeholder="HH:mm"
+          maxLength={5}
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          className="editorial-time-toggle-btn"
+          aria-label="Toggle time picker"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          tabIndex={-1}
+        >
+          ▾
+        </button>
+      </div>
+
+      {isOpen && (
+        <>
+          <div className="editorial-time-backdrop" onClick={() => setIsOpen(false)} />
+          <div className="editorial-time-popover">
+            <div className="editorial-time-steppers">
+              <button type="button" onClick={() => adjustMinutes(-60)} className="time-stepper-btn">-1h</button>
+              <button type="button" onClick={() => adjustMinutes(-15)} className="time-stepper-btn">-15m</button>
+              <span className="time-stepper-display">{value || "09:00"}</span>
+              <button type="button" onClick={() => adjustMinutes(15)} className="time-stepper-btn">+15m</button>
+              <button type="button" onClick={() => adjustMinutes(60)} className="time-stepper-btn">+1h</button>
+            </div>
+            <div className="editorial-time-chips">
+              {TIME_PRESETS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`editorial-time-chip ${value === t ? "active" : ""}`}
+                  onClick={() => {
+                    onChange(t);
+                    setTypedText(t);
+                    setIsOpen(false);
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const DEFAULT_SHIFTS: Record<string, { open: boolean; start: string; end: string }> = {
   Monday: { open: true, start: "09:00", end: "17:00" },
   Tuesday: { open: true, start: "09:00", end: "17:00" },
@@ -258,6 +388,9 @@ function AdminPortalContent() {
   const [planCustomStart, setPlanCustomStart] = useState("09:00");
   const [planCustomEnd, setPlanCustomEnd] = useState("17:00");
   const [planIsClosed, setPlanIsClosed] = useState(false);
+  const [isCustomizingDates, setIsCustomizingDates] = useState(false);
+  const [perDateCustomTimes, setPerDateCustomTimes] = useState<Record<string, { open: boolean; start: string; end: string }>>({});
+  const [blockStartTime, setBlockStartTime] = useState("13:00");
 
   // New Booking Form State
   const [servicesList, setServicesList] = useState<{ id: number | string; name: string; price_nok: number; duration_min: number }[]>([]);
@@ -697,8 +830,7 @@ function AdminPortalContent() {
   };
 
   // Dynamic email lookup to resolve studio branding while locked.
-  // Empty/unresolved input must clear the brand so the login wall never shows
-  // the previous (or a default) studio.
+  // Instant resolution via local cache/fast-path (0ms), micro-debounce (50ms) for new lookups.
   const handleEmailLookup = (email: string) => {
     if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
     const cleaned = email.trim().toLowerCase();
@@ -709,20 +841,46 @@ function AdminPortalContent() {
       return;
     }
 
+    // 1. Synchronous Instant Fast-Path (0ms)
+    const known = KNOWN_TENANT_LOOKUP[cleaned] || LOOKUP_MEMORY_CACHE.get(cleaned);
+    if (known !== undefined) {
+      if (known) {
+        setActiveTenant(known.id);
+        setTenantProfile({
+          id: known.id,
+          name: known.name,
+          monogram: known.monogram,
+          logo_url: known.logo_url,
+          tagline: known.tagline,
+        });
+      } else {
+        setActiveTenant("");
+        setTenantProfile(EMPTY_TENANT_PROFILE);
+      }
+      return;
+    }
+
+    // 2. Fast network lookup (0ms for completed email, 50ms micro-debounce while typing domain)
+    const isCompletedDomain = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(cleaned);
+    const delayMs = isCompletedDomain ? 0 : 50;
+
     lookupTimerRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/admin/auth/lookup?email=${encodeURIComponent(cleaned)}`);
         const data = res.ok ? await res.json() : null;
         if (data?.success && data.tenant_id) {
-          setActiveTenant(data.tenant_id);
-          setTenantProfile({
+          const profile = {
             id: data.tenant_id,
             name: data.name || "",
             monogram: data.monogram || (data.name || "").slice(0, 2).toUpperCase(),
             logo_url: data.logo_url || "",
             tagline: "Studio Manager",
-          });
+          };
+          LOOKUP_MEMORY_CACHE.set(cleaned, profile);
+          setActiveTenant(profile.id);
+          setTenantProfile(profile);
         } else {
+          LOOKUP_MEMORY_CACHE.set(cleaned, null);
           setActiveTenant("");
           setTenantProfile(EMPTY_TENANT_PROFILE);
         }
@@ -730,7 +888,7 @@ function AdminPortalContent() {
         setActiveTenant("");
         setTenantProfile(EMPTY_TENANT_PROFILE);
       }
-    }, 280);
+    }, delayMs);
   };
 
   // NOTE: do not resolve branding from `?tenant=` while locked. The login wall
@@ -2549,30 +2707,26 @@ function AdminPortalContent() {
                           </div>
                           {shift.open && (
                             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
-                              <input
-                                type="time"
-                                className="recessed-input"
-                                style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                              <EditorialTimePicker
                                 value={shift.start}
-                                onChange={(e) =>
+                                onChange={(val) =>
                                   setShifts({
                                     ...shifts,
-                                    [day]: { ...shift, start: e.target.value },
+                                    [day]: { ...shift, start: val },
                                   })
                                 }
+                                style={{ flex: 1 }}
                               />
                               <span style={{ color: "var(--admin-sheet-muted)", fontSize: "0.85rem" }}>–</span>
-                              <input
-                                type="time"
-                                className="recessed-input"
-                                style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                              <EditorialTimePicker
                                 value={shift.end}
-                                onChange={(e) =>
+                                onChange={(val) =>
                                   setShifts({
                                     ...shifts,
-                                    [day]: { ...shift, end: e.target.value },
+                                    [day]: { ...shift, end: val },
                                   })
                                 }
+                                style={{ flex: 1 }}
                               />
                             </div>
                           )}
@@ -2693,12 +2847,16 @@ function AdminPortalContent() {
                         const isSelected = selectedPlanDates.includes(cell.iso);
                         const override = dateOverrides[cell.iso];
                         const isToday = cell.iso === new Date().toISOString().split("T")[0];
+                        const weekdayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(cell.iso + "T00:00:00Z").getUTCDay()];
+                        const standardClosed = shifts[weekdayName]?.open === false;
+                        const isOverrideClosed = override?.open === false;
+                        const isClosedDay = override ? isOverrideClosed : standardClosed;
 
                         return (
                           <button
                             key={`${cell.iso}-${idx}`}
                             type="button"
-                            className={`plan-ahead-cell ${isSelected ? "is-selected" : ""} ${override ? "has-override" : ""}`}
+                            className={`plan-ahead-cell ${isSelected ? "is-selected" : ""} ${override ? "has-override" : ""} ${isClosedDay ? "is-closed-day" : ""}`}
                             style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
                             onClick={() => {
                               setSelectedPlanDates((prev) =>
@@ -2707,6 +2865,7 @@ function AdminPortalContent() {
                             }}
                           >
                             <span style={{ fontSize: "0.82rem", fontWeight: isToday ? 800 : 600 }}>{cell.dayNum}</span>
+                            {isClosedDay && <span className="closed-mark-dot" title="Closed">✕</span>}
                             {override && (
                               <span className={`plan-ahead-override-badge ${override.open === false ? "is-closed" : ""}`}>
                                 {override.open === false ? "Closed" : `${override.start?.slice(0, 5)}`}
@@ -2737,25 +2896,119 @@ function AdminPortalContent() {
                           </label>
                         </div>
 
-                        {!planIsClosed && (
+                        {!planIsClosed && !isCustomizingDates && (
                           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                            <input
-                              type="time"
-                              className="recessed-input"
-                              style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                            <EditorialTimePicker
                               value={planCustomStart}
-                              onChange={(e) => setPlanCustomStart(e.target.value)}
+                              onChange={setPlanCustomStart}
+                              style={{ flex: 1 }}
                             />
                             <span style={{ color: "var(--admin-sheet-muted)", fontSize: "0.85rem" }}>–</span>
-                            <input
-                              type="time"
-                              className="recessed-input"
-                              style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                            <EditorialTimePicker
                               value={planCustomEnd}
-                              onChange={(e) => setPlanCustomEnd(e.target.value)}
+                              onChange={setPlanCustomEnd}
+                              style={{ flex: 1 }}
                             />
                           </div>
                         )}
+
+                        {/* Granular per-date customization toggle */}
+                        <div style={{ marginTop: "8px", marginBottom: "12px", borderTop: "1px solid rgba(0,0,0,0.06)", paddingTop: "8px" }}>
+                          <button
+                            type="button"
+                            className="quick-action-btn"
+                            style={{ width: "100%", justifyContent: "space-between", padding: "6px 10px", fontSize: "0.74rem" }}
+                            onClick={() => setIsCustomizingDates(!isCustomizingDates)}
+                          >
+                            <span>⚙ Customize Each Date Individually ({selectedPlanDates.length})</span>
+                            <span>{isCustomizingDates ? "▲ Close" : "▼ Expand"}</span>
+                          </button>
+
+                          {isCustomizingDates && (
+                            <div style={{ maxHeight: "200px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                              {selectedPlanDates.map((d) => {
+                                const cur = perDateCustomTimes[d] || {
+                                  open: !planIsClosed,
+                                  start: planCustomStart,
+                                  end: planCustomEnd,
+                                };
+                                const dateLabel = new Date(d + "T00:00:00Z").toLocaleDateString("en-US", {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  timeZone: "UTC",
+                                });
+
+                                return (
+                                  <div
+                                    key={d}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      gap: "8px",
+                                      padding: "8px 10px",
+                                      background: "#FFFFFF",
+                                      border: "1px solid rgba(0,0,0,0.06)",
+                                      borderRadius: "10px",
+                                    }}
+                                  >
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#111827" }}>{dateLabel}</div>
+                                      <label className="switch-label" style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                                        <span style={{ fontSize: "0.68rem", fontWeight: 700, color: cur.open ? "#15803D" : "#DC2626" }}>
+                                          {cur.open ? "Open" : "Closed"}
+                                        </span>
+                                        <input
+                                          type="checkbox"
+                                          checked={cur.open}
+                                          onChange={(e) => {
+                                            setPerDateCustomTimes((prev) => ({
+                                              ...prev,
+                                              [d]: { ...cur, open: e.target.checked },
+                                            }));
+                                          }}
+                                        />
+                                        <span className="switch-slider" style={{ transform: "scale(0.8)" }} />
+                                      </label>
+                                    </div>
+
+                                    {cur.open && (
+                                      <div style={{ display: "flex", alignItems: "center", gap: "4px", width: "170px" }}>
+                                        <EditorialTimePicker
+                                          value={cur.start}
+                                          onChange={(t) => setPerDateCustomTimes((prev) => ({ ...prev, [d]: { ...cur, start: t } }))}
+                                        />
+                                        <span style={{ fontSize: "0.74rem", color: "#6B7280" }}>–</span>
+                                        <EditorialTimePicker
+                                          value={cur.end}
+                                          onChange={(t) => setPerDateCustomTimes((prev) => ({ ...prev, [d]: { ...cur, end: t } }))}
+                                        />
+                                      </div>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        color: "#DC2626",
+                                        fontSize: "0.85rem",
+                                        cursor: "pointer",
+                                        padding: "4px",
+                                        lineHeight: 1,
+                                      }}
+                                      onClick={() => setSelectedPlanDates((prev) => prev.filter((x) => x !== d))}
+                                      title="Remove date from selection"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
 
                         <div style={{ display: "flex", gap: "8px" }}>
                           <button
@@ -2765,19 +3018,34 @@ function AdminPortalContent() {
                             onClick={() => {
                               const nextOverrides = { ...dateOverrides };
                               selectedPlanDates.forEach((d) => {
-                                if (planIsClosed) {
-                                  nextOverrides[d] = { open: false };
+                                if (isCustomizingDates && perDateCustomTimes[d]) {
+                                  const custom = perDateCustomTimes[d];
+                                  if (custom.open === false) {
+                                    nextOverrides[d] = { open: false };
+                                  } else {
+                                    nextOverrides[d] = {
+                                      open: true,
+                                      start: custom.start,
+                                      end: custom.end,
+                                      shifts: [{ start: custom.start, end: custom.end }],
+                                    };
+                                  }
                                 } else {
-                                  nextOverrides[d] = {
-                                    open: true,
-                                    start: planCustomStart,
-                                    end: planCustomEnd,
-                                    shifts: [{ start: planCustomStart, end: planCustomEnd }],
-                                  };
+                                  if (planIsClosed) {
+                                    nextOverrides[d] = { open: false };
+                                  } else {
+                                    nextOverrides[d] = {
+                                      open: true,
+                                      start: planCustomStart,
+                                      end: planCustomEnd,
+                                      shifts: [{ start: planCustomStart, end: planCustomEnd }],
+                                    };
+                                  }
                                 }
                               });
                               setDateOverrides(nextOverrides);
                               setSelectedPlanDates([]);
+                              setIsCustomizingDates(false);
                               showToast(`✓ Applied override to ${selectedPlanDates.length} date(s)`);
                             }}
                           >
@@ -2794,6 +3062,7 @@ function AdminPortalContent() {
                               });
                               setDateOverrides(nextOverrides);
                               setSelectedPlanDates([]);
+                              setIsCustomizingDates(false);
                               showToast(`✓ Reset ${selectedPlanDates.length} date(s) to defaults`);
                             }}
                           >
@@ -2873,17 +3142,15 @@ function AdminPortalContent() {
                         data-preset={p.id}
                         onClick={() => handleSelectPreset(p.id)}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
-                          <div className="swatch-chip">
-                            <div className="swatch-chip-canopy" style={{ backgroundColor: p.canopy }} />
-                            <div className="swatch-chip-accent" style={{ backgroundColor: p.accent }} />
-                          </div>
-                          <div style={{ textAlign: "left" }}>
-                            <span className="palette-name" style={{ display: "block" }}>{p.name}</span>
-                            <span style={{ fontSize: "0.72rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>{p.desc}</span>
-                          </div>
+                        <div className="swatch-chip">
+                          <div className="swatch-chip-canopy" style={{ backgroundColor: p.canopy }} />
+                          <div className="swatch-chip-accent" style={{ backgroundColor: p.accent }} />
                         </div>
-                        {activeTheme === p.id && <span className="palette-active-pill">Active</span>}
+                        <div style={{ textAlign: "left", minWidth: 0, flex: 1 }}>
+                          <span className="palette-name">{p.name}</span>
+                          <span className="palette-desc">{p.desc}</span>
+                        </div>
+                        {activeTheme === p.id && <span className="palette-check-dot">●</span>}
                       </button>
                     ))}
                     <button
@@ -2892,16 +3159,14 @@ function AdminPortalContent() {
                       data-preset="custom"
                       onClick={() => setShowCustomThemeSheet(true)}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
-                        <div className="swatch-chip">
-                          <div className="swatch-chip-custom" />
-                        </div>
-                        <div style={{ textAlign: "left" }}>
-                          <span className="palette-name" style={{ display: "block" }}>Custom</span>
-                          <span style={{ fontSize: "0.72rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>Manual HEX Palette</span>
-                        </div>
+                      <div className="swatch-chip">
+                        <div className="swatch-chip-custom" />
                       </div>
-                      {activeTheme === "custom" && <span className="palette-active-pill">Active</span>}
+                      <div style={{ textAlign: "left", minWidth: 0, flex: 1 }}>
+                        <span className="palette-name">Custom</span>
+                        <span className="palette-desc">Manual HEX</span>
+                      </div>
+                      {activeTheme === "custom" && <span className="palette-check-dot">●</span>}
                     </button>
                   </div>
                 </div>
@@ -3660,12 +3925,10 @@ function AdminPortalContent() {
                     </div>
                     <div className="recessed-input-group">
                       <label className="recessed-label">Time</label>
-                      <input
-                        type="time"
-                        className="recessed-input"
+                      <EditorialTimePicker
+                        id="new-booking-time"
                         value={newTime}
-                        onChange={(e) => setNewTime(e.target.value)}
-                        required
+                        onChange={setNewTime}
                       />
                     </div>
                   </div>
@@ -3817,7 +4080,10 @@ function AdminPortalContent() {
                 </div>
                 <div className="recessed-input-group">
                   <label className="recessed-label">Start time</label>
-                  <input type="time" className="recessed-input" defaultValue="13:00" />
+                  <EditorialTimePicker
+                    value={blockStartTime}
+                    onChange={setBlockStartTime}
+                  />
                 </div>
               </div>
 
@@ -3917,12 +4183,9 @@ function AdminPortalContent() {
                     </div>
                     <div className="recessed-input-group">
                       <label className="recessed-label">Start Time</label>
-                      <input
-                        type="time"
-                        className="recessed-input"
-                        value={rescheduleTime}
-                        onChange={(e) => setRescheduleTime(e.target.value)}
-                        required
+                      <EditorialTimePicker
+                        value={rescheduleTime || "12:00"}
+                        onChange={setRescheduleTime}
                       />
                     </div>
                   </div>

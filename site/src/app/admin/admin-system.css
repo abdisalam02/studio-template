@@ -1821,28 +1821,22 @@ input:checked + .switch-slider:before {
   box-shadow: 0 0 0 3px var(--admin-accent-light), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-/* Palette Swatches */
+/* Palette Swatches - 2-Column Grid Rows */
 .palette-swatches-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-top: 14px;
-}
-
-@media (min-width: 600px) {
-  .palette-swatches-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 .palette-btn {
   background: #FFFFFF;
   border: 1px solid var(--admin-card-border);
-  border-radius: 14px;
-  padding: 12px 16px;
+  border-radius: 12px;
+  padding: 10px 10px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
   width: 100%;
@@ -1861,14 +1855,14 @@ input:checked + .switch-slider:before {
 }
 
 .swatch-chip {
-  width: 32px;
-  height: 42px;
-  border-radius: 9px;
+  width: 22px;
+  height: 34px;
+  border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(0, 0, 0, 0.08);
   transition: transform 0.15s ease;
 }
@@ -1894,15 +1888,29 @@ input:checked + .switch-slider:before {
   background: conic-gradient(from 210deg, #C9A876 0deg, #A3B18A 90deg, #3B82F6 180deg, #E0A899 270deg, #C9A876 360deg);
 }
 
-.palette-active-pill {
-  font-size: 0.65rem;
+.palette-name {
+  font-size: 0.76rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 9999px;
-  background: #111827;
-  color: #FFFFFF;
+  color: #111827;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-desc {
+  font-size: 0.64rem;
+  color: var(--admin-sheet-muted);
+  display: block;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-check-dot {
+  font-size: 0.65rem;
+  color: var(--admin-accent, #C4A482);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -4613,21 +4621,28 @@ body.is-sheet-dragging {
   color: #111827;
 }
 
-/* Schedule View Segmented Switcher */
+/* Schedule View Segmented Switcher (Sticky & Compact) */
 .schedule-segmented-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 25;
   display: flex;
   gap: 4px;
-  background: rgba(0, 0, 0, 0.05);
-  padding: 3px;
+  background: rgba(250, 250, 250, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 4px 6px;
   border-radius: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
 }
 
 .schedule-segment-btn {
   flex: 1;
-  padding: 7px 12px;
-  font-size: 0.78rem;
-  font-weight: 600;
+  padding: 6px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
   border: none;
   border-radius: 9px;
   background: transparent;
@@ -4638,6 +4653,7 @@ body.is-sheet-dragging {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .schedule-segment-btn.active {
@@ -4724,11 +4740,31 @@ body.is-sheet-dragging {
   background: rgba(0, 0, 0, 0.04);
 }
 
+.plan-ahead-cell.is-closed-day {
+  background: rgba(0, 0, 0, 0.015);
+  color: #9CA3AF;
+}
+
+.plan-ahead-cell .closed-mark-dot {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #DC2626;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .plan-ahead-cell.is-selected {
   background: #111827 !important;
   color: #FFFFFF !important;
   border-color: #111827 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.plan-ahead-cell.is-selected .closed-mark-dot {
+  color: #F87171;
 }
 
 .plan-ahead-cell.is-selected .plan-ahead-cell-num {
@@ -4738,6 +4774,160 @@ body.is-sheet-dragging {
 .plan-ahead-cell.is-selected .plan-ahead-override-badge {
   background: var(--admin-accent, #C4A482) !important;
   color: #121214 !important;
+}
+
+/* Custom Editorial Time Picker */
+.editorial-time-picker-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.editorial-time-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  padding: 6px 10px;
+  width: 100%;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.editorial-time-pill.is-focused,
+.editorial-time-pill:focus-within {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.08);
+}
+
+.editorial-time-clock-icon {
+  font-size: 0.82rem;
+  color: var(--admin-sheet-muted);
+  user-select: none;
+  line-height: 1;
+}
+
+.editorial-time-raw-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #111827;
+  width: 100%;
+  min-width: 44px;
+  padding: 0;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.editorial-time-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--admin-sheet-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.editorial-time-toggle-btn:hover {
+  color: #111827;
+}
+
+.editorial-time-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: transparent;
+}
+
+.editorial-time-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+  padding: 10px;
+  width: 240px;
+  max-width: 90vw;
+}
+
+.editorial-time-steppers {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.time-stepper-btn {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.time-stepper-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #111827;
+}
+
+.time-stepper-display {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.02em;
+}
+
+.editorial-time-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.editorial-time-chip {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  padding: 5px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #111827;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.editorial-time-chip:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.editorial-time-chip.active {
+  background: #111827;
+  color: #FFFFFF;
+  border-color: #111827;
 }
 
 .plan-ahead-cell-num {
