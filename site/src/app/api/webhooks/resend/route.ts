@@ -1,4 +1,4 @@
-import crypto from "crypto";
+﻿import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/lib/email";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /**
  * Resend delivery webhook.
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  * direct link to fix the address and resend.
  *
  * Configure in Resend → Webhooks:
- *   endpoint  https://www.abdisalam.space/api/webhooks/resend
+ *   endpoint  ${NEXT_PUBLIC_SITE_URL}/api/webhooks/resend
  *   events    email.sent, email.delivered, email.delivery_delayed,
  *             email.bounced, email.complained, email.failed
  *   secret    → RESEND_WEBHOOK_SECRET
@@ -214,3 +214,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ received: true, status });
 }
+

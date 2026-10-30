@@ -1,12 +1,13 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createOtpChallenge } from "@/lib/otpStore";
-import { sendOwnerOtpEmail } from "@/lib/email";
+import { sendOwnerOtpEmail, sendPlatformOtpEmail } from "@/lib/email";
 import { consumeRateLimit, getClientIp, hashIp } from "@/lib/rateLimit";
 import { resolveTenantForEmail, isTenantAdmin } from "@/lib/tenantAuth";
-import { getTenantConfig, DEFAULT_TENANT_SLUG } from "@/config/tenant.config";
+import { isPlatformAdmin } from "@/lib/platformAuth";
+import { resolveTenant } from "@/lib/tenantResolver";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /**
  * Requests a login code.
@@ -40,26 +41,102 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const requestedEmail =
       typeof body.email === "string" ? body.email.toLowerCase().trim() : "";
-    const requestedTenant = String(body.tenant_id ?? body.tenantId ?? DEFAULT_TENANT_SLUG);
+    const requestedScope = String(body.scope || "").trim().toLowerCase();
+    const requestedTenant = String(body.tenant_id ?? body.tenantId ?? "").trim().toLowerCase();
+    const allowSeed = process.env.NODE_ENV === "development";
 
-    const requestedTenantId = getTenantConfig(requestedTenant).id;
-    const requestedAllowed = await isTenantAdmin(requestedEmail, requestedTenantId);
-    const resolvedTenant = await resolveTenantForEmail(requestedEmail);
-    const tenantId = requestedAllowed ? requestedTenantId : (resolvedTenant || requestedTenantId);
-    const config = getTenantConfig(tenantId);
-    const targetEmail =
-      requestedEmail || (config.contact.ownerEmail || "").toLowerCase().trim();
-
-    const authorized = Boolean(targetEmail) && (await resolveTenantForEmail(targetEmail)) !== null;
     const expiresAt = Date.now() + OTP_TTL_MS;
     const dummyChallengeId = crypto.randomUUID();
 
-    // Unknown address: same response shape, no email, no real challenge.
-    if (!authorized) {
+    // 1. PLATFORM SCOPE: Strictly verify `platform_admins` and send Platform OTP email
+    if (requestedScope === "platform") {
+      const platformAuthorized = Boolean(requestedEmail) && (await isPlatformAdmin(requestedEmail));
+      if (!platformAuthorized) {
+        return NextResponse.json({
+          success: true,
+          email: requestedEmail,
+          scope: "platform",
+          tenant_id: null,
+          challengeId: dummyChallengeId,
+          expiresAt,
+        });
+      }
+
+      const emailAllowed = await consumeRateLimit(
+        `otp:email:${requestedEmail}`,
+        EMAIL_LIMIT,
+        WINDOW_SECONDS
+      );
+      if (!emailAllowed) {
+        return NextResponse.json({
+          success: true,
+          email: requestedEmail,
+          scope: "platform",
+          tenant_id: null,
+          challengeId: dummyChallengeId,
+          expiresAt,
+        });
+      }
+
+      const challenge = await createOtpChallenge(requestedEmail, hashIp(clientIp));
+      if (!challenge) {
+        return NextResponse.json(
+          { error: "otp_unavailable", message: "Could not create a verification code." },
+          { status: 500 }
+        );
+      }
+
+      const sendResult = await sendPlatformOtpEmail(requestedEmail, challenge.code);
+      if (sendResult && "error" in sendResult && sendResult.error) {
+        console.error("Platform OTP email delivery failed:", sendResult.error);
+      }
+
+      return NextResponse.json({
+        success: true,
+        email: requestedEmail,
+        scope: "platform",
+        tenant_id: null,
+        sender_identity: "A.Gure Platform Control Center",
+        challengeId: challenge.id,
+        expiresAt: challenge.expiresAt,
+      });
+    }
+
+    // 2. TENANT SCOPE: Never resolve to Gangina by accident when an explicit tenant is requested
+    const platformAdmin = await isPlatformAdmin(requestedEmail);
+    const requestedResolved = requestedTenant
+      ? await resolveTenant(requestedTenant, { allowSeed })
+      : null;
+    const requestedAllowed = requestedResolved
+      ? await isTenantAdmin(requestedEmail, requestedResolved.id)
+      : false;
+
+    const tenantId = requestedTenant
+      ? requestedAllowed
+        ? requestedResolved?.id || null
+        : null
+      : await resolveTenantForEmail(requestedEmail);
+
+    const config = tenantId
+      ? await resolveTenant(tenantId, { allowSeed })
+      : requestedResolved;
+    // Never fall back to the studio owner's address here: an unauthenticated
+    // caller could otherwise enumerate it in the uniform response (and trigger
+    // mail) by posting only a tenant id.
+    const targetEmail = requestedEmail;
+
+    const authorized =
+      Boolean(targetEmail) &&
+      Boolean(tenantId) &&
+      (platformAdmin || (await isTenantAdmin(targetEmail, tenantId)));
+
+    // Unknown address or unauthorized for requested tenant: uniform 200 response
+    if (!authorized || !tenantId) {
       return NextResponse.json({
         success: true,
         email: targetEmail,
-        tenant_id: tenantId,
+        scope: "tenant",
+        tenant_id: tenantId || requestedTenant,
         challengeId: dummyChallengeId,
         expiresAt,
       });
@@ -76,6 +153,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         email: targetEmail,
+        scope: "tenant",
         tenant_id: tenantId,
         challengeId: dummyChallengeId,
         expiresAt,
@@ -98,7 +176,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       email: targetEmail,
+      scope: "tenant",
       tenant_id: tenantId,
+      sender_identity: config?.name || tenantId,
       challengeId: challenge.id,
       expiresAt: challenge.expiresAt,
     });
@@ -107,3 +187,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
+

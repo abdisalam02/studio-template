@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { deriveManageToken } from "@/lib/tokens";
 import { getEngineBaseUrl } from "@/lib/url";
 import { sendCustomerReminder, emailOutcome, type Tenant } from "@/lib/email";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /**
  * Sends 24-hour and 2-hour reminders for confirmed bookings.
@@ -194,3 +194,4 @@ export async function GET(req: NextRequest) {
     ...(debug ? { diagnostics } : {}),
   });
 }
+

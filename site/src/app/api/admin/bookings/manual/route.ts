@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
@@ -13,7 +13,7 @@ import {
   type Tenant,
 } from "@/lib/email";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,22 +29,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const {
       tenant_id,
       customer_name,
       customer_phone,
       customer_email,
+      client_name,
+      client_phone,
+      client_email,
       service_id,
+      service_name,
+      treatment_name,
       start_utc,
       date,
       time,
       notes,
     } = body;
 
-    if (!tenant_id || !customer_name || !customer_phone || (!start_utc && (!date || !time))) {
+    // The admin portal posts `client_*`; older clients post `customer_*`.
+    const resolvedName = customer_name || client_name;
+    const resolvedPhone = customer_phone || client_phone;
+    const resolvedEmail = customer_email || client_email || "";
+    const requestedServiceName = String(service_name || treatment_name || "").trim();
+
+    if (!tenant_id || !resolvedName || !resolvedPhone || (!start_utc && (!date || !time))) {
       return NextResponse.json(
         { error: "missing_fields", message: "Name, phone and time are required." },
+        { status: 400 }
+      );
+    }
+
+    // A <select> sends the service id as a string; the RPC expects bigint.
+    let serviceId: number | null =
+      service_id === undefined || service_id === null || service_id === ""
+        ? null
+        : Number(service_id);
+    if (serviceId !== null && (!Number.isFinite(serviceId) || Number(serviceId) <= 0)) {
+      return NextResponse.json(
+        { error: "invalid_service", message: "Choose a valid treatment." },
         { status: 400 }
       );
     }
@@ -80,19 +103,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let serviceName = "Manual appointment";
+    let serviceName = requestedServiceName || "Manual appointment";
     let durationMin = 30;
     let priceNok = 0;
     let bufferMin = tenant.buffer_min || 10;
 
-    if (service_id) {
+    // Always scope the service lookup to this tenant so a forged service_id
+    // cannot pull another studio's name/price/duration into this booking.
+    if (serviceId) {
       const { data: s } = await supabaseAdmin
         .from("services")
         .select("*")
-        .eq("id", service_id)
+        .eq("id", serviceId)
+        .eq("tenant_id", tenant_id)
+        .maybeSingle();
+
+      if (!s) {
+        return NextResponse.json(
+          { error: "invalid_service", message: "That treatment does not belong to this studio." },
+          { status: 400 }
+        );
+      }
+
+      serviceName = s.name;
+      durationMin = s.duration_min;
+      priceNok = s.price_nok;
+      if (s.buffer_min != null) bufferMin = s.buffer_min;
+    } else if (requestedServiceName) {
+      // The portal sends a service name ("Signature Treatment"), not an id.
+      const { data: s } = await supabaseAdmin
+        .from("services")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .eq("name", requestedServiceName)
         .maybeSingle();
 
       if (s) {
+        serviceId = s.id;
         serviceName = s.name;
         durationMin = s.duration_min;
         priceNok = s.price_nok;
@@ -114,14 +161,14 @@ export async function POST(req: NextRequest) {
       {
         p_ref: ref,
         p_tenant_id: tenant_id,
-        p_service_id: service_id || null,
-        p_start_utc: start_utc,
+        p_service_id: serviceId,
+        p_start_utc: startUtc,
         p_end_utc: endUtc,
         p_block_end_utc: blockEndUtc,
         p_status: "confirmed",
-        p_customer_name: customer_name,
-        p_customer_email: customer_email || "",
-        p_customer_phone: customer_phone,
+        p_customer_name: resolvedName,
+        p_customer_email: resolvedEmail,
+        p_customer_phone: resolvedPhone,
         p_notes: notes || "Manually registered by the studio",
         p_price_nok: priceNok,
         p_deposit_nok: 0,
@@ -131,7 +178,7 @@ export async function POST(req: NextRequest) {
         p_manage_token_hash: hashToken(manageToken),
         p_now: now,
         p_expires_at: null,
-        p_service_ids: service_id ? [service_id] : [],
+        p_service_ids: serviceId ? [serviceId] : [],
         p_service_summary: serviceName,
         p_custom_fields: {},
       }
@@ -140,7 +187,7 @@ export async function POST(req: NextRequest) {
     if (rpcErr) {
       console.error("Failed to create manual booking:", rpcErr);
       return NextResponse.json(
-        { error: "insert_failed", message: "Could not create the appointment." },
+        { error: "insert_failed", message: "Could not create the appointment.", details: rpcErr.message },
         { status: 500 }
       );
     }
@@ -174,7 +221,7 @@ export async function POST(req: NextRequest) {
     let emailStatus: string | null = null;
     let emailError: string | null = null;
 
-    if (customer_email && customer_email.includes("@")) {
+    if (resolvedEmail && resolvedEmail.includes("@")) {
       try {
         const ics = generateIcsCalendar({
           ref: booking.ref,
@@ -237,3 +284,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
+

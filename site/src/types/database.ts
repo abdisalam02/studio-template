@@ -23,7 +23,8 @@ export interface Database {
           id: string;
           token_hash: string;
           email: string;
-          tenant_id: string;
+          tenant_id: string | null;
+          scope: string;
           created_at: string;
           expires_at: string;
           revoked_at: string | null;
@@ -33,16 +34,40 @@ export interface Database {
           id?: string;
           token_hash: string;
           email: string;
-          tenant_id: string;
+          tenant_id?: string | null;
+          scope?: string;
           created_at?: string;
           expires_at: string;
           revoked_at?: string | null;
           last_seen_at?: string | null;
         };
         Update: {
+          scope?: string;
           expires_at?: string;
           revoked_at?: string | null;
           last_seen_at?: string | null;
+        };
+        Relationships: [];
+      };
+      platform_admins: {
+        Row: {
+          email: string;
+          name: string | null;
+          role: string;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          email: string;
+          name?: string | null;
+          role?: string;
+          active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          name?: string | null;
+          role?: string;
+          active?: boolean;
         };
         Relationships: [];
       };
@@ -137,12 +162,43 @@ export interface Database {
         };
         Relationships: [];
       };
+      tenant_domains: {
+        Row: {
+          domain: string;
+          tenant_id: string;
+          created_at: string;
+        };
+        Insert: {
+          domain: string;
+          tenant_id: string;
+          created_at?: string;
+        };
+        Update: {
+          domain?: string;
+          tenant_id?: string;
+        };
+        Relationships: [];
+      };
       tenants: {
         Row: {
           id: string;
           name: string;
           owner_email: string;
+          contact_email: string | null;
           phone: string | null;
+          whatsapp: string | null;
+          address: string | null;
+          org_number: string | null;
+          mva_status: string | null;
+          hours_text: string | null;
+          currency: string;
+          logo_url: string | null;
+          hero_image_url: string | null;
+          watermark_url: string | null;
+          favicon_url: string | null;
+          branding: Json;
+          from_name: string | null;
+          reply_to: string | null;
           profile: Json | null;
           ref_prefix: string;
           timezone: string;
@@ -159,7 +215,21 @@ export interface Database {
           id: string;
           name: string;
           owner_email: string;
+          contact_email?: string | null;
           phone?: string | null;
+          whatsapp?: string | null;
+          address?: string | null;
+          org_number?: string | null;
+          mva_status?: string | null;
+          hours_text?: string | null;
+          currency?: string;
+          logo_url?: string | null;
+          hero_image_url?: string | null;
+          watermark_url?: string | null;
+          favicon_url?: string | null;
+          branding?: Json;
+          from_name?: string | null;
+          reply_to?: string | null;
           profile?: Json | null;
           ref_prefix?: string;
           timezone?: string;
@@ -177,7 +247,21 @@ export interface Database {
           id?: string;
           name?: string;
           owner_email?: string;
+          contact_email?: string | null;
           phone?: string | null;
+          whatsapp?: string | null;
+          address?: string | null;
+          org_number?: string | null;
+          mva_status?: string | null;
+          hours_text?: string | null;
+          currency?: string;
+          logo_url?: string | null;
+          hero_image_url?: string | null;
+          watermark_url?: string | null;
+          favicon_url?: string | null;
+          branding?: Json;
+          from_name?: string | null;
+          reply_to?: string | null;
           profile?: Json | null;
           ref_prefix?: string;
           timezone?: string;
@@ -405,6 +489,20 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      provision_tenant: {
+        Args: {
+          payload: Json;
+        };
+        Returns: Json;
+      };
+      set_tenant_branding: {
+        Args: {
+          p_tenant_id: string;
+          p_branding: Json;
+          p_actor?: string;
+        };
+        Returns: Json;
+      };
       create_booking_atomic: {
         Args: {
           p_ref: string;

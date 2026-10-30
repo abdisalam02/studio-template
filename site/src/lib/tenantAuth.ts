@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase";
-import { getTenantConfig, findTenantByAdminEmail } from "@/config/tenant.config";
+import { getSeedTenant } from "@/config/tenant.config";
+import { isPlatformAdmin } from "@/lib/platformAuth";
 
 /**
  * Tenant authorization.
@@ -16,6 +17,9 @@ export async function isTenantAdmin(
   const normalizedEmail = (email || "").toLowerCase().trim();
   const normalizedTenant = (tenantId || "").trim();
   if (!normalizedEmail || !normalizedTenant) return false;
+
+  // Platform super-admins can enter any tenant without a tenant_admins row.
+  if (await isPlatformAdmin(normalizedEmail)) return true;
 
   if (supabaseAdmin) {
     const { data: adminRow } = await supabaseAdmin
@@ -39,8 +43,8 @@ export async function isTenantAdmin(
     }
   }
 
-  const config = getTenantConfig(normalizedTenant);
-  if (config.id !== normalizedTenant) return false;
+  const config = getSeedTenant(normalizedTenant);
+  if (!config || process.env.NODE_ENV === "production") return false;
 
   return config.auth.allowedAdminEmails.some(
     (entry) => entry.toLowerCase().trim() === normalizedEmail
@@ -75,5 +79,16 @@ export async function resolveTenantForEmail(
     if (tenant?.id) return tenant.id;
   }
 
-  return findTenantByAdminEmail(normalizedEmail)?.id ?? null;
+  if (process.env.NODE_ENV !== "production") {
+    const normalized = (email || "").toLowerCase().trim();
+    if (!normalized.includes("@")) return null;
+    for (const seedSlug of ["gangina", "studio-klo", "noire"]) {
+      const seed = getSeedTenant(seedSlug);
+      if (seed?.auth.allowedAdminEmails.some((entry) => entry.toLowerCase().trim() === normalized)) {
+        return seed.id;
+      }
+    }
+  }
+
+  return null;
 }

@@ -3,6 +3,61 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
 
+export const dynamic = "force-dynamic"; // design-ok
+
+function isDevBypass(req: NextRequest): boolean {
+  if (process.env.NODE_ENV !== "development") return false;
+  const header = req.headers.get("authorization");
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
+  return (
+    req.nextUrl.searchParams.get("dev_bypass") === "true" ||
+    Boolean(token && token.startsWith("dev-bypass-"))
+  );
+}
+
+/** Lists the tenant's blackout windows (admin portal "Active Blackouts" tab). */
+export async function GET(req: NextRequest) {
+  try {
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: "server_configuration_error" }, { status: 500 });
+    }
+
+    const allowBypass = isDevBypass(req);
+    const auth = await verifyAdminRequest(req, allowBypass);
+    if (!auth.authenticated || !auth.email) {
+      return NextResponse.json(
+        { error: "unauthorized", message: "Invalid or expired session." },
+        { status: 401 }
+      );
+    }
+
+    const tenantId = String(req.nextUrl.searchParams.get("tenant_id") || auth.tenantId || "").trim();
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
+
+    if (!allowBypass && !(await isTenantAdmin(auth.email, tenantId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("blackouts")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("start_utc", { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: "database_error", details: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, blackouts: data || [] });
+  } catch (err: unknown) {
+    console.error("Error reading blackouts:", err);
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return NextResponse.json({ error: "server_error", message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!supabaseAdmin) {
@@ -34,7 +89,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const tenantId = String(body.tenant_id || auth.tenantId || "gangina");
+    const tenantId = String(body.tenant_id || auth.tenantId || "");
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
 
     if (!allowBypass && !(await isTenantAdmin(userEmail, tenantId))) {
       return NextResponse.json(
@@ -97,7 +155,7 @@ export async function DELETE(req: NextRequest) {
     const blackoutId = Number(idParam);
     const { data: blackout, error: fetchErr } = await supabaseAdmin
       .from("blackouts")
-      .select("*, tenants(owner_email)")
+      .select("id, tenant_id")
       .eq("id", blackoutId)
       .single();
 
@@ -105,15 +163,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "blackout_not_found" }, { status: 404 });
     }
 
-    const ownerEmail = (blackout.tenants as unknown as { owner_email: string } | null)?.owner_email;
-    const isAllowedAdmin = [
-      "niwache12@gmail.com",
-      "ganginabeauty@gmail.com",
-      "admin@agure.space",
-      "support@agure.space",
-    ].includes(userEmail.toLowerCase());
-    const isOwner = Boolean(ownerEmail && ownerEmail.toLowerCase() === userEmail.toLowerCase());
-    if (!allowBypass && !isOwner && !isAllowedAdmin) {
+    if (!allowBypass && !(await isTenantAdmin(userEmail, blackout.tenant_id))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 

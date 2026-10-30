@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { getTenantConfig, type TenantColors } from "@/config/tenant.config";
+import { NEUTRAL_COLORS, type TenantColors } from "@/config/tenant.config";
 
 interface ActionButtonsProps {
   refCode: string;
@@ -227,7 +227,7 @@ export function ActionButtons({
   startUtc,
   durationMinutes = 30,
 }: ActionButtonsProps) {
-  const colors = theme ?? getTenantConfig().theme.colors;
+  const colors = theme ?? NEUTRAL_COLORS;
   const dark = isDarkColor(colors.card);
   const [status, setStatus] = useState<string>(currentStatus);
   const [pending, setPending] = useState<"accept" | "decline" | null>(null);

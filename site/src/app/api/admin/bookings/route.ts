@@ -22,7 +22,10 @@ export async function GET(req: NextRequest) {
     }
 
     const userEmail = auth.email.toLowerCase();
-    const tenantParam = req.nextUrl.searchParams.get("tenant_id") || auth.tenantId || "gangina";
+    const tenantParam = req.nextUrl.searchParams.get("tenant_id") || auth.tenantId || "";
+    if (!tenantParam) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
 
     // Query tenant by id or fall back to the session's tenant.
     const { data: tenant } = await supabaseAdmin
@@ -38,6 +41,10 @@ export async function GET(req: NextRequest) {
         { error: "forbidden", message: "You do not have access to this studio." },
         { status: 403 }
       );
+    }
+
+    if (!tenant) {
+      return NextResponse.json({ error: "tenant_not_found" }, { status: 404 });
     }
 
     // Query all bookings for this tenant ordered by start_utc descending
@@ -82,10 +89,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // The portal's BookingRecord expects `email_status` / `email_error`.
+    // Persisted names are `customer_email_status` / `customer_email_error`.
+    const bookings = (bookingsRes.data || []).map((row) => {
+      const record = row as Record<string, unknown>;
+      return {
+        ...record,
+        email_status: (record.customer_email_status as string | null) ?? null,
+        email_error: (record.customer_email_error as string | null) ?? null,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      tenant: tenant || { id: tenantId, name: "Gangina Beauty Studio" },
-      bookings: bookingsRes.data || [],
+      tenant,
+      bookings,
       blackouts: blackoutsRes.data || [],
       services: servicesRes.data || [],
       hours: finalHours,

@@ -1,19 +1,15 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import { Step1Services, type ServiceRow } from "./Step1Services";
 import { Step2DateTime } from "./Step2DateTime";
 import { Step3Details, type CustomerDetails } from "./Step3Details";
 import { Step4Confirmed } from "./Step4Confirmed";
-import {
-  getTenantConfig,
-  DEFAULT_TENANT_SLUG,
-  type TenantConfig,
-} from "@/config/tenant.config";
+import { type TenantConfig } from "@/config/tenant.config";
 
 interface BookingWidgetProps {
-  tenantSlug?: string;
-  tenantConfig?: TenantConfig;
+  tenantSlug: string;
+  tenantConfig: TenantConfig;
   initialServices?: ServiceRow[];
   studioName?: string;
   studioPhone?: string;
@@ -50,8 +46,8 @@ function formatDockSlot(slotIso: string): string {
 }
 
 export function BookingWidget({
-  tenantSlug = DEFAULT_TENANT_SLUG,
-  tenantConfig = getTenantConfig(tenantSlug),
+  tenantSlug,
+  tenantConfig,
   initialServices = [],
   studioName,
   studioPhone,
@@ -226,7 +222,7 @@ export function BookingWidget({
       ? {
           ...customerDetails,
           name: customerDetails.name || "Testkunde",
-          email: customerDetails.email || "test@example.com",
+          email: customerDetails.email || "demo@studio.test",
           phone: customerDetails.phone || "+4700000000",
           cancellationConsent: true,
         }
@@ -594,3 +590,4 @@ export function BookingWidget({
     </>
   );
 }
+

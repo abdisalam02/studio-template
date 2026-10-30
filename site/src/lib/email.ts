@@ -1,11 +1,13 @@
 import { Resend } from "resend";
 import fs from "fs";
 import type { Database } from "@/types/database";
+import { supabaseAdmin } from "@/lib/supabase";
+import { buildTenantConfig, type TenantRow } from "@/lib/tenantResolver";
 import { getEngineBaseUrl } from "@/lib/url";
 import { deriveReviewToken } from "@/lib/tokens";
 import { resolveBrandLogo } from "@/lib/brandAsset";
 import {
-  getTenantConfig,
+  getSeedTenant,
   type TenantConfig,
   type TenantColors,
 } from "@/config/tenant.config";
@@ -28,8 +30,8 @@ export interface BookingDetails {
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 // Fallbacks from environment:
-const defaultFromName = process.env.EMAIL_FROM_NAME || "Agure Booking";
-const defaultReplyTo = process.env.EMAIL_REPLY_TO || "support@agure.space";
+const defaultFromName = process.env.EMAIL_FROM_NAME || "Studio Booking";
+const defaultReplyTo = process.env.EMAIL_REPLY_TO || "hello@agure.space";
 
 type ResendEmailPayload = Parameters<NonNullable<typeof resend>["emails"]["send"]>[0];
 type ResendEmailAttachment = NonNullable<ResendEmailPayload["attachments"]>[number];
@@ -41,11 +43,19 @@ type ResendEmailAttachment = NonNullable<ResendEmailPayload["attachments"]>[numb
 const STUDIO_LOGO_CID = "studio-brand-logo";
 const STUDIO_LOGO_FALLBACK_PUBLIC_PATH = "/img/logo-chrome.png";
 const STUDIO_WATERMARK_FALLBACK_PUBLIC_PATH = "/img/logo-watermark.png";
-const DEFAULT_EMAIL_FROM_ADDRESS = "booking@agure.space";
+const DEFAULT_EMAIL_FROM_ADDRESS =
+  process.env.EMAIL_FROM_ADDRESS || "booking@agure.space";
 
 /** Resolves the active tenant config from a DB tenant row (graceful fallback). */
 function resolveConfig(tenant?: Tenant | null): TenantConfig {
-  return getTenantConfig(tenant?.id);
+  if (tenant) return buildTenantConfig(tenant as unknown as TenantRow);
+  return getSeedTenant() ?? buildTenantConfig({
+    id: "unknown",
+    name: defaultFromName,
+    owner_email: defaultReplyTo,
+    contact_email: defaultReplyTo,
+    profile: {},
+  });
 }
 
 /**
@@ -82,7 +92,14 @@ interface LogoAsset {
 const logoAssetCache = new Map<string, LogoAsset>();
 
 function getLogoAsset(config: TenantConfig): LogoAsset {
-  const logoUrl = config.theme.logoUrl || STUDIO_LOGO_FALLBACK_PUBLIC_PATH;
+  const logoUrl = config.theme.logoUrl || "";
+  if (!logoUrl.trim()) {
+    return {
+      src: "",
+      attachment: null,
+      useMonogram: true,
+    };
+  }
   // Trusted hosted/data logos never need a disk lookup or monogram fallback.
   if (/^https?:\/\//i.test(logoUrl)) {
     const remoteAsset: LogoAsset = { src: logoUrl, attachment: null, useMonogram: false };
@@ -137,11 +154,22 @@ function getLogoAsset(config: TenantConfig): LogoAsset {
   };
 }
 
-function getSenderInfo(tenant: Tenant | null | undefined, config: TenantConfig) {
-  const rawName = tenant?.name || config.integrations.emailFromName || defaultFromName;
+type SenderAudience = "owner" | "customer";
+
+function getSenderInfo(
+  tenant: Tenant | null | undefined,
+  config: TenantConfig,
+  audience: SenderAudience = "customer"
+) {
+  const rawName =
+    tenant?.from_name || tenant?.name || config.integrations.emailFromName || defaultFromName;
   const displayName = rawName.replace(/["<>]/g, "").trim();
+  const explicitReplyTo = tenant?.reply_to || config.integrations.replyTo;
+  const ownerReply = tenant?.owner_email || config.contact.ownerEmail || defaultReplyTo;
+  const contactReply = tenant?.contact_email || config.contact.email;
   const replyToAddress =
-    tenant?.owner_email || config.integrations.replyTo || defaultReplyTo;
+    explicitReplyTo ||
+    (audience === "owner" ? ownerReply : contactReply || ownerReply || defaultReplyTo);
   const fromAddress = config.integrations.emailFromAddress || DEFAULT_EMAIL_FROM_ADDRESS;
   const from = `${displayName || defaultFromName} <${fromAddress}>`;
   return { from, replyTo: replyToAddress };
@@ -652,7 +680,7 @@ export async function sendOwnerAlert(
 
   const config = resolveConfig(tenant);
   const { subject, html } = renderOwnerAlertEmail(tenant, booking, actionUrl);
-  const { from, replyTo } = getSenderInfo(tenant, config);
+  const { from, replyTo } = getSenderInfo(tenant, config, "owner");
 
   return sendEmailSafely(config, {
     from,
@@ -776,7 +804,7 @@ export async function sendOwnerEmailBounceAlert(
     footerHtml: `Reference ${escapeHtml(booking.ref)}`,
   });
 
-  const { from, replyTo } = getSenderInfo(tenant, config);
+  const { from, replyTo } = getSenderInfo(tenant, config, "owner");
 
   return sendEmailSafely(config, {
     from,
@@ -1026,7 +1054,7 @@ export async function sendOwnerCancellationAlert(
     footerHtml: "The time slot is now free in the calendar.",
   });
 
-  const { from, replyTo } = getSenderInfo(tenant, config);
+  const { from, replyTo } = getSenderInfo(tenant, config, "owner");
 
   return sendEmailSafely(config, {
     from,
@@ -1037,23 +1065,116 @@ export async function sendOwnerCancellationAlert(
   });
 }
 
+export function renderPlatformOtpEmail(email: string, code: string): RenderedEmail {
+  const platformConfig = buildTenantConfig({
+    id: "platform",
+    name: "A.Gure Platform Control Center",
+    owner_email: email,
+    contact_email: defaultReplyTo,
+    logo_url: null,
+    watermark_url: null,
+    branding: {
+      monogram: "AG",
+      palette: { accent: "#C4A482", card: "#18181B", canvas: "#0A0A0A" },
+    },
+    profile: {},
+  });
+  const palette = lightEmailPalette(platformConfig);
+  const subject = `Your A.Gure Platform verification code`;
+  const html = renderEmailShell({
+    config: platformConfig,
+    tenantName: "A.Gure Platform Control Center",
+    subtitle: "Platform & Multi-Tenant Administration",
+    eyebrow: "Verification code",
+    title: "Your platform login code",
+    introHtml:
+      "Use the following 6-digit code to sign in to the A.Gure Platform Control Center. The code is valid for 15 minutes.",
+    detailsHtml: `<tr>
+      <td align="center" style="padding-top:6px;">
+        <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:22px 16px;font-family:${EMAIL_FONT};font-size:30px;line-height:1;font-weight:800;letter-spacing:0.34em;color:${palette.value};font-variant-numeric:tabular-nums;">${escapeHtml(code)}</div>
+      </td>
+    </tr>`,
+    footerHtml: "If you did not request this code, you can safely ignore this email.",
+    maxWidth: 480,
+  });
+  return { subject, html };
+}
+
+export async function sendPlatformOtpEmail(email: string, code: string) {
+  if (!resend) {
+    console.warn("RESEND_API_KEY is not set. Skipping Platform OTP email.");
+    return { success: false, reason: "missing_api_key" };
+  }
+  const { subject, html } = renderPlatformOtpEmail(email, code);
+  const platformConfig = buildTenantConfig({
+    id: "platform",
+    name: "A.Gure Platform Control Center",
+    owner_email: email,
+    contact_email: defaultReplyTo,
+    logo_url: null,
+    branding: { monogram: "AG" },
+    profile: {},
+  });
+  const from = `A.Gure Platform <${DEFAULT_EMAIL_FROM_ADDRESS}>`;
+  try {
+    const result = await sendEmailSafely(platformConfig, {
+      from,
+      replyTo: defaultReplyTo,
+      to: [email],
+      subject,
+      html,
+    });
+    if (result.error) {
+      return { success: false, error: result.error };
+    }
+    return { success: true, data: result.data, from, subject };
+  } catch (err) {
+    console.error("RESEND PLATFORM OTP ERROR:", err);
+    return { success: false, error: err };
+  }
+}
+
 export async function sendOwnerOtpEmail(email: string, code: string, tenantId?: string) {
   if (!resend) {
     console.warn("RESEND_API_KEY is not set. Skipping OTP email.");
     return { success: false, reason: "missing_api_key" };
   }
 
-  const config = getTenantConfig(tenantId);
+  let tenantRow: Tenant | null = null;
+  if (tenantId && supabaseAdmin) {
+    const { data } = await supabaseAdmin
+      .from("tenants")
+      .select("*")
+      .eq("id", tenantId)
+      .maybeSingle();
+    tenantRow = (data as unknown as Tenant) || null;
+  }
+
+  const config =
+    (tenantRow ? buildTenantConfig(tenantRow as unknown as TenantRow) : null) ??
+    (tenantId ? getSeedTenant(tenantId) : null) ??
+    buildTenantConfig({
+      id: tenantId || "studio",
+      name: defaultFromName,
+      owner_email: email,
+      contact_email: email,
+      logo_url: null,
+      profile: {},
+    });
+
   const palette = lightEmailPalette(config);
-  const subject = `Your verification code: ${code}`;
+  const studioTitle = tenantRow?.name || config.name || defaultFromName;
+  const subject = `Your ${studioTitle} verification code: ${code}`;
   const html = renderEmailShell({
     config,
-    tenantName: config.integrations.emailFromName || config.name,
+    tenantName: tenantRow?.from_name || studioTitle,
     subtitle: "Secure login",
     eyebrow: "Verification code",
     title: "Your login code",
-    introHtml:
-      "Use the following 6-digit code to sign in to your control panel. The code is valid for 15 minutes.",
+    introHtml: `Use the following 6-digit code to sign in to ${strongValue(
+      palette,
+      studioTitle
+    )}. The code is valid for 15 minutes.`,
     detailsHtml: `<tr>
       <td align="center" style="padding-top:6px;">
         <div style="background-color:${palette.recessed};border:1px solid ${palette.border};border-radius:14px;padding:22px 16px;font-family:${EMAIL_FONT};font-size:30px;line-height:1;font-weight:800;letter-spacing:0.34em;color:${palette.value};font-variant-numeric:tabular-nums;">${escapeHtml(code)}</div>
@@ -1064,7 +1185,7 @@ export async function sendOwnerOtpEmail(email: string, code: string, tenantId?: 
   });
 
   try {
-    const { from, replyTo } = getSenderInfo(null, config);
+    const { from, replyTo } = getSenderInfo(tenantRow, config, "owner");
     const result = await sendEmailSafely(config, {
       from,
       replyTo,
@@ -1075,7 +1196,7 @@ export async function sendOwnerOtpEmail(email: string, code: string, tenantId?: 
     if (result.error) {
       return { success: false, error: result.error };
     }
-    return { success: true, data: result.data };
+    return { success: true, data: result.data, from, subject };
   } catch (err) {
     console.error("RESEND SEND ERROR:", err);
     return { success: false, error: err };
@@ -1169,7 +1290,7 @@ export async function sendTestNotificationEmail(tenant: Tenant, recipientEmail: 
     maxWidth: 500,
   });
 
-  const { from, replyTo } = getSenderInfo(tenant, config);
+  const { from, replyTo } = getSenderInfo(tenant, config, "owner");
 
   return sendEmailSafely(config, {
     from,

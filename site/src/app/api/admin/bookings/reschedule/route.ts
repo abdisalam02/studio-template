@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import {
@@ -17,7 +17,7 @@ import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
 import { logAdminEvent } from "@/lib/audit";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 export async function POST(req: NextRequest) {
   try {
@@ -95,21 +95,42 @@ export async function POST(req: NextRequest) {
     const blockEndUtc = endUtc + bufferMin * 60;
     const nowUtc = Math.floor(Date.now() / 1000);
 
-    const { weekday } = zonedParts(startUtc, timezone);
-    const { data: shiftHours } = await supabaseAdmin
+    const local = zonedParts(startUtc, timezone);
+    const { weekday } = local;
+
+    // A weekday may have several intervals (e.g. a lunch break). `maybeSingle()`
+    // fails as soon as the second row exists and makes every reschedule look
+    // "closed"; fetch all intervals and choose the one containing the slot.
+    const { data: shiftRows, error: shiftError } = await supabaseAdmin
       .from("hours")
       .select("weekday, open_min, close_min")
       .eq("tenant_id", booking.tenant_id)
       .eq("weekday", weekday)
-      .maybeSingle();
+      .order("open_min", { ascending: true });
 
-    const shift =
-      shiftHours &&
-      typeof shiftHours.open_min === "number" &&
-      typeof shiftHours.close_min === "number" &&
-      shiftHours.open_min < shiftHours.close_min
-        ? { open_min: shiftHours.open_min, close_min: shiftHours.close_min }
-        : null;
+    if (shiftError) {
+      console.error("Failed to load shifts:", shiftError);
+      return NextResponse.json({ error: "database_error" }, { status: 500 });
+    }
+
+    const shifts = (shiftRows || []).filter(
+      (row): row is { weekday: number; open_min: number; close_min: number } =>
+        typeof row.open_min === "number" &&
+        typeof row.close_min === "number" &&
+        row.open_min < row.close_min
+    );
+
+    const localMinutes = local.hour * 60 + local.minute;
+    const containing =
+      shifts.find(
+        (s) =>
+          localMinutes >= s.open_min &&
+          localMinutes + Math.max(1, durationMin) <= s.close_min
+      ) || null;
+    const selected = containing || shifts[0] || null;
+    const shift = selected
+      ? { open_min: selected.open_min, close_min: selected.close_min }
+      : null;
 
     const rules = {
       timezone,
@@ -224,3 +245,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
+

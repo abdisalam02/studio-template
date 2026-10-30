@@ -1,12 +1,13 @@
 import type { CSSProperties } from "react";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
-  getTenantConfig,
   DEFAULT_TENANT_SLUG,
-  TENANTS,
   type TenantConfig,
   type TenantService,
 } from "@/config/tenant.config";
+import { resolveTenant, resolveTenantByHost } from "@/lib/tenantResolver";
 import { BookingWidget } from "@/components/booking/BookingWidget";
 import { EditorialImage } from "@/components/ui/EditorialImage";
 import { FiMapPin, FiClock, FiInstagram, FiShield, FiCheckCircle } from "react-icons/fi";
@@ -99,7 +100,7 @@ async function getStudioData(config: TenantConfig): Promise<StudioData> {
     return {
       ...base,
       name: tenant?.name || base.name,
-      email: tenant?.owner_email || base.email,
+      email: tenant?.contact_email || base.email,
       services:
         services && services.length > 0 ? (services as ServiceRow[]) : base.services,
     };
@@ -115,8 +116,17 @@ interface PageProps {
 
 export default async function StudioHomePage(props: PageProps) {
   const searchParams = await props.searchParams;
-  const activeSlug = searchParams?.tenant || DEFAULT_TENANT_SLUG;
-  const config = getTenantConfig(activeSlug);
+  const requestHeaders = await headers();
+  const requestedSlug = (searchParams?.tenant || "").trim().toLowerCase();
+  const allowSeed = process.env.NODE_ENV === "development";
+
+  const config =
+    (requestedSlug ? await resolveTenant(requestedSlug, { allowSeed }) : null) ||
+    (await resolveTenantByHost(requestHeaders.get("host"))) ||
+    (await resolveTenant(DEFAULT_TENANT_SLUG, { allowSeed }));
+
+  if (!config) notFound();
+
   const studio = await getStudioData(config);
   const c = config.theme.colors;
 
@@ -182,29 +192,6 @@ export default async function StudioHomePage(props: PageProps) {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Tenant switcher, driven by the central registry */}
-              <div
-                className="flex items-center border rounded-full overflow-hidden text-[10px] font-semibold"
-                style={{ borderColor: c.border, backgroundColor: c.recessed }}
-              >
-                {Object.values(TENANTS).map((tenant) => {
-                  const isActive = tenant.id === config.id;
-                  return (
-                    <a
-                      key={tenant.id}
-                      href={`/?tenant=${tenant.id}`}
-                      className="px-2 py-0.5 transition-colors"
-                      style={{
-                        backgroundColor: isActive ? tenant.theme.colors.accent : "transparent",
-                        color: isActive ? tenant.theme.colors.valueText : c.label,
-                      }}
-                    >
-                      {tenant.shortName}
-                    </a>
-                  );
-                })}
-              </div>
-
               <a
                 href={`https://instagram.com/${studio.instagram.replace("@", "")}`}
                 target="_blank"

@@ -1,0 +1,3135 @@
+"use client";
+
+import React, { useEffect, useState, useRef, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import "./admin-system.css";
+
+// Sanzo Wada 1930s 'A Dictionary of Color Combinations' Presets
+const THEME_PRESETS = [
+  { id: "wada-kurokin", name: "Kuro-Kin", accent: "#C4A482", canopy: "#121214", sheet: "#FAFAFA", desc: "Sumi & Antique Gold" },
+  { id: "wada-kurikoge", name: "Kuri-Koge", accent: "#C86D51", canopy: "#1C1917", sheet: "#FBF9F7", desc: "Chestnut & Terracotta" },
+  { id: "wada-sabiseiji", name: "Sabi-Seiji", accent: "#7E9F85", canopy: "#131F17", sheet: "#F6F8F5", desc: "Deep Forest & Celadon" },
+  { id: "wada-edomurasaki", name: "Edo-Murasaki", accent: "#9285B4", canopy: "#151724", sheet: "#F7F7FA", desc: "Midnight & Iris" },
+  { id: "wada-rikyucha", name: "Rikyū-cha", accent: "#A49767", canopy: "#1A1C16", sheet: "#F8F7F3", desc: "Dark Tea & Brass" },
+  { id: "wada-benitobi", name: "Beni-tobi", accent: "#D96B6B", canopy: "#1E1718", sheet: "#FAF6F6", desc: "Dark Iron & Akane Coral" },
+];
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+interface BookingRecord {
+  ref: string;
+  client_name: string;
+  client_email?: string;
+  client_phone?: string;
+  service_name: string;
+  service_price?: number;
+  duration_min?: number;
+  scheduled_at: string;
+  status: "confirmed" | "pending" | "declined" | "cancelled";
+  notes?: string;
+  email_status?: string;
+  email_error?: string;
+}
+
+interface TenantProfile {
+  id: string;
+  name: string;
+  tagline?: string;
+  monogram?: string;
+  logo_url?: string;
+  palette?: {
+    accent?: string;
+    canopy?: string;
+    sheet?: string;
+    preset?: string;
+  };
+  owner_email?: string;
+  contact_email?: string;
+  phone?: string;
+  whatsapp?: string;
+  address?: string;
+  org_number?: string;
+}
+
+function AdminPortalContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tenantParam = searchParams.get("tenant") || "noire";
+
+  // Auth & Session
+  const [session, setSession] = useState<{
+    authenticated: boolean;
+    email?: string;
+    tenant_id?: string;
+    scope?: string;
+  } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
+  const [loginStep, setLoginStep] = useState<"email" | "code">("email");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPin, setLoginPin] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const lookupTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Tenant & Branding
+  const [activeTenant, setActiveTenant] = useState<string>(tenantParam);
+  const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
+  const [tenantProfile, setTenantProfile] = useState<TenantProfile>({
+    id: "noire",
+    name: "Atelier Noire",
+    monogram: "N",
+    tagline: "Studio Manager",
+  });
+  const [activeTheme, setActiveTheme] = useState("wada-kurokin");
+
+  // Navigation & Views
+  const [activeTab, setActiveTab] = useState<"kalender" | "avtaler" | "schedule" | "settings">("kalender");
+  const [selectedDate, setSelectedDate] = useState<string>("2026-10-30");
+  const [viewYear, setViewYear] = useState<number>(2026);
+  const [viewMonth, setViewMonth] = useState<number>(9); // 0-indexed (9 = October)
+  const [calendarMode, setCalendarMode] = useState<"week" | "month">("week");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [segmentFilter, setSegmentFilter] = useState<"active" | "pending" | "confirmed" | "archive" | "all">("active");
+  const [archiveExpanded, setArchiveExpanded] = useState(false);
+
+  // Calendar mathematical helpers
+  function getWeekDaysForDate(dateStr: string) {
+    const parts = dateStr.split("-").map(Number);
+    const y = parts[0] || 2026;
+    const m = (parts[1] || 10) - 1;
+    const d = parts[2] || 30;
+    const curr = new Date(Date.UTC(y, m, d));
+    const day = curr.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(Date.UTC(y, m, d + diff));
+
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const dayDate = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + i));
+      const iso = dayDate.toISOString().split("T")[0];
+      week.push({
+        name: WEEKDAYS[i],
+        num: dayDate.getUTCDate(),
+        iso,
+        month: dayDate.getUTCMonth(),
+        year: dayDate.getUTCFullYear(),
+      });
+    }
+    return week;
+  }
+
+  function getMonthGridDays(year: number, month: number) {
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    const firstDayOfWeek = firstDay.getUTCDay();
+    const offset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const daysInPrevMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+    const cells = [];
+    const totalCells = offset + daysInMonth > 35 ? 42 : 35;
+
+    for (let i = 0; i < totalCells; i++) {
+      if (i < offset) {
+        const prevDay = daysInPrevMonth - offset + i + 1;
+        const prevDate = new Date(Date.UTC(year, month - 1, prevDay));
+        cells.push({
+          dayNum: prevDay,
+          iso: prevDate.toISOString().split("T")[0],
+          isCurrentMonth: false,
+          month: prevDate.getUTCMonth(),
+          year: prevDate.getUTCFullYear(),
+        });
+      } else if (i < offset + daysInMonth) {
+        const dayNum = i - offset + 1;
+        const currDate = new Date(Date.UTC(year, month, dayNum));
+        cells.push({
+          dayNum,
+          iso: currDate.toISOString().split("T")[0],
+          isCurrentMonth: true,
+          month: currDate.getUTCMonth(),
+          year: currDate.getUTCFullYear(),
+        });
+      } else {
+        const nextDay = i - offset - daysInMonth + 1;
+        const nextDate = new Date(Date.UTC(year, month + 1, nextDay));
+        cells.push({
+          dayNum: nextDay,
+          iso: nextDate.toISOString().split("T")[0],
+          isCurrentMonth: false,
+          month: nextDate.getUTCMonth(),
+          year: nextDate.getUTCFullYear(),
+        });
+      }
+    }
+    return cells;
+  }
+
+  function normalizeBooking(raw: any): BookingRecord {
+    let iso = "";
+    if (raw.scheduled_at) {
+      iso = raw.scheduled_at;
+    } else if (raw.start_utc) {
+      const epochMs = typeof raw.start_utc === "number" ? (raw.start_utc < 1e11 ? raw.start_utc * 1000 : raw.start_utc) : Date.parse(raw.start_utc);
+      iso = new Date(epochMs).toISOString();
+    } else if (raw.created_at) {
+      iso = new Date(raw.created_at).toISOString();
+    }
+
+    return {
+      ref: raw.ref || raw.reference || `REF-${Math.floor(Math.random() * 9000 + 1000)}`,
+      client_name: raw.client_name || raw.customer_name || raw.name || "Client",
+      client_email: raw.client_email || raw.customer_email || raw.email || "",
+      client_phone: raw.client_phone || raw.customer_phone || raw.phone || "",
+      service_name: raw.service_name || raw.services?.name || raw.treatment_name || "Studio Treatment",
+      service_price: typeof raw.service_price === "number" ? raw.service_price : (typeof raw.price_nok === "number" ? raw.price_nok : 850),
+      duration_min: raw.duration_min || raw.services?.duration_min || raw.duration || 45,
+      scheduled_at: iso,
+      status: raw.status || "confirmed",
+      notes: raw.notes || "",
+      email_status: raw.email_status || "delivered",
+      email_error: raw.email_error || "",
+    };
+  }
+
+  // Data Caches
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<Record<string, { open: boolean; start: string; end: string }>>({
+    Monday: { open: true, start: "09:00", end: "17:00" },
+    Tuesday: { open: true, start: "09:00", end: "17:00" },
+    Wednesday: { open: true, start: "09:00", end: "17:00" },
+    Thursday: { open: true, start: "09:00", end: "17:00" },
+    Friday: { open: true, start: "09:00", end: "17:00" },
+    Saturday: { open: false, start: "10:00", end: "15:00" },
+    Sunday: { open: false, start: "10:00", end: "15:00" },
+  });
+  const [blackouts, setBlackouts] = useState<any[]>([]);
+  const [slotInterval, setSlotInterval] = useState("30");
+
+  // Modals & Drawers
+  const [activeDrawerBooking, setActiveDrawerBooking] = useState<BookingRecord | null>(null);
+  const [showNewBookingModal, setShowNewBookingModal] = useState(false);
+  const [showBlockTimeModal, setShowBlockTimeModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [showCustomThemeSheet, setShowCustomThemeSheet] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
+  // New Booking Form State
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newService, setNewService] = useState("Signature Session");
+  const [newDate, setNewDate] = useState("2026-10-30");
+  const [newTime, setNewTime] = useState("12:00");
+
+  // Custom Theme State
+  const [draftCustomAccent, setDraftCustomAccent] = useState("#C4A482");
+  const [draftCustomCard, setDraftCustomCard] = useState("#18181B");
+  const [draftCustomCanvas, setDraftCustomCanvas] = useState("#0A0A0A");
+
+  // Mock Sandbox Tenant Data (Realistic Oslo Studio Appointments)
+  const MOCK_DEMO_BOOKINGS: BookingRecord[] = [
+    {
+      ref: "NOI-1092",
+      client_name: "Ingrid Solberg",
+      client_email: "ingrid.solberg@icloud.com",
+      client_phone: "+47 912 34 567",
+      service_name: "18k Gold Tooth Gem · Upper Canine",
+      service_price: 850,
+      duration_min: 45,
+      scheduled_at: "2026-10-30T09:30:00",
+      status: "confirmed",
+      notes: "Wants subtle placement on right canine, first time client.",
+      email_status: "delivered",
+    },
+    {
+      ref: "NOI-1093",
+      client_name: "Marcus Lindqvist",
+      client_email: "marcus.l@gmail.com",
+      client_phone: "+47 456 78 901",
+      service_name: "Custom Silver Single Cap · Fitting & Mold",
+      service_price: 1900,
+      duration_min: 60,
+      scheduled_at: "2026-10-30T11:00:00",
+      status: "pending",
+      notes: "Bringing reference photo for star cutout.",
+      email_status: "bounced",
+      email_error: "Recipient mailbox does not exist (550 5.1.1)",
+    },
+    {
+      ref: "NOI-1094",
+      client_name: "Sana Al-Mansoor",
+      client_email: "sana.m@outlook.com",
+      client_phone: "+47 987 65 432",
+      service_name: "Swarovski Crystal Trio · Smile Line",
+      service_price: 1150,
+      duration_min: 45,
+      scheduled_at: "2026-10-30T13:30:00",
+      status: "pending",
+      notes: "Express booking during work break.",
+      email_status: "delivered",
+    },
+    {
+      ref: "NOI-1095",
+      client_name: "Emilie Haugen",
+      client_email: "emilie.h@vipps.no",
+      client_phone: "+47 411 22 334",
+      service_name: "White Gold Butterfly Gem",
+      service_price: 950,
+      duration_min: 45,
+      scheduled_at: "2026-10-29T15:00:00",
+      status: "confirmed",
+      notes: "Returning customer from last month.",
+      email_status: "delivered",
+    },
+    {
+      ref: "NOI-1096",
+      client_name: "Kasper Nymo",
+      client_email: "kasper.nymo@gmail.com",
+      client_phone: "+47 922 88 110",
+      service_name: "Deep Clean & Gem Replacement",
+      service_price: 650,
+      duration_min: 60,
+      scheduled_at: "2026-10-29T16:30:00",
+      status: "confirmed",
+      notes: "Requested gentle cleaning around canine.",
+      email_status: "delivered",
+    },
+    {
+      ref: "NOI-1097",
+      client_name: "Henrik Vanger",
+      client_email: "henrik.v@dn.no",
+      client_phone: "+47 901 12 345",
+      service_name: "18k Gold Tooth Gem · Upper Canine",
+      service_price: 850,
+      duration_min: 45,
+      scheduled_at: "2026-10-28T11:30:00",
+      status: "confirmed",
+      notes: "Confirmed VIP appointment.",
+      email_status: "delivered",
+    },
+    {
+      ref: "NOI-1098",
+      client_name: "Astrid Lind",
+      client_email: "astrid.l@nrk.no",
+      client_phone: "+47 955 44 332",
+      service_name: "Custom Silver Single Cap · Fitting & Mold",
+      service_price: 1900,
+      duration_min: 60,
+      scheduled_at: "2026-10-31T12:00:00",
+      status: "confirmed",
+      notes: "Saturday session.",
+      email_status: "delivered",
+    },
+  ];
+
+  function getCleanStudioName(id: string, name: string): string {
+    if (id === "gangina" || /gangina/i.test(name)) return "Gangina";
+    if (id === "noire" || /noire/i.test(name)) return "Noire";
+    if (id === "studio-klo" || /kl[oō]/i.test(name)) return "Studio Klō";
+    if (id === "demo-studio" || /demo/i.test(name)) return "Atelier Demo";
+    return (name || id).replace(/\s*(Beauty|Studio|Haute|Esthétique|Salon|Atelier|Spa).*$/i, "").trim() || name;
+  }
+
+  function formatEnglishDate(dateStr?: string): string {
+    if (!dateStr) return "October 30, 2026";
+    try {
+      const parts = dateStr.split("T")[0].split("-");
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return d.toLocaleDateString("en-US", { month: "long", day: "2-digit", year: "numeric" });
+      }
+      return dateStr;
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  // 3-Detent Sheet Physics & Layout Controller
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [sheetDetent, setSheetDetent] = useState<"mid" | "upper" | "peek">("mid");
+  const sheetScrollerRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+  const dockRef = useRef<HTMLElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+
+  const gestureRef = useRef<{
+    startY: number;
+    startX: number;
+    lastY: number;
+    startTime: number;
+    isDragging: boolean;
+    isHandle: boolean;
+    startScrollTop: number;
+    startDetent: "mid" | "upper" | "peek";
+  } | null>(null);
+
+  const handleSheetPointerDown = (e: React.PointerEvent) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 960) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, input, select, a, textarea, [role='button']:not(#sheet-handle-bar)")) return;
+
+    const isHandle = target.closest("#sheet-handle-bar") !== null;
+    const scrollTop = sheetScrollerRef.current ? sheetScrollerRef.current.scrollTop : 0;
+
+    gestureRef.current = {
+      startY: e.clientY,
+      startX: e.clientX,
+      lastY: e.clientY,
+      startTime: performance.now(),
+      isDragging: false,
+      isHandle,
+      startScrollTop: scrollTop,
+      startDetent: sheetDetent,
+    };
+
+    if (isHandle) {
+      gestureRef.current.isDragging = true;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      if (sheetRef.current) {
+        sheetRef.current.classList.add("is-dragging");
+      }
+    }
+  };
+
+  const handleSheetPointerMove = (e: React.PointerEvent) => {
+    const g = gestureRef.current;
+    if (!g || !sheetRef.current) return;
+    const dy = e.clientY - g.startY;
+    const dx = e.clientX - g.startX;
+    g.lastY = e.clientY;
+
+    if (!g.isDragging) {
+      if (!g.isHandle) {
+        // Surface pull-down: allow sliding down from anywhere on the sheet when scrolled to top
+        if (g.startScrollTop <= 0 && dy > 6 && Math.abs(dy) > Math.abs(dx)) {
+          g.isDragging = true;
+          sheetRef.current.classList.add("is-dragging");
+          try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          } catch (_) {}
+        } else if (g.startDetent === "mid" && dy < -6 && Math.abs(dy) > Math.abs(dx) && g.startScrollTop <= 0) {
+          // Allow upward pull from mid to upper detent
+          g.isDragging = true;
+          sheetRef.current.classList.add("is-dragging");
+          try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (g.isDragging) {
+      const baseOffset = g.startDetent === "upper" ? 80 : g.startDetent === "peek" ? (typeof window !== "undefined" ? window.innerHeight - 250 : 360) : 195;
+      let offset = baseOffset + dy;
+      if (offset < 80) offset = 80 + (offset - 80) * 0.2;
+
+      sheetRef.current.style.transform = `translate3d(0, ${offset}px, 0)`;
+    }
+  };
+
+  const handleSheetPointerUp = (e: React.PointerEvent) => {
+    const g = gestureRef.current;
+    if (!g || !sheetRef.current) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const dy = g.lastY - g.startY;
+    const dt = Math.max(1, performance.now() - g.startTime);
+    const velocity = dy / dt;
+
+    const start = g.startDetent;
+    const wasDragging = g.isDragging;
+    gestureRef.current = null;
+
+    if (wasDragging) {
+      let targetDetent = start;
+      if (start === "mid") {
+        if (dy > 45 || velocity > 0.25) {
+          targetDetent = "peek";
+          setCalendarMode("month");
+        } else if (dy < -45 || velocity < -0.25) {
+          targetDetent = "upper";
+        }
+      } else if (start === "upper") {
+        if (dy > 45 || velocity > 0.25) {
+          targetDetent = "mid";
+        }
+      } else if (start === "peek") {
+        if (dy < -45 || velocity < -0.25) {
+          targetDetent = "mid";
+          setCalendarMode("week");
+        }
+      }
+
+      setSheetDetent(targetDetent);
+
+      // Industry-standard fluid spring settling: animate smoothly to target detent without snapping
+      sheetRef.current.classList.remove("is-dragging");
+      sheetRef.current.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+      const targetOffset = targetDetent === "upper" ? 80 : targetDetent === "peek" ? (typeof window !== "undefined" ? window.innerHeight - 250 : 360) : 195;
+      sheetRef.current.style.transform = `translate3d(0, ${targetOffset}px, 0)`;
+
+      setTimeout(() => {
+        if (sheetRef.current) {
+          sheetRef.current.style.transition = "";
+          sheetRef.current.style.transform = "";
+        }
+      }, 320);
+    } else {
+      sheetRef.current.classList.remove("is-dragging");
+      sheetRef.current.style.transform = "";
+    }
+  };
+
+  const handleSheetHandleClick = () => {
+    if (gestureRef.current?.isDragging) return;
+    if (activeTab === "kalender") {
+      if (sheetDetent === "peek") {
+        setSheetDetent("mid");
+        setCalendarMode("week");
+      } else {
+        setSheetDetent("peek");
+        setCalendarMode("month");
+      }
+    } else if (activeTab === "avtaler") {
+      setSheetDetent((prev) => (prev === "upper" ? "mid" : "upper"));
+    } else {
+      setSheetDetent((prev) => (prev === "upper" ? "mid" : "upper"));
+    }
+  };
+
+  const switchTab = (tab: "kalender" | "avtaler" | "schedule" | "settings") => {
+    setActiveTab(tab);
+    if (tab === "schedule" || tab === "settings" || tab === "avtaler") {
+      setSheetDetent("upper");
+    } else if (tab === "kalender") {
+      setSheetDetent(calendarMode === "month" ? "peek" : "mid");
+    }
+  };
+
+  const handleApproveWithGuard = (ref: string, emailStatus?: string) => {
+    const isFailed = ["bounced", "failed", "suppressed", "complained"].includes(emailStatus || "");
+    if (isFailed) {
+      setConfirmModal({
+        isOpen: true,
+        title: "Confirm Appointment?",
+        message: "This client's confirmation email could not be delivered (bounced). Are you sure you want to approve this appointment without an email receipt?",
+        confirmLabel: "Confirm Anyway",
+        onConfirm: () => {
+          handleBookingStatus(ref, "confirmed");
+          setConfirmModal(null);
+        },
+      });
+      return;
+    }
+    handleBookingStatus(ref, "confirmed");
+  };
+
+  // Fluid bottom dock slider indicator
+  useEffect(() => {
+    const updateSlider = () => {
+      if (!dockRef.current || !indicatorRef.current) return;
+      const activeBtn = dockRef.current.querySelector<HTMLButtonElement>(".dock-pill.active");
+      if (!activeBtn) return;
+      indicatorRef.current.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0)`;
+      indicatorRef.current.style.width = `${activeBtn.offsetWidth}px`;
+      indicatorRef.current.style.opacity = "1";
+    };
+    const raf = requestAnimationFrame(updateSlider);
+    window.addEventListener("resize", updateSlider);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", updateSlider);
+    };
+  }, [activeTab, bookings, isMounted]);
+
+  useEffect(() => {
+    function checkViewport() {
+      setIsMobileViewport(window.innerWidth < 960);
+    }
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    return () => window.removeEventListener("resize", checkViewport);
+  }, []);
+
+  function showToast(msg: string) {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 3500);
+  }
+
+  const enterDemoSandbox = () => {
+    setActiveTenant("noire");
+    setIsLocked(false);
+    setTenantProfile({
+      id: "noire",
+      name: "Atelier Noire",
+      tagline: "Studio Manager",
+      monogram: "N",
+      logo_url: "",
+      owner_email: "demo@agure.space",
+      contact_email: "contact@ateliernoire.no",
+      phone: "+47 912 34 567",
+      whatsapp: "+47 912 34 567",
+      address: "Frognerveien 12, 0257 Oslo",
+      org_number: "999 888 777 MVA",
+    });
+    setBookings(MOCK_DEMO_BOOKINGS);
+    showToast("Welcome to Atelier Noire Demo Sandbox");
+  };
+
+  // Dynamic email lookup to resolve studio branding while locked
+  const handleEmailLookup = (email: string) => {
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+    const cleaned = email.trim().toLowerCase();
+    if (!cleaned || !cleaned.includes("@")) return;
+
+    lookupTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/auth/lookup?email=${encodeURIComponent(cleaned)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.tenant_id) {
+            setActiveTenant(data.tenant_id);
+            setTenantProfile((prev) => ({
+              ...prev,
+              id: data.tenant_id,
+              name: data.name,
+              monogram: data.monogram || data.name.slice(0, 2).toUpperCase(),
+              logo_url: data.logo_url || "",
+              tagline: data.tagline || prev.tagline,
+            }));
+          }
+        }
+      } catch (_) {}
+    }, 280);
+  };
+
+  // Public studio lookup by URL parameter on mount (e.g. ?tenant=gangina)
+  useEffect(() => {
+    if (tenantParam && isLocked) {
+      fetch(`/api/admin/auth/lookup?tenant_id=${encodeURIComponent(tenantParam)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.tenant_id) {
+            setActiveTenant(data.tenant_id);
+            setTenantProfile((prev) => ({
+              ...prev,
+              id: data.tenant_id,
+              name: data.name,
+              monogram: data.monogram || data.name.slice(0, 2).toUpperCase(),
+              logo_url: data.logo_url || "",
+              tagline: data.tagline || prev.tagline,
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [tenantParam, isLocked]);
+
+  // Sync with tenant query param
+  useEffect(() => {
+    if (tenantParam && tenantParam !== activeTenant) {
+      if (tenantParam === "demo-studio") {
+        enterDemoSandbox();
+      } else {
+        setActiveTenant(tenantParam);
+      }
+    }
+  }, [tenantParam]);
+
+  // Check auth session
+  useEffect(() => {
+    setIsMounted(true);
+    async function checkAuth() {
+      if (searchParams.get("demo") === "1" || searchParams.get("demo") === "true" || tenantParam === "demo-studio") {
+        enterDemoSandbox();
+        return;
+      }
+      try {
+        const res = await fetch("/api/admin/auth/session");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated) {
+            setSession(data);
+            setIsLocked(false);
+            if (data.tenant_id && !tenantParam) {
+              setActiveTenant(data.tenant_id);
+            }
+          } else {
+            setIsLocked(true);
+          }
+        }
+      } catch (err) {
+        setIsLocked(true);
+      }
+    }
+    checkAuth();
+  }, []);
+
+  // Hydrate accessible tenants
+  useEffect(() => {
+    async function loadTenants() {
+      try {
+        const res = await fetch("/api/admin/tenants");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.tenants)) {
+            setTenantList(data.tenants);
+          }
+        }
+      } catch (_) {}
+    }
+    if (!isLocked) loadTenants();
+  }, [isLocked]);
+
+  // Load tenant profile & data
+  useEffect(() => {
+    async function loadTenantData() {
+      if (isLocked) return;
+      const isDemo = searchParams.get("demo") === "1" || searchParams.get("demo") === "true";
+      if (activeTenant === "demo-studio") {
+        enterDemoSandbox();
+        return;
+      }
+      try {
+        const [profRes, bookRes, hoursRes, blackRes, auditRes] = await Promise.all([
+          fetch(`/api/admin/settings?tenant_id=${encodeURIComponent(activeTenant)}`),
+          fetch(`/api/admin/bookings?tenant_id=${encodeURIComponent(activeTenant)}`),
+          fetch(`/api/admin/hours?tenant_id=${encodeURIComponent(activeTenant)}`),
+          fetch(`/api/admin/blackouts?tenant_id=${encodeURIComponent(activeTenant)}`),
+          fetch(`/api/admin/audit?tenant_id=${encodeURIComponent(activeTenant)}`),
+        ]);
+
+        if (profRes.ok) {
+          const pData = await profRes.json();
+          if (pData.tenant) {
+            setTenantProfile({
+              id: activeTenant,
+              name: pData.tenant.name || activeTenant,
+              tagline: pData.tenant.branding?.tagline || "Studio Manager",
+              monogram: pData.tenant.branding?.monogram || activeTenant.slice(0, 2).toUpperCase(),
+              logo_url: pData.tenant.branding?.assets?.logo_url || pData.tenant.logo_url || "",
+              owner_email: pData.tenant.owner_email || "",
+              contact_email: pData.tenant.contact_email || "",
+              phone: pData.tenant.phone || "",
+              whatsapp: pData.tenant.whatsapp || "",
+              address: pData.tenant.address || "",
+              org_number: pData.tenant.org_number || "",
+            });
+            if (pData.tenant.branding?.preset) {
+              setActiveTheme(pData.tenant.branding.preset);
+            }
+          }
+        }
+
+        if (bookRes.ok) {
+          const bData = await bookRes.json();
+          if (Array.isArray(bData.bookings) && bData.bookings.length > 0) {
+            setBookings(bData.bookings.map(normalizeBooking));
+          } else if (isDemo) {
+            setBookings(MOCK_DEMO_BOOKINGS);
+          }
+        } else if (isDemo) {
+          setBookings(MOCK_DEMO_BOOKINGS);
+        }
+
+        if (hoursRes.ok) {
+          const hData = await hoursRes.json();
+          if (hData.shifts) setShifts(hData.shifts);
+          if (hData.interval_min) setSlotInterval(String(hData.interval_min));
+        }
+
+        if (blackRes.ok) {
+          const blData = await blackRes.json();
+          if (Array.isArray(blData.blackouts)) setBlackouts(blData.blackouts);
+        }
+
+        if (auditRes.ok) {
+          const aData = await auditRes.json();
+          if (Array.isArray(aData.events)) setActivityLogs(aData.events);
+        }
+      } catch (err) {
+        console.error("Failed to load tenant data:", err);
+      }
+    }
+    loadTenantData();
+  }, [activeTenant, isLocked]);
+
+  // UX-02: Escape key listener for all drawers and modals
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setActiveDrawerBooking(null);
+        setShowNewBookingModal(false);
+        setShowBlockTimeModal(false);
+        setShowRescheduleModal(false);
+        setShowCustomThemeSheet(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // OTP Login Handlers
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginError("");
+    if (!loginEmail.trim()) {
+      setLoginError("Please enter your email address.");
+      return;
+    }
+    setIsSubmittingLogin(true);
+    try {
+      const res = await fetch("/api/admin/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          tenant_id: activeTenant,
+          scope: "tenant",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setChallengeId(data.challengeId);
+        setLoginStep("code");
+        showToast("✓ Verification code sent to your inbox");
+      } else {
+        setLoginError(data.error || data.message || "Unauthorized email for this studio.");
+      }
+    } catch (_) {
+      setLoginError("Network connection error. Please try again.");
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginError("");
+    if (!loginPin.trim() || loginPin.trim().length < 6) {
+      setLoginError("Please enter the complete 6-digit code.");
+      return;
+    }
+    setIsSubmittingLogin(true);
+    try {
+      const res = await fetch("/api/admin/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          code: loginPin.trim(),
+          challengeId,
+          tenant_id: activeTenant,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsLocked(false);
+        setSession({ authenticated: true, email: loginEmail, tenant_id: activeTenant });
+        showToast("✓ Studio Manager unlocked");
+      } else {
+        setLoginError(data.error || data.message || "Invalid or expired code.");
+      }
+    } catch (_) {
+      setLoginError("Verification failed. Please try again.");
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  }
+
+  async function handleLock() {
+    try {
+      await fetch("/api/admin/auth/logout", { method: "POST" });
+    } catch (_) {}
+    setIsLocked(true);
+    setLoginStep("email");
+    setLoginPin("");
+    showToast("Studio Manager locked");
+  }
+
+  // Triage actions
+  async function handleBookingStatus(ref: string, newStatus: "confirmed" | "declined" | "cancelled") {
+    try {
+      const res = await fetch("/api/admin/bookings/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref, status: newStatus, tenant_id: activeTenant }),
+      });
+      if (res.ok) {
+        setBookings((prev) =>
+          prev.map((b) => (b.ref === ref ? { ...b, status: newStatus } : b))
+        );
+        if (activeDrawerBooking && activeDrawerBooking.ref === ref) {
+          setActiveDrawerBooking({ ...activeDrawerBooking, status: newStatus });
+        }
+        showToast(`✓ Booking ${newStatus}`);
+      } else {
+        showToast("Error updating booking status");
+      }
+    } catch (_) {
+      showToast("Network error updating status");
+    }
+  }
+
+  // Manual booking submit
+  async function handleCreateManualBooking(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/admin/bookings/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: activeTenant,
+          client_name: newClientName,
+          client_phone: newClientPhone,
+          client_email: newClientEmail,
+          service_name: newService,
+          date: newDate,
+          time: newTime,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast("✓ Appointment created successfully");
+        setShowNewBookingModal(false);
+        // Refresh bookings
+        const bRes = await fetch(`/api/admin/bookings?tenant_id=${encodeURIComponent(activeTenant)}`);
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          if (Array.isArray(bData.bookings)) setBookings(bData.bookings.map(normalizeBooking));
+        }
+      } else {
+        showToast("Could not create booking");
+      }
+    } catch (_) {
+      showToast("Network error creating booking");
+    }
+  }
+
+  // Save settings
+  async function handleSaveSettings() {
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: activeTenant,
+          name: tenantProfile.name,
+          owner_email: tenantProfile.owner_email,
+          contact_email: tenantProfile.contact_email,
+          phone: tenantProfile.phone,
+          whatsapp: tenantProfile.whatsapp,
+          address: tenantProfile.address,
+          org_number: tenantProfile.org_number,
+        }),
+      });
+      if (res.ok) {
+        showToast("✓ Studio settings saved successfully");
+      } else {
+        showToast("Could not save settings");
+      }
+    } catch (_) {
+      showToast("Network error saving settings");
+    }
+  }
+
+  // Apply theme preset
+  function handleSelectPreset(presetId: string) {
+    setActiveTheme(presetId);
+    showToast(`✓ Applied ${presetId.replace("-", " ")} theme`);
+  }
+
+  // Calculations
+  const pendingBookings = bookings.filter((b) => b.status === "pending");
+  const confirmedBookings = bookings.filter((b) => b.status === "confirmed");
+  const filteredBookings = bookings.filter((b) => {
+    if (segmentFilter === "pending") return b.status === "pending";
+    if (segmentFilter === "confirmed") return b.status === "confirmed";
+    if (segmentFilter === "archive") return b.status === "declined" || b.status === "cancelled";
+    if (segmentFilter === "active") return b.status === "pending" || b.status === "confirmed";
+    return true;
+  }).filter((b) => {
+    if (!searchFilter.trim()) return true;
+    const q = searchFilter.toLowerCase();
+    return (
+      b.client_name.toLowerCase().includes(q) ||
+      (b.client_email && b.client_email.toLowerCase().includes(q)) ||
+      (b.client_phone && b.client_phone.includes(q)) ||
+      b.ref.toLowerCase().includes(q)
+    );
+  });
+
+  const monogram = tenantProfile.monogram || activeTenant.slice(0, 2).toUpperCase();
+
+  return (
+    <div
+      data-theme={activeTheme}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100dvh",
+        overflow: "hidden",
+        backgroundColor: "var(--admin-canopy-bg, #121214)",
+      }}
+    >
+      {/* =================================================================== */}
+      {/* 1. STUDIO MANAGER SECURITY GATE (Zero-Card Veil Over Dashboard)     */}
+      {/* =================================================================== */}
+      <AnimatePresence>
+        {isMounted && isLocked && (
+          <motion.div
+            id="admin-login-overlay"
+            className="login-gate-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.6 } }}
+            style={{ display: "flex", zIndex: 2000 }}
+          >
+            <div className="login-arch-watermark" aria-hidden="true">
+              PORTAL
+            </div>
+
+            <div
+              id="admin-login-card"
+              className="login-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="login-studio-name"
+            >
+              <div
+                className={`login-brand-badge ${tenantProfile.logo_url ? "is-resolved" : ""}`}
+                id="admin-login-badge"
+                aria-hidden="true"
+              >
+                {tenantProfile.logo_url ? (
+                  <span className="login-brand-badge-logo" style={{ opacity: 1 }}>
+                    <img id="admin-login-logo" src={tenantProfile.logo_url} alt={tenantProfile.name} />
+                  </span>
+                ) : (
+                  <span className="login-brand-badge-mark" style={{ opacity: 1 }}>
+                    <span style={{ fontFamily: "var(--font-display, 'Cinzel', serif)" }}>{monogram}</span>
+                  </span>
+                )}
+              </div>
+
+              <h2 id="login-studio-name" className="login-card-title">
+                {tenantProfile.name || "Atelier Portal"}
+              </h2>
+              <p id="login-subtitle" className="login-card-subtitle">
+                {loginStep === "email" ? "Enter email to open portal" : "Enter verification code"}
+              </p>
+
+              {/* STEP 1: Email */}
+              {loginStep === "email" ? (
+                <div className="login-step" id="login-step-email">
+                  <form id="admin-email-form" onSubmit={handleSendOtp} noValidate>
+                    <input
+                      type="email"
+                      id="admin-login-email"
+                      className="login-gate-input"
+                      placeholder="Email address"
+                      value={loginEmail}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLoginEmail(val);
+                        setLoginError("");
+                        handleEmailLookup(val);
+                      }}
+                      autoComplete="email"
+                      required
+                    />
+                    {loginError && (
+                      <div id="admin-email-error" className="login-gate-error" style={{ display: "block" }}>
+                        {loginError}
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      id="admin-send-otp-btn"
+                      className="login-gate-submit"
+                      disabled={isSubmittingLogin}
+                    >
+                      {isSubmittingLogin ? "Sending code..." : "Send verification code →"}
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                /* STEP 2: 6-Digit PIN */
+                <div className="login-step" id="login-step-code">
+                  <div className="login-code-chip" id="login-code-chip">
+                    <span className="login-code-chip-text">
+                      Code sent to <strong id="login-code-chip-email">{loginEmail}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      id="login-change-email-btn"
+                      className="login-code-chip-change"
+                      onClick={() => setLoginStep("email")}
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <form id="admin-login-form" onSubmit={handleVerifyOtp} noValidate>
+                    <input
+                      type="password"
+                      id="admin-pin-input"
+                      className="login-gate-input login-gate-pin"
+                      maxLength={6}
+                      inputMode="numeric"
+                      placeholder="• • • • • •"
+                      value={loginPin}
+                      onChange={(e) => {
+                        setLoginPin(e.target.value);
+                        setLoginError("");
+                      }}
+                      autoComplete="one-time-code"
+                      required
+                    />
+                    {loginError && (
+                      <div id="admin-login-error" className="login-gate-error" style={{ display: "block" }}>
+                        {loginError}
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      id="admin-verify-btn"
+                      className="login-gate-submit"
+                      disabled={isSubmittingLogin}
+                    >
+                      {isSubmittingLogin ? "Verifying..." : "Open Studio Manager →"}
+                    </button>
+                  </form>
+                  <button
+                    type="button"
+                    id="login-resend-btn"
+                    className="login-gate-otp"
+                    onClick={handleSendOtp}
+                    disabled={isSubmittingLogin}
+                  >
+                    Resend code
+                  </button>
+                </div>
+              )}
+
+              {/* Dedicated Demo Sandbox Access */}
+              <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", textAlign: "center" }}>
+                <button
+                  type="button"
+                  id="admin-demo-sandbox-btn"
+                  onClick={enterDemoSandbox}
+                  style={{
+                    background: "rgba(196, 164, 130, 0.08)",
+                    color: "#C4A482",
+                    border: "1px dashed rgba(196, 164, 130, 0.4)",
+                    borderRadius: "9999px",
+                    padding: "10px 18px",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "all 0.15s ease",
+                    width: "100%",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span>Try Demo Sandbox (No Login Required)</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* =================================================================== */}
+      {/* 2. DUAL-SURFACE APP SHELL: Obsidian Canopy + Draggable Porcelain    */}
+      {/* =================================================================== */}
+      <div className={`admin-shell ${sheetDetent === "peek" ? "canopy-expanded" : ""} ${sheetDetent === "upper" ? "sheet-upper" : ""}`}>
+        {/* UPPER / LEFT OBSIDIAN CANOPY (#121214) */}
+        <header className="obsidian-canopy" id="obsidian-canopy">
+          {/* Topbar Brand Cluster */}
+          <div className="canopy-topbar">
+            <div className="canopy-brand-cluster">
+              <div className="admin-header-logo-container">
+                {tenantProfile.logo_url ? (
+                  <img
+                    src={tenantProfile.logo_url}
+                    alt={tenantProfile.name}
+                    className="canopy-logo-img"
+                    id="canopy-header-logo"
+                  />
+                ) : (
+                  <span
+                    id="canopy-logo-monogram"
+                    style={{
+                      fontFamily: "var(--font-display, 'Cinzel', serif)",
+                      fontWeight: 700,
+                      color: "#121214",
+                    }}
+                  >
+                    {monogram}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <h1 className="admin-header-title" id="canopy-studio-title">
+                  {getCleanStudioName(activeTenant, tenantProfile.name)}
+                </h1>
+                <p className="admin-header-subtitle" id="canopy-studio-tagline">
+                  {tenantProfile.tagline || "Studio Manager"}
+                </p>
+              </div>
+            </div>
+
+            {/* Header Action Cluster */}
+            <div className="canopy-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {!isLocked && session?.authenticated && tenantList.length > 1 && (
+                <select
+                  id="header-tenant-switcher"
+                  className="recessed-input"
+                  style={{
+                    padding: "6px 10px",
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    color: "#FFFFFF",
+                    borderColor: "rgba(255, 255, 255, 0.14)",
+                  }}
+                  value={activeTenant}
+                  onChange={(e) => {
+                    const nextTenant = e.target.value;
+                    setActiveTenant(nextTenant);
+                    router.push(`/admin?tenant=${encodeURIComponent(nextTenant)}`);
+                  }}
+                >
+                  {tenantList.map((t) => (
+                    <option key={t.id} value={t.id} style={{ color: "#111", background: "#fff" }}>
+                      {getCleanStudioName(t.id, t.name)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {activeTenant === "demo-studio" && (
+                <button
+                  type="button"
+                  className="demo-reset-pill"
+                  id="admin-demo-reset-btn"
+                  onClick={() => {
+                    setBookings([...MOCK_DEMO_BOOKINGS]);
+                    showToast("✓ Demo Sandbox reset to original appointments");
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(255, 255, 255, 0.12)",
+                    border: "1px solid rgba(255, 255, 255, 0.22)",
+                    color: "#FFFFFF",
+                    borderRadius: "999px",
+                    padding: "4px 10px",
+                    fontSize: "0.72rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <span style={{ color: "#34D399", fontSize: "0.6rem" }}>●</span> Demo Sandbox · Reset Data
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="canopy-new-btn"
+                id="canopy-quick-new-booking"
+                onClick={() => setShowNewBookingModal(true)}
+              >
+                + New Booking
+              </button>
+
+              <button
+                type="button"
+                className="canopy-lock-btn"
+                id="admin-lock-btn"
+                title="Lock Studio Manager"
+                onClick={handleLock}
+              >
+                🔒
+              </button>
+            </div>
+          </div>
+
+          <div className="canopy-watermark" aria-hidden="true">
+            <img src="/img/logo-v2.png" alt="" className="canopy-watermark-img" />
+          </div>
+
+          {/* Calendar Header & View Switcher */}
+          <div className="canopy-calendar-header">
+            <div className="cal-month-title-wrap">
+              <h2 className="cal-month-title" id="cal-month-label">
+                {new Date(Date.UTC(viewYear, viewMonth, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
+              </h2>
+              <div className="cal-nav-arrows">
+                <button
+                  type="button"
+                  className="cal-arrow-btn"
+                  id="cal-prev-month"
+                  aria-label="Previous Month"
+                  onClick={() => {
+                    if (viewMonth === 0) {
+                      setViewYear((prev) => prev - 1);
+                      setViewMonth(11);
+                      setSelectedDate(`${viewYear - 1}-12-01`);
+                    } else {
+                      const prevM = viewMonth - 1;
+                      setViewMonth(prevM);
+                      setSelectedDate(`${viewYear}-${String(prevM + 1).padStart(2, "0")}-01`);
+                    }
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="cal-arrow-btn"
+                  id="cal-next-month"
+                  aria-label="Next Month"
+                  onClick={() => {
+                    if (viewMonth === 11) {
+                      setViewYear((prev) => prev + 1);
+                      setViewMonth(0);
+                      setSelectedDate(`${viewYear + 1}-01-01`);
+                    } else {
+                      const nextM = viewMonth + 1;
+                      setViewMonth(nextM);
+                      setSelectedDate(`${viewYear}-${String(nextM + 1).padStart(2, "0")}-01`);
+                    }
+                  }}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="cal-toggle-pill"
+              id="cal-mode-toggle"
+              onClick={() => {
+                const nextMode = calendarMode === "week" ? "month" : "week";
+                setCalendarMode(nextMode);
+                if (nextMode === "month") {
+                  setSheetDetent("peek");
+                } else {
+                  setSheetDetent("mid");
+                }
+              }}
+            >
+              <span id="cal-toggle-icon">📅</span>
+              <span id="cal-toggle-label">{calendarMode === "week" ? "Month" : "Week"}</span>
+            </button>
+          </div>
+
+          {/* 7-Day Week Strip */}
+          {calendarMode === "week" ? (
+            <div className="canopy-week-strip" id="canopy-week-strip">
+              {getWeekDaysForDate(selectedDate).map((day) => {
+                const isSelected = day.iso === selectedDate;
+                const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(day.iso));
+
+                return (
+                  <button
+                    key={day.iso}
+                    type="button"
+                    className={`week-day-pill ${isSelected ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedDate(day.iso);
+                      setViewYear(day.year);
+                      setViewMonth(day.month);
+                    }}
+                  >
+                    <span className="week-day-name">{day.name}</span>
+                    <span className="week-day-num">{day.num}</span>
+                    {hasBookings && <span className="day-dot-indicator" />}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            /* Accurate Offset-Aligned Month Grid */
+            <div className="canopy-month-grid" id="canopy-month-grid" style={{ display: "block" }}>
+              <div className="month-grid-weekdays">
+                <span>M</span>
+                <span>T</span>
+                <span>W</span>
+                <span>T</span>
+                <span>F</span>
+                <span>S</span>
+                <span>S</span>
+              </div>
+              <div className="month-grid-days" id="month-grid-days">
+                {getMonthGridDays(viewYear, viewMonth).map((cell, idx) => {
+                  const isSelected = cell.iso === selectedDate;
+                  const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(cell.iso));
+
+                  return (
+                    <button
+                      key={`${cell.iso}-${idx}`}
+                      type="button"
+                      className={`month-grid-cell month-day-cell ${isSelected ? "active" : ""}`}
+                      style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
+                      onClick={() => {
+                        setSelectedDate(cell.iso);
+                        setViewYear(cell.year);
+                        setViewMonth(cell.month);
+                        setCalendarMode("week");
+                        setSheetDetent("mid");
+                      }}
+                    >
+                      <span>{cell.dayNum}</span>
+                      {hasBookings && <span className="cell-dot" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </header>
+
+        {/* LOWER DRAGGABLE PORCELAIN SHEET (#FAFAFA) */}
+        <main
+          ref={sheetRef}
+          className="porcelain-sheet"
+          id="porcelain-sheet"
+          onPointerDown={handleSheetPointerDown}
+          onPointerMove={handleSheetPointerMove}
+          onPointerUp={handleSheetPointerUp}
+          onPointerCancel={handleSheetPointerUp}
+        >
+          {/* Top Centered Drag Handle Pill (Dedicated Gesture Zone) */}
+          <div
+            className="sheet-handle-bar"
+            id="sheet-handle-bar"
+            role="button"
+            tabIndex={0}
+            aria-label="Toggle calendar sheet position"
+            aria-expanded={sheetDetent === "peek"}
+            onClick={handleSheetHandleClick}
+            style={{ touchAction: "none" }}
+          >
+            <div className="sheet-handle-pill" />
+          </div>
+
+          <div className="sheet-watermark" aria-hidden="true">
+            <img src="/img/logo-v2.png" alt="" className="sheet-watermark-img" />
+          </div>
+
+          {/* Scrollable Sheet Content */}
+          <div className="sheet-content-scroller" id="sheet-content-scroller" ref={sheetScrollerRef}>
+            {/* ============================================================= */}
+            {/* TAB 1: CALENDAR (Daily Agenda & Timeline)                     */}
+            {/* ============================================================= */}
+            {activeTab === "kalender" && (
+              <section className="tab-panel active" id="panel-kalender">
+                {/* Compact Sticky Header: Clean Date + Sessions pill & Slim Review Banner */}
+                <div className="calendar-sticky-header" id="calendar-sticky-header">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: pendingBookings.length > 0 ? "8px" : "4px" }}>
+                    <h3 style={{ fontSize: "1.02rem", fontWeight: 700, letterSpacing: "-0.02em", color: "#111827", margin: 0 }} id="agenda-date-headline">
+                      {formatEnglishDate(selectedDate)}
+                    </h3>
+                    <span className="status-pill-badge confirmed" id="agenda-count-badge" style={{ fontSize: "0.68rem", padding: "3px 8px" }}>
+                      {bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate)).length} sessions
+                    </span>
+                  </div>
+
+                  {/* Slim Review Alert Banner */}
+                  {pendingBookings.length > 0 && (
+                    <div
+                      className="pulse-review-pill is-compact"
+                      id="pulse-review-pill"
+                      onClick={() => {
+                        setActiveTab("avtaler");
+                        setSegmentFilter("pending");
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "0.85rem" }}>🔔</span>
+                        <span className="pulse-title" id="pulse-review-count" style={{ fontSize: "0.78rem", fontWeight: 700 }}>
+                          {pendingBookings.length} {pendingBookings.length === 1 ? "review" : "reviews"} waiting
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="pulse-action-btn"
+                        id="pulse-action-btn"
+                        style={{ padding: "4px 10px", fontSize: "0.72rem" }}
+                      >
+                        Review →
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Action Bar */}
+                <div className="calendar-quick-bar">
+                  <button
+                    type="button"
+                    className="quick-action-btn"
+                    id="btn-quick-block-time"
+                    onClick={() => setShowBlockTimeModal(true)}
+                  >
+                    Block Time
+                  </button>
+                  <button
+                    type="button"
+                    className="quick-action-btn"
+                    id="btn-refresh-agenda"
+                    onClick={() => showToast("↻ Calendar synchronized")}
+                  >
+                    <span>↻</span> Sync Calendar
+                  </button>
+                </div>
+
+                {/* Chronological Timeline Stack */}
+                <div className="dagsagenda-timeline" id="dagsagenda-timeline">
+                  {bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate)).length === 0 ? (
+                    <div className="timeline-empty-card">
+                      <p>No appointments scheduled for this date.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Morning Sessions (< 12:00) */}
+                      {(() => {
+                        const dayBookings = bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate));
+                        const morningBookings = dayBookings.filter((b) => (parseInt(b.scheduled_at?.split("T")[1]?.slice(0, 2) || "12", 10) < 12));
+                        const afternoonBookings = dayBookings.filter((b) => (parseInt(b.scheduled_at?.split("T")[1]?.slice(0, 2) || "12", 10) >= 12));
+
+                        return (
+                          <>
+                            <div className="agenda-block" style={{ marginBottom: "20px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", fontSize: "0.78rem", fontWeight: 700, color: "var(--admin-sheet-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                <span>☀️</span> Morning Appointments ({morningBookings.length})
+                              </div>
+                              {morningBookings.length === 0 ? (
+                                <div style={{ padding: "12px 14px", borderRadius: "14px", background: "rgba(0,0,0,0.02)", color: "#888", fontSize: "0.78rem" }}>
+                                  No morning appointments.
+                                </div>
+                              ) : (
+                                morningBookings.map((b) => {
+                                  const isPending = b.status === "pending";
+                                  const timeStr = b.scheduled_at?.split("T")[1]?.slice(0, 5) || "10:00";
+                                  return (
+                                    <div
+                                      key={b.ref}
+                                      className={`timeline-slot-row ${isPending ? "is-pending" : "is-confirmed"}`}
+                                      onClick={() => setActiveDrawerBooking(b)}
+                                      role="button"
+                                      tabIndex={0}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "stretch",
+                                        gap: "12px",
+                                        marginBottom: "10px",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      <div className="timeline-time-col">
+                                        <strong>{timeStr}</strong>
+                                        <span>{b.duration_min || 45}m</span>
+                                      </div>
+                                      <div
+                                        className="timeline-card-content"
+                                        style={{
+                                          flex: 1,
+                                          borderRadius: "18px",
+                                          padding: "14px 16px",
+                                          background: isPending ? "var(--admin-pulse-bg, #FBEBC8)" : "#FFFFFF",
+                                          border: isPending ? "1px solid rgba(217, 119, 6, 0.28)" : "1px solid rgba(0, 0, 0, 0.06)",
+                                          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.02)",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          gap: "6px",
+                                        }}
+                                      >
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                            <span
+                                              style={{
+                                                width: "32px",
+                                                height: "32px",
+                                                borderRadius: "50%",
+                                                background: isPending ? "#D97706" : "var(--admin-accent, #111)",
+                                                color: "#FFFFFF",
+                                                fontSize: "0.72rem",
+                                                fontWeight: 700,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              {(b.client_name ?? "G").charAt(0).toUpperCase()}
+                                            </span>
+                                            <div>
+                                              <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>
+                                                {b.client_name}
+                                              </div>
+                                              <div style={{ fontSize: "0.76rem", color: "var(--admin-sheet-muted, #6B7280)" }}>
+                                                {b.service_name}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: "right" }}>
+                                            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827" }}>
+                                              {b.service_price ? `${b.service_price} kr` : "850 kr"}
+                                            </div>
+                                            <span
+                                              className={`status-pill-badge ${b.status}`}
+                                              style={{
+                                                fontSize: "0.62rem",
+                                                padding: "2px 7px",
+                                                borderRadius: "999px",
+                                                fontWeight: 700,
+                                                textTransform: "uppercase",
+                                              }}
+                                            >
+                                              {b.status}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Afternoon Sessions (>= 12:00) */}
+                            <div className="agenda-block">
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", fontSize: "0.78rem", fontWeight: 700, color: "var(--admin-sheet-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                <span>🌙</span> Afternoon Sessions ({afternoonBookings.length})
+                              </div>
+                              {afternoonBookings.length === 0 ? (
+                                <div style={{ padding: "12px 14px", borderRadius: "14px", background: "rgba(0,0,0,0.02)", color: "#888", fontSize: "0.78rem" }}>
+                                  No afternoon appointments.
+                                </div>
+                              ) : (
+                                afternoonBookings.map((b) => {
+                                  const isPending = b.status === "pending";
+                                  const timeStr = b.scheduled_at?.split("T")[1]?.slice(0, 5) || "14:00";
+                                  return (
+                                    <div
+                                      key={b.ref}
+                                      className={`timeline-slot-row ${isPending ? "is-pending" : "is-confirmed"}`}
+                                      onClick={() => setActiveDrawerBooking(b)}
+                                      role="button"
+                                      tabIndex={0}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "stretch",
+                                        gap: "12px",
+                                        marginBottom: "10px",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      <div className="timeline-time-col">
+                                        <strong>{timeStr}</strong>
+                                        <span>{b.duration_min || 60}m</span>
+                                      </div>
+                                      <div
+                                        className="timeline-card-content"
+                                        style={{
+                                          flex: 1,
+                                          borderRadius: "18px",
+                                          padding: "14px 16px",
+                                          background: isPending ? "var(--admin-pulse-bg, #FBEBC8)" : "#FFFFFF",
+                                          border: isPending ? "1px solid rgba(217, 119, 6, 0.28)" : "1px solid rgba(0, 0, 0, 0.06)",
+                                          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.02)",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          gap: "6px",
+                                        }}
+                                      >
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                            <span
+                                              style={{
+                                                width: "32px",
+                                                height: "32px",
+                                                borderRadius: "50%",
+                                                background: isPending ? "#D97706" : "var(--admin-accent, #111)",
+                                                color: "#FFFFFF",
+                                                fontSize: "0.72rem",
+                                                fontWeight: 700,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              {(b.client_name ?? "G").charAt(0).toUpperCase()}
+                                            </span>
+                                            <div>
+                                              <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>
+                                                {b.client_name}
+                                              </div>
+                                              <div style={{ fontSize: "0.76rem", color: "var(--admin-sheet-muted, #6B7280)" }}>
+                                                {b.service_name}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: "right" }}>
+                                            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827" }}>
+                                              {b.service_price ? `${b.service_price} kr` : "1900 kr"}
+                                            </div>
+                                            <span
+                                              className={`status-pill-badge ${b.status}`}
+                                              style={{
+                                                fontSize: "0.62rem",
+                                                padding: "2px 7px",
+                                                borderRadius: "999px",
+                                                fontWeight: 700,
+                                                textTransform: "uppercase",
+                                              }}
+                                            >
+                                              {b.status}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* ============================================================= */}
+            {/* TAB 2: APPOINTMENTS (Active Feed & Collapsible Archive)       */}
+            {/* ============================================================= */}
+            {activeTab === "avtaler" && (
+              <section className="tab-panel active" id="panel-avtaler">
+                <div className="appointments-sticky-head">
+                  <div className="search-filter-wrap" style={{ position: "relative" }}>
+                    <svg
+                      className="search-icon-pos"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      id="admin-search-input"
+                      className="admin-search-input"
+                      placeholder="Search by client, phone, email, or ref..."
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="filter-pills-row jelly-radio-track" style={{ position: "relative", display: "flex", gap: "6px", overflowX: "auto", padding: "4px 0" }}>
+                    {[
+                      { id: "active", label: "Active", count: bookings.filter((b) => b.status === "pending" || b.status === "confirmed").length },
+                      { id: "pending", label: "Pending", count: pendingBookings.length },
+                      { id: "confirmed", label: "Upcoming", count: confirmedBookings.length },
+                      { id: "archive", label: "Archive", count: bookings.filter((b) => b.status === "declined" || b.status === "cancelled").length },
+                      { id: "all", label: "All", count: bookings.length },
+                    ].map((tab) => {
+                      const isActive = segmentFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          className={`feed-filter-pill ${isActive ? "active" : ""}`}
+                          onClick={() => setSegmentFilter(tab.id as any)}
+                          style={{
+                            position: "relative",
+                            zIndex: 2,
+                            background: "transparent",
+                            border: isActive ? "none" : "1px solid rgba(0, 0, 0, 0.08)",
+                            color: isActive ? "#FFFFFF" : "var(--admin-sheet-muted)",
+                            padding: "6px 14px",
+                            borderRadius: "9999px",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            transition: "color 0.18s ease",
+                          }}
+                        >
+                          {isActive && (
+                            <motion.div
+                              layoutId="jellyActivePill"
+                              className="jelly-pill-bg"
+                              transition={{
+                                type: "spring",
+                                stiffness: 420,
+                                damping: 26,
+                                mass: 0.8,
+                              }}
+                              style={{
+                                position: "absolute",
+                                inset: 0,
+                                borderRadius: "9999px",
+                                background: "var(--admin-pill-active-bg, #111111)",
+                                zIndex: -1,
+                                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+                              }}
+                            />
+                          )}
+                          <span>{tab.label} ({tab.count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div id="bookings-active-feed">
+                  {filteredBookings.length === 0 ? (
+                    <div className="timeline-empty-card">
+                      <p>No appointments match the filter.</p>
+                    </div>
+                  ) : (
+                    filteredBookings.map((b) => {
+                      const isPending = b.status === "pending";
+                      const isArchived = b.status === "declined" || b.status === "cancelled";
+                      const emailFailed = ["bounced", "failed", "suppressed", "complained"].includes(b.email_status || "");
+                      const initials = (b.client_name ?? "Guest")
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase();
+                      const dateStr = b.scheduled_at ? b.scheduled_at.split("T")[0] : "2026-10-30";
+                      const timeStr = b.scheduled_at ? b.scheduled_at.split("T")[1]?.slice(0, 5) : "12:00";
+
+                      return (
+                        <div
+                          key={b.ref}
+                          className={`booking-item-card ${isPending ? "is-pending" : ""} ${isArchived ? "is-archive" : ""}`}
+                          data-ref={b.ref}
+                          onClick={() => setActiveDrawerBooking(b)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <div className="booking-card-top-row">
+                            <span className="client-avatar-circle">{initials}</span>
+                            <div className="client-title-info">
+                              <div className="client-row-name">{b.client_name}</div>
+                              <div className="client-row-service">
+                                {b.service_name} · {b.duration_min || 45} min
+                              </div>
+                            </div>
+                            <div className="client-status-col">
+                              <span className={`status-pill-badge ${b.status}`}>
+                                {isPending ? "PENDING REVIEW" : b.status.toUpperCase()}
+                              </span>
+                              <div className="card-price-tag">{b.service_price || 850} kr</div>
+                            </div>
+                          </div>
+
+                          <div className="booking-meta-row">
+                            <div className="booking-meta-primary">
+                              {dateStr}<span className="meta-sep">·</span>{timeStr}
+                            </div>
+                            {b.client_email && (
+                              <div className="booking-meta-secondary" title={b.client_email}>
+                                {b.client_email}
+                              </div>
+                            )}
+                            {emailFailed && (
+                              <div className="booking-meta-alert" title={b.email_error || "Confirmation was not delivered"}>
+                                Email not delivered
+                              </div>
+                            )}
+                          </div>
+
+                          {isPending && (
+                            <div className="triage-action-row" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                className="btn-triage btn-triage-approve"
+                                onClick={() => handleApproveWithGuard(b.ref, b.email_status)}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-triage btn-triage-decline"
+                                onClick={() => handleBookingStatus(b.ref, "declined")}
+                              >
+                                Decline
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-triage btn-triage-details"
+                                onClick={() => setActiveDrawerBooking(b)}
+                              >
+                                Details
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Collapsible Archive Accordion */}
+                <div className="archive-accordion-box">
+                  <div
+                    className="archive-toggle-head"
+                    id="archive-toggle-head"
+                    onClick={() => setArchiveExpanded(!archiveExpanded)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="archive-toggle-title">
+                      <span>🗄 Past & Cancelled Appointments</span>
+                      <span className="archive-count-badge" id="archive-total-badge">
+                        {bookings.filter((b) => b.status === "declined" || b.status === "cancelled").length}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "0.75rem", color: "var(--admin-sheet-muted)" }} id="archive-chevron">
+                      {archiveExpanded ? "Hide Archive ▲" : "View Archive ▼"}
+                    </span>
+                  </div>
+                  {archiveExpanded && (
+                    <div className="archive-content-body" style={{ display: "block" }}>
+                      {bookings
+                        .filter((b) => b.status === "declined" || b.status === "cancelled")
+                        .map((b) => (
+                          <div key={b.ref} className="booking-item-card" style={{ opacity: 0.85 }}>
+                            <strong>{b.client_name}</strong> · {b.service_name} ({b.status})
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* ============================================================= */}
+            {/* TAB 3: OPENING HOURS & SHIFTS                                */}
+            {/* ============================================================= */}
+            {activeTab === "schedule" && (
+              <section className="tab-panel active" id="panel-schedule">
+                <div className="squircle-card">
+                  <div className="card-section-head">
+                    <div>
+                      <h3 className="card-title-main">Studio Operating Hours</h3>
+                      <span className="card-subtitle">Weekly shifts and appointment slot duration</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-ny-time"
+                      id="btn-copy-monday"
+                      style={{ fontSize: "0.72rem", padding: "6px 12px" }}
+                      onClick={() => {
+                        const mon = shifts["Monday"];
+                        setShifts({
+                          Monday: { ...mon },
+                          Tuesday: { ...mon },
+                          Wednesday: { ...mon },
+                          Thursday: { ...mon },
+                          Friday: { ...mon },
+                          Saturday: { ...mon },
+                          Sunday: { ...mon },
+                        });
+                        showToast("✓ Copied Monday hours to all days");
+                      }}
+                    >
+                      Copy Monday
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "14px",
+                      fontSize: "0.8rem",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: "var(--admin-sheet-muted)" }}>
+                      Appointment Slot Duration:
+                    </span>
+                    <select
+                      id="sched-interval"
+                      className="pill-time-input"
+                      value={slotInterval}
+                      onChange={(e) => setSlotInterval(e.target.value)}
+                      style={{ padding: "6px 12px" }}
+                    >
+                      <option value="15">15 min</option>
+                      <option value="30">30 min</option>
+                      <option value="45">45 min</option>
+                      <option value="60">60 min</option>
+                    </select>
+                  </div>
+
+                  {/* 7-Day Responsive Shift Cards (Tier 1: Day & Toggle, Tier 2: Time Pickers) */}
+                  <div id="schedule-days-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {Object.entries(shifts).map(([day, shift]) => (
+                      <div
+                        key={day}
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: "14px",
+                          background: shift.open ? "#FFFFFF" : "rgba(0, 0, 0, 0.02)",
+                          border: "1px solid rgba(0, 0, 0, 0.06)",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontWeight: 700, fontSize: "0.88rem", color: shift.open ? "#111827" : "#9CA3AF" }}>
+                              {day}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: "6px",
+                                background: shift.open ? "rgba(22, 163, 74, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                                color: shift.open ? "#15803D" : "#6B7280",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {shift.open ? "Open" : "Closed"}
+                            </span>
+                          </div>
+                          <label className="switch-label">
+                            <input
+                              type="checkbox"
+                              checked={shift.open}
+                              onChange={(e) =>
+                                setShifts({
+                                  ...shifts,
+                                  [day]: { ...shift, open: e.target.checked },
+                                })
+                              }
+                            />
+                            <span className="switch-slider" />
+                          </label>
+                        </div>
+                        {shift.open && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+                            <input
+                              type="time"
+                              className="recessed-input"
+                              style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                              value={shift.start}
+                              onChange={(e) =>
+                                setShifts({
+                                  ...shifts,
+                                  [day]: { ...shift, start: e.target.value },
+                                })
+                              }
+                            />
+                            <span style={{ color: "var(--admin-sheet-muted)", fontSize: "0.85rem" }}>–</span>
+                            <input
+                              type="time"
+                              className="recessed-input"
+                              style={{ flex: 1, padding: "8px 10px", fontSize: "0.82rem" }}
+                              value={shift.end}
+                              onChange={(e) =>
+                                setShifts({
+                                  ...shifts,
+                                  [day]: { ...shift, end: e.target.value },
+                                })
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="sticky-tab-action-bar" style={{ marginTop: "16px" }}>
+                    <button
+                      type="button"
+                      id="save-sched-btn"
+                      className="btn-ny-time"
+                      style={{ width: "100%", justifyContent: "center", padding: "12px", borderRadius: "9999px" }}
+                      onClick={async () => {
+                        try {
+                          await fetch("/api/admin/hours", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              tenant_id: activeTenant,
+                              shifts,
+                              interval_min: Number(slotInterval),
+                            }),
+                          });
+                          showToast("✓ Operating hours saved");
+                        } catch (_) {
+                          showToast("Could not save operating hours");
+                        }
+                      }}
+                    >
+                      Save Operating Hours
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Blackouts Table Card */}
+                <div className="squircle-card">
+                  <div className="card-section-head">
+                    <div>
+                      <h3 className="card-title-main">Active Blackouts & Breaks</h3>
+                      <span className="card-subtitle">Personal leaves, lunch breaks, and holidays</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="quick-action-btn"
+                      id="btn-add-blackout-tab"
+                      style={{ padding: "6px 12px" }}
+                      onClick={() => setShowBlockTimeModal(true)}
+                    >
+                      + Block Time
+                    </button>
+                  </div>
+
+                  <div id="blocked-intervals-list" style={{ marginTop: "10px" }}>
+                    {blackouts.length === 0 ? (
+                      <p style={{ fontSize: "0.8rem", color: "var(--admin-sheet-muted)", margin: "8px 0" }}>
+                        No upcoming blackout periods configured.
+                      </p>
+                    ) : (
+                      blackouts.map((b, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            padding: "8px 0",
+                            borderBottom: "1px solid #f0f0f0",
+                            fontSize: "0.8rem",
+                          }}
+                        >
+                          <span>{b.reason || "Studio Pause"}</span>
+                          <strong>{b.starts_at?.split("T")[0]}</strong>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* ============================================================= */}
+            {/* TAB 4: STUDIO SETTINGS & THEME                               */}
+            {/* ============================================================= */}
+            {activeTab === "settings" && (
+              <section className="tab-panel active" id="panel-settings">
+                {/* Theme Palette Swatches (Moved to Top) */}
+                <div className="squircle-card">
+                  <div className="card-section-head">
+                    <div>
+                      <h3 className="card-title-main">Color & Theme</h3>
+                      <span className="card-subtitle">Sanzo Wada 1930s 'A Dictionary of Color Combinations'</span>
+                    </div>
+                  </div>
+
+                  <div className="palette-swatches-grid" id="theme-presets-grid">
+                    {THEME_PRESETS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`palette-btn ${activeTheme === p.id ? "active" : ""}`}
+                        data-preset={p.id}
+                        onClick={() => handleSelectPreset(p.id)}
+                      >
+                        <div className="swatch-chip">
+                          <div className="swatch-chip-canopy" style={{ backgroundColor: p.canopy }} />
+                          <div className="swatch-chip-accent" style={{ backgroundColor: p.accent }} />
+                        </div>
+                        <div style={{ textAlign: "left" }}>
+                          <span className="palette-name" style={{ display: "block" }}>{p.name}</span>
+                          <span style={{ fontSize: "0.66rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>{p.desc}</span>
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`palette-btn palette-btn-custom ${activeTheme === "custom" ? "active" : ""}`}
+                      data-preset="custom"
+                      onClick={() => setShowCustomThemeSheet(true)}
+                    >
+                      <div className="swatch-chip">
+                        <div className="swatch-chip-custom" />
+                      </div>
+                      <div style={{ textAlign: "left" }}>
+                        <span className="palette-name" style={{ display: "block" }}>Custom</span>
+                        <span style={{ fontSize: "0.66rem", color: "var(--admin-sheet-muted)", display: "block", marginTop: "1px" }}>Manual HEX</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Studio Profile */}
+                <div className="squircle-card">
+                  <div className="card-section-head">
+                    <div>
+                      <h3 className="card-title-main">Studio Profile</h3>
+                      <span className="card-subtitle">Manage public contact and invoice details</span>
+                    </div>
+                  </div>
+
+                  <div className="modal-grid-2">
+                    <div className="recessed-input-group">
+                      <label className="recessed-label" htmlFor="studio-name-input">
+                        Studio Name
+                      </label>
+                      <input
+                        type="text"
+                        id="studio-name-input"
+                        className="recessed-input"
+                        value={tenantProfile.name}
+                        onChange={(e) => setTenantProfile({ ...tenantProfile, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label" htmlFor="studio-org-input">
+                        Organization Number
+                      </label>
+                      <input
+                        type="text"
+                        id="studio-org-input"
+                        className="recessed-input"
+                        placeholder="987 654 321 MVA"
+                        value={tenantProfile.org_number || ""}
+                        onChange={(e) => setTenantProfile({ ...tenantProfile, org_number: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="recessed-input-group">
+                    <label className="recessed-label" htmlFor="studio-address-input">
+                      Street Address
+                    </label>
+                    <input
+                      type="text"
+                      id="studio-address-input"
+                      className="recessed-input"
+                      placeholder="Dronningens gate 15, 0152 Oslo"
+                      value={tenantProfile.address || ""}
+                      onChange={(e) => setTenantProfile({ ...tenantProfile, address: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="modal-grid-2">
+                    <div className="recessed-input-group">
+                      <label className="recessed-label" htmlFor="studio-whatsapp-input">
+                        WhatsApp Number
+                      </label>
+                      <input
+                        type="tel"
+                        id="studio-whatsapp-input"
+                        className="recessed-input"
+                        placeholder="+47 900 00 000"
+                        value={tenantProfile.whatsapp || ""}
+                        onChange={(e) => setTenantProfile({ ...tenantProfile, whatsapp: e.target.value })}
+                      />
+                    </div>
+                    <div className="recessed-input-group">
+                      <label className="recessed-label" htmlFor="studio-contact-email-input">
+                        Public Client Email
+                      </label>
+                      <input
+                        type="email"
+                        id="studio-contact-email-input"
+                        className="recessed-input"
+                        placeholder="booking@studio.com"
+                        value={tenantProfile.contact_email || ""}
+                        onChange={(e) => setTenantProfile({ ...tenantProfile, contact_email: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="recessed-input-group">
+                    <label className="recessed-label" htmlFor="studio-owner-email-input">
+                      Private Owner Email
+                    </label>
+                    <input
+                      type="email"
+                      id="studio-owner-email-input"
+                      className="recessed-input"
+                      value={tenantProfile.owner_email || ""}
+                      onChange={(e) => setTenantProfile({ ...tenantProfile, owner_email: e.target.value })}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                    <button
+                      type="button"
+                      id="save-settings-btn"
+                      className="btn-ny-time"
+                      style={{ flex: 1, justifyContent: "center", padding: "11px" }}
+                      onClick={handleSaveSettings}
+                    >
+                      Save Settings
+                    </button>
+                    <button
+                      type="button"
+                      id="send-test-alert-btn"
+                      className="quick-action-btn"
+                      style={{ flex: 1 }}
+                      onClick={async () => {
+                        try {
+                          await fetch("/api/admin/settings/test-email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ tenant_id: activeTenant }),
+                          });
+                          showToast("✓ Test ping email delivered");
+                        } catch (_) {
+                          showToast("Could not send test email");
+                        }
+                      }}
+                    >
+                      Send Test Ping
+                    </button>
+                  </div>
+                </div>
+
+                {/* Activity Log Audit Feed */}
+                <div className="squircle-card">
+                  <div className="card-section-head">
+                    <div>
+                      <h3 className="card-title-main">Activity log</h3>
+                      <span className="card-subtitle">Who approved, moved or emailed a booking, and when</span>
+                    </div>
+                    <button
+                      type="button"
+                      id="activity-refresh-btn"
+                      className="quick-action-btn"
+                      style={{ padding: "8px 12px", whiteSpace: "nowrap" }}
+                      onClick={async () => {
+                        const res = await fetch(`/api/admin/audit?tenant_id=${encodeURIComponent(activeTenant)}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (Array.isArray(data.events)) setActivityLogs(data.events);
+                          showToast("✓ Activity log refreshed");
+                        }
+                      }}
+                    >
+                      ↻ Refresh
+                    </button>
+                  </div>
+
+                  <div id="activity-list" className="activity-list" aria-live="polite">
+                    {activityLogs.length === 0 ? (
+                      <p className="activity-empty">No activity events recorded yet.</p>
+                    ) : (
+                      activityLogs.map((ev, idx) => (
+                        <div key={idx} className="activity-row">
+                          <span className="activity-action">{ev.action}</span>
+                          <span className="activity-time">
+                            {new Date(ev.created_at).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span className="activity-meta">
+                            By {ev.actor_email || "system"} {ev.booking_ref && `· Ref: ${ev.booking_ref}`}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
+        </main>
+
+        {/* =================================================================== */}
+        {/* 3. ADAPTIVE FLOATING BOTTOM NAVIGATION DOCK                         */}
+        {/* =================================================================== */}
+        <nav className="adaptive-pill-dock" id="adaptive-pill-dock" ref={dockRef} aria-label="Admin Navigation">
+          <div className="dock-slider-indicator" id="dock-slider-indicator" ref={indicatorRef} aria-hidden="true" />
+          <button
+            type="button"
+            className={`dock-pill ${activeTab === "kalender" ? "active" : ""}`}
+            onClick={() => switchTab("kalender")}
+            aria-label="Calendar"
+          >
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span className="dock-label">Calendar</span>
+          </button>
+
+          <button
+            type="button"
+            className={`dock-pill ${activeTab === "avtaler" ? "active" : ""}`}
+            onClick={() => switchTab("avtaler")}
+            aria-label="Appointments"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+              <path d="M9 14l2 2 4-4" />
+            </svg>
+            <span className="dock-label">Appointments</span>
+            {pendingBookings.length > 0 && (
+              <span className="dock-badge" id="dock-pending-badge" aria-hidden="true" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`dock-pill ${activeTab === "schedule" ? "active" : ""}`}
+            onClick={() => switchTab("schedule")}
+            aria-label="Opening Hours"
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span className="dock-label">Opening Hours</span>
+          </button>
+
+          <button
+            type="button"
+            className={`dock-pill ${activeTab === "settings" ? "active" : ""}`}
+            onClick={() => switchTab("settings")}
+            aria-label="Settings"
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span className="dock-label">Settings</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* =================================================================== */}
+      {/* 4. MODALS & CLIENT DETAILS BOTTOM SHEET (Framer Motion Fluidity)    */}
+      {/* =================================================================== */}
+
+      {/* MODAL 1: Client Details Bottom Sheet / Inspector */}
+      <AnimatePresence>
+        {activeDrawerBooking && (
+          <div
+            className="modal-backdrop open"
+            id="modal-client-drawer"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setActiveDrawerBooking(null);
+            }}
+          >
+            <motion.div
+              className="modal-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+              drag="y"
+              dragConstraints={{ top: 0 }}
+              dragElastic={{ top: 0, bottom: 0.25 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 80 || info.velocity.y > 200) {
+                  setActiveDrawerBooking(null);
+                }
+              }}
+            >
+              <div className="modal-top-handle" role="button" aria-label="Dismiss sheet" onClick={() => setActiveDrawerBooking(null)} />
+              <div className="modal-sheet-head">
+                <div className="modal-identity">
+                  <div className="client-avatar-circle" id="drawer-avatar-circle">
+                    {(activeDrawerBooking.client_name ?? "Guest")
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                  <div className="modal-identity-text">
+                    <span className="modal-eyebrow" id="drawer-ref-pill">
+                      REF {activeDrawerBooking.ref}
+                    </span>
+                    <h3 className="modal-sheet-title" id="drawer-client-name">
+                      {activeDrawerBooking.client_name ?? "Guest Appointment"}
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="modal-sheet-close"
+                  id="close-client-drawer-btn"
+                  onClick={() => setActiveDrawerBooking(null)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable middle body */}
+              <div className="modal-sheet-scroll-body">
+                {/* Single Unified Date & Time Card */}
+                <div className="modal-section-title">Schedule</div>
+                <div
+                  className="drawer-datetime-unified"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 16px",
+                    borderRadius: "14px",
+                    background: "rgba(0, 0, 0, 0.03)",
+                    border: "1px solid rgba(0, 0, 0, 0.05)",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "1.2rem" }}>📅</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827" }}>
+                        {formatEnglishDate(activeDrawerBooking.scheduled_at?.split("T")[0] || "2026-10-30")}
+                      </div>
+                      <div style={{ fontSize: "0.76rem", color: "var(--admin-sheet-muted)" }}>
+                        {activeDrawerBooking.scheduled_at?.split("T")[1]?.slice(0, 5) || "12:00"} · {activeDrawerBooking.duration_min || 45} min duration
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className={`status-pill-badge ${activeDrawerBooking.status}`}
+                    style={{ fontSize: "0.64rem", padding: "3px 8px", borderRadius: "999px", fontWeight: 700, textTransform: "uppercase" }}
+                  >
+                    {activeDrawerBooking.status}
+                  </span>
+                </div>
+
+                {/* Boxless Full-Width Client Contact Rows */}
+                <div className="modal-section-title">Client Contact</div>
+                <div className="drawer-contact-list" style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "18px" }}>
+                  {/* Phone Row */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "1.05rem", color: "var(--admin-sheet-muted)" }}>📞</span>
+                      <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "#111827", letterSpacing: "0.01em" }}>
+                        {activeDrawerBooking.client_phone || "No phone recorded"}
+                      </span>
+                    </div>
+                    {activeDrawerBooking.client_phone && (
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <a
+                          href={`tel:${activeDrawerBooking.client_phone}`}
+                          className="contact-action-pill"
+                          style={{
+                            padding: "5px 12px",
+                            borderRadius: "999px",
+                            background: "rgba(0, 0, 0, 0.05)",
+                            fontSize: "0.74rem",
+                            fontWeight: 600,
+                            color: "#18181B",
+                            textDecoration: "none",
+                          }}
+                        >
+                          Call
+                        </a>
+                        <a
+                          href={`https://wa.me/${(activeDrawerBooking.client_phone || "").replace(/[^0-9]/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="contact-action-pill"
+                          style={{
+                            padding: "5px 12px",
+                            borderRadius: "999px",
+                            background: "#E6F4EA",
+                            fontSize: "0.74rem",
+                            fontWeight: 600,
+                            color: "#137333",
+                            textDecoration: "none",
+                          }}
+                        >
+                          WhatsApp
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Email Row */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1, marginRight: "8px" }}>
+                      <span style={{ fontSize: "1.05rem", color: "var(--admin-sheet-muted)" }}>✉️</span>
+                      <span style={{ fontWeight: 600, fontSize: "0.85rem", color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {activeDrawerBooking.client_email || "No email recorded"}
+                      </span>
+                    </div>
+                    {activeDrawerBooking.client_email && (
+                      <a
+                        href={`mailto:${activeDrawerBooking.client_email}`}
+                        className="contact-action-pill"
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: "999px",
+                          background: "rgba(0, 0, 0, 0.05)",
+                          fontSize: "0.74rem",
+                          fontWeight: 600,
+                          color: "#18181B",
+                          textDecoration: "none",
+                          flexShrink: 0,
+                        }}
+                      >
+                        Email
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email Delivery Warning Card if Failed */}
+                {["bounced", "failed", "suppressed", "complained"].includes(activeDrawerBooking.email_status || "") && (
+                  <div className="drawer-email-panel" style={{ display: "block" }}>
+                    <div className="drawer-email-head">
+                      <span className="drawer-email-status is-failed">Confirmation not delivered</span>
+                      <span className="drawer-email-hint">Fix the address and resend</span>
+                    </div>
+                    <p className="drawer-email-error" style={{ display: "block" }}>
+                      {activeDrawerBooking.client_email} is marked as undelivered ({activeDrawerBooking.email_error || "Mail bounced"}). Fix or use a different address:
+                    </p>
+                    <div className="drawer-email-controls" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <input
+                        type="email"
+                        className="drawer-email-input"
+                        defaultValue={activeDrawerBooking.client_email || ""}
+                        id="drawer-resend-email-input"
+                      />
+                      <button
+                        type="button"
+                        className="btn-triage-dock btn-triage-approve"
+                        style={{ height: "36px", borderRadius: "10px", width: "100%" }}
+                        onClick={async () => {
+                          const emailInput = document.getElementById("drawer-resend-email-input") as HTMLInputElement;
+                          const email = emailInput?.value || activeDrawerBooking.client_email;
+                          try {
+                            await fetch("/api/admin/bookings/resend", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ ref: activeDrawerBooking.ref, email, tenant_id: activeTenant }),
+                            });
+                            showToast("✓ Confirmation email resent to " + email);
+                          } catch (_) {
+                            showToast("Could not resend email");
+                          }
+                        }}
+                      >
+                        Resend email
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Service */}
+                <div className="modal-section-title">Service</div>
+                <div className="modal-detail-list">
+                  <div className="modal-detail-row">
+                    <span className="modal-detail-label">Treatment</span>
+                    <strong>{activeDrawerBooking.service_name || "Single Gem"}</strong>
+                  </div>
+                  <div className="modal-detail-row">
+                    <span className="modal-detail-label">Price</span>
+                    <strong>{activeDrawerBooking.service_price ? `${activeDrawerBooking.service_price} kr` : "350 kr"}</strong>
+                  </div>
+                  <div className="modal-detail-row">
+                    <span className="modal-detail-label">Status</span>
+                    <span className={`status-pill-badge ${activeDrawerBooking.status}`}>
+                      {activeDrawerBooking.status === "pending" ? "PENDING REVIEW" : activeDrawerBooking.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div className="modal-section-title">Notes</div>
+                <div className="modal-note">
+                  {activeDrawerBooking.notes || "No client notes recorded."}
+                </div>
+
+                {/* Subtle Delivered Notice (if delivered) */}
+                {activeDrawerBooking.email_status === "delivered" && (
+                  <div style={{ fontSize: "0.76rem", color: "#15803D", marginTop: "12px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>✓</span> Confirmation email delivered to {activeDrawerBooking.client_email}
+                  </div>
+                )}
+              </div>
+
+              {/* Pinned Bottom Triage Dock */}
+              <div className="modal-sheet-dock">
+                {activeDrawerBooking.status === "pending" ? (
+                  <div className="drawer-triage-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", width: "100%" }}>
+                    <button
+                      type="button"
+                      className="btn-triage-dock btn-triage-approve"
+                      onClick={() => {
+                        handleApproveWithGuard(activeDrawerBooking.ref, activeDrawerBooking.email_status);
+                        setActiveDrawerBooking(null);
+                      }}
+                    >
+                      Approve Appointment
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-triage-dock btn-triage-decline"
+                      onClick={() => {
+                        handleBookingStatus(activeDrawerBooking.ref, "declined");
+                        setActiveDrawerBooking(null);
+                      }}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                ) : (
+                  <div className="drawer-triage-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", width: "100%" }}>
+                    <button
+                      type="button"
+                      className="btn-triage-dock btn-triage-reschedule"
+                      onClick={() => setShowRescheduleModal(true)}
+                    >
+                      Reschedule
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-triage-dock btn-triage-cancel"
+                      onClick={() => {
+                        handleBookingStatus(activeDrawerBooking.ref, "cancelled");
+                        setActiveDrawerBooking(null);
+                      }}
+                    >
+                      Cancel Appointment
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2: New Manual Booking Modal */}
+      <AnimatePresence>
+        {showNewBookingModal && (
+          <div className="modal-backdrop open" id="modal-new-booking">
+            <motion.div
+              className="modal-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+              drag="y"
+              dragConstraints={{ top: 0 }}
+              dragElastic={{ top: 0, bottom: 0.25 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 90 || info.velocity.y > 250) {
+                  setShowNewBookingModal(false);
+                }
+              }}
+            >
+              <div className="modal-top-handle" onClick={() => setShowNewBookingModal(false)} />
+              <div className="modal-sheet-head">
+                <h3 className="modal-sheet-title">New Appointment</h3>
+                <button
+                  type="button"
+                  className="modal-sheet-close"
+                  onClick={() => setShowNewBookingModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateManualBooking}>
+                <div className="recessed-input-group">
+                  <label className="recessed-label">Full Client Name</label>
+                  <input
+                    type="text"
+                    className="recessed-input"
+                    placeholder="Astrid Lindgren"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="modal-grid-2">
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Phone</label>
+                    <input
+                      type="tel"
+                      className="recessed-input"
+                      placeholder="+47 900 00 000"
+                      value={newClientPhone}
+                      onChange={(e) => setNewClientPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Email (optional)</label>
+                    <input
+                      type="email"
+                      className="recessed-input"
+                      placeholder="client@post.no"
+                      value={newClientEmail}
+                      onChange={(e) => setNewClientEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="recessed-input-group">
+                  <label className="recessed-label">Treatment Service</label>
+                  <input
+                    type="text"
+                    className="recessed-input"
+                    value={newService}
+                    onChange={(e) => setNewService(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="modal-grid-2">
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Date</label>
+                    <input
+                      type="date"
+                      className="recessed-input"
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Time</label>
+                    <input
+                      type="time"
+                      className="recessed-input"
+                      value={newTime}
+                      onChange={(e) => setNewTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="modal-submit-btn modal-submit-block">
+                  Create Appointment
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 3: Block Time Modal */}
+      <AnimatePresence>
+        {showBlockTimeModal && (
+          <div className="modal-backdrop open" id="modal-timeblock">
+            <motion.div
+              className="modal-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+              drag="y"
+              dragConstraints={{ top: 0 }}
+              dragElastic={{ top: 0, bottom: 0.25 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 90 || info.velocity.y > 250) {
+                  setShowBlockTimeModal(false);
+                }
+              }}
+            >
+              <div className="modal-top-handle" onClick={() => setShowBlockTimeModal(false)} />
+              <div className="modal-sheet-head">
+                <h3 className="modal-sheet-title">Block Time</h3>
+                <button
+                  type="button"
+                  className="modal-sheet-close"
+                  onClick={() => setShowBlockTimeModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="modal-quick-list">
+                <button
+                  type="button"
+                  className="quick-action-btn modal-quick-row"
+                  onClick={() => {
+                    showToast("✓ 30 min break added");
+                    setShowBlockTimeModal(false);
+                  }}
+                >
+                  <span className="modal-quick-title">30 min break</span>
+                  <span className="modal-quick-arrow">→</span>
+                </button>
+                <button
+                  type="button"
+                  className="quick-action-btn modal-quick-row"
+                  onClick={() => {
+                    showToast("✓ Day closed for bookings");
+                    setShowBlockTimeModal(false);
+                  }}
+                >
+                  <span className="modal-quick-title">Close the rest of the day</span>
+                  <span className="modal-quick-arrow">→</span>
+                </button>
+              </div>
+
+              <div className="modal-section-title">Custom break</div>
+              <div className="modal-grid-2">
+                <div className="recessed-input-group">
+                  <label className="recessed-label">Date</label>
+                  <input type="date" className="recessed-input" defaultValue={selectedDate} />
+                </div>
+                <div className="recessed-input-group">
+                  <label className="recessed-label">Start time</label>
+                  <input type="time" className="recessed-input" defaultValue="13:00" />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="modal-submit-btn modal-submit-block"
+                onClick={() => {
+                  showToast("✓ Custom block saved");
+                  setShowBlockTimeModal(false);
+                }}
+              >
+                Save block
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 4: Custom Theme Sliding Sheet */}
+      <AnimatePresence>
+        {showCustomThemeSheet && (
+          <div className="modal-backdrop theme-sheet-backdrop open" id="custom-theme-sheet">
+            <motion.div
+              className="modal-sheet theme-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+              drag="y"
+              dragConstraints={{ top: 0 }}
+              dragElastic={{ top: 0, bottom: 0.25 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 90 || info.velocity.y > 250) {
+                  setShowCustomThemeSheet(false);
+                }
+              }}
+            >
+              <div className="modal-top-handle" onClick={() => setShowCustomThemeSheet(false)} />
+              <div className="theme-sheet-head">
+                <div>
+                  <h3 className="modal-sheet-title theme-sheet-title">Customize Theme</h3>
+                  <p className="theme-sheet-subtitle">Choose primary accent and surface colors</p>
+                </div>
+                <button
+                  type="button"
+                  className="modal-sheet-close theme-sheet-close"
+                  onClick={() => setShowCustomThemeSheet(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="theme-section">
+                <div className="theme-section-head">
+                  <span className="theme-section-label">Primary / Accent</span>
+                  <span className="theme-section-hint">Buttons, active dates, highlights</span>
+                </div>
+                <div className="theme-dot-grid">
+                  {["#C9A876", "#A3B18A", "#E0A899", "#E4E4E7", "#3B82F6", "#2D5A27", "#C86D51", "#9D8DF1"].map(
+                    (col) => (
+                      <button
+                        key={col}
+                        type="button"
+                        className="theme-dot"
+                        style={{ background: col }}
+                        onClick={() => setDraftCustomAccent(col)}
+                      />
+                    )
+                  )}
+                  <input
+                    type="color"
+                    value={draftCustomAccent}
+                    onChange={(e) => setDraftCustomAccent(e.target.value)}
+                    style={{ width: "32px", height: "32px", borderRadius: "50%", cursor: "pointer" }}
+                  />
+                </div>
+              </div>
+
+              {/* Mini live preview */}
+              <div className="theme-section">
+                <div className="theme-section-head">
+                  <span className="theme-section-label">Preview</span>
+                </div>
+                <div
+                  className="theme-preview"
+                  style={{
+                    backgroundColor: draftCustomCanvas,
+                    padding: "16px",
+                    borderRadius: "14px",
+                  }}
+                >
+                  <div
+                    className="theme-preview-card"
+                    style={{
+                      backgroundColor: draftCustomCard,
+                      padding: "14px",
+                      borderRadius: "12px",
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <strong>Studio Client</strong>
+                        <div style={{ fontSize: "0.74rem", color: "#9CA3AF" }}>Signature Session · 60m</div>
+                      </div>
+                      <span
+                        className="status-pill-badge confirmed"
+                        style={{ backgroundColor: draftCustomAccent, color: "#121214" }}
+                      >
+                        CONFIRMED
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="theme-sheet-actions">
+                <button
+                  type="button"
+                  className="theme-sheet-cancel"
+                  onClick={() => setShowCustomThemeSheet(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="theme-sheet-apply"
+                  onClick={() => {
+                    showToast("✓ Custom theme applied");
+                    setShowCustomThemeSheet(false);
+                  }}
+                >
+                  Apply theme
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Animated Confirmation Dialog (Zero Native Chrome Popups) */}
+      <AnimatePresence>
+        {confirmModal && confirmModal.isOpen && (
+          <div
+            className="modal-backdrop open"
+            style={{
+              zIndex: 3500,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+            }}
+          >
+            <motion.div
+              className="squircle-card"
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ type: "spring", stiffness: 450, damping: 30 }}
+              style={{
+                maxWidth: "340px",
+                width: "100%",
+                padding: "22px 20px",
+                background: "#FFFFFF",
+                borderRadius: "22px",
+                boxShadow: "0 24px 48px rgba(0, 0, 0, 0.22)",
+                border: "1px solid rgba(0, 0, 0, 0.08)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                <span style={{ fontSize: "1.35rem" }}>⚠️</span>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
+                  {confirmModal.title}
+                </h4>
+              </div>
+              <p style={{ fontSize: "0.82rem", color: "#6B7280", margin: "0 0 20px", lineHeight: 1.45 }}>
+                {confirmModal.message}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <button
+                  type="button"
+                  className="btn-triage-dock"
+                  style={{ background: "rgba(0, 0, 0, 0.06)", color: "#111827" }}
+                  onClick={() => setConfirmModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-triage-dock btn-triage-approve"
+                  onClick={confirmModal.onConfirm}
+                >
+                  {confirmModal.confirmLabel}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification Box */}
+      {toastMessage && (
+        <div className="admin-toast-box show" id="admin-toast">
+          {toastMessage}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function AdminPortalPage() {
+  return (
+    <React.Suspense fallback={<div style={{ minHeight: "100dvh", background: "#121214" }} />}>
+      <AdminPortalContent />
+    </React.Suspense>
+  );
+}

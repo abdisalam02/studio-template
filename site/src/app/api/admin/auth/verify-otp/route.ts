@@ -7,9 +7,9 @@ import {
 } from "@/lib/adminAuth";
 import { consumeRateLimit, getClientIp, hashIp } from "@/lib/rateLimit";
 import { resolveTenantForEmail, isTenantAdmin } from "@/lib/tenantAuth";
-import { getTenantConfig, DEFAULT_TENANT_SLUG } from "@/config/tenant.config";
+import { isPlatformAdmin } from "@/lib/platformAuth";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /**
  * Verifies a single-use OTP and creates a server-side session.
@@ -67,18 +67,35 @@ export async function POST(req: NextRequest) {
       return invalidCode();
     }
 
-    const requestedTenantId = getTenantConfig(
-      String(body.tenant_id || DEFAULT_TENANT_SLUG)
-    ).id;
-    const tenantId = (await isTenantAdmin(email, requestedTenantId))
-      ? requestedTenantId
-      : ((await resolveTenantForEmail(email)) || requestedTenantId);
+    const requestedScope = String(body.scope || "").trim().toLowerCase();
+    const requestedTenant = String(body.tenant_id || "").trim().toLowerCase();
+    const platformAdmin = await isPlatformAdmin(email);
+    let tenantId: string | null = null;
 
-    if (!(await isTenantAdmin(email, tenantId))) {
+    if (requestedScope === "platform") {
+      if (!platformAdmin) {
+        return invalidCode();
+      }
+      tenantId = null;
+    } else if (requestedTenant) {
+      if (!(await isTenantAdmin(email, requestedTenant))) {
+        return invalidCode();
+      }
+      tenantId = requestedTenant;
+    } else {
+      tenantId = await resolveTenantForEmail(email);
+    }
+
+    // Platform super-admins may sign in without belonging to a tenant.
+    if (!platformAdmin && (!tenantId || !(await isTenantAdmin(email, tenantId)))) {
       return invalidCode();
     }
 
-    const session = await createAdminSession(email, tenantId);
+    const session = await createAdminSession(
+      email,
+      tenantId,
+      platformAdmin ? "platform" : "tenant"
+    );
     if (!session) {
       return NextResponse.json({ error: "session_failed" }, { status: 500 });
     }
@@ -87,6 +104,8 @@ export async function POST(req: NextRequest) {
       success: true,
       email,
       tenant_id: tenantId,
+      scope: platformAdmin ? "platform" : "tenant",
+      is_platform_admin: platformAdmin,
     });
 
     res.cookies.set(ADMIN_SESSION_COOKIE, session.token, adminSessionCookieOptions());
@@ -96,3 +115,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
+

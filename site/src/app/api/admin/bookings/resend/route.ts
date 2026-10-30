@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import { verifyAdminRequest } from "@/lib/adminAuth";
@@ -14,7 +14,7 @@ import {
   type Tenant,
 } from "@/lib/email";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -174,3 +174,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error", message }, { status: 500 });
   }
 }
+

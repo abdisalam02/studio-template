@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import {
   createAdminSession,
   adminSessionCookieOptions,
   ADMIN_SESSION_COOKIE,
 } from "@/lib/adminAuth";
-import { resolveTenantForEmail } from "@/lib/tenantAuth";
+import { resolveTenantForEmail, isTenantAdmin } from "@/lib/tenantAuth";
+import { isPlatformAdmin } from "@/lib/platformAuth";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /**
  * Development-only shortcut. In production the route is indistinguishable from
@@ -20,17 +21,37 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const email = String(body.email || process.env.ADMIN_FALLBACK_EMAIL || "niwache15@gmail.com")
+    const email = String(body.email || process.env.ADMIN_FALLBACK_EMAIL || "")
       .toLowerCase()
       .trim();
-    const tenantId = (await resolveTenantForEmail(email)) || "gangina";
+    if (!email) {
+      return NextResponse.json({ error: "email_required" }, { status: 400 });
+    }
+    const requestedTenant = String(body.tenant_id || "").trim().toLowerCase();
+    const platformAdmin = await isPlatformAdmin(email);
+    const tenantId =
+      requestedTenant && (await isTenantAdmin(email, requestedTenant))
+        ? requestedTenant
+        : await resolveTenantForEmail(email);
+    if (!tenantId && !platformAdmin) {
+      return NextResponse.json({ error: "tenant_not_found" }, { status: 404 });
+    }
 
-    const session = await createAdminSession(email, tenantId);
+    const session = await createAdminSession(
+      email,
+      tenantId,
+      platformAdmin ? "platform" : "tenant"
+    );
     if (!session) {
       return NextResponse.json({ error: "session_failed" }, { status: 500 });
     }
 
-    const res = NextResponse.json({ success: true, email, tenant_id: tenantId });
+    const res = NextResponse.json({
+      success: true,
+      email,
+      tenant_id: tenantId,
+      scope: platformAdmin ? "platform" : "tenant",
+    });
     res.cookies.set(ADMIN_SESSION_COOKIE, session.token, adminSessionCookieOptions());
     return res;
   } catch (err: unknown) {
@@ -38,3 +59,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
+

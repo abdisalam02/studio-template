@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isAllowedOrigin as isAllowedByPolicy, isLocalhostDevOrigin } from "@/lib/cors";
 
 /**
  * Single source of truth for API CORS and admin CSRF.
@@ -10,20 +11,15 @@ import type { NextRequest } from "next/server";
  *   credentials, because the session lives in an HttpOnly cookie.
  * - State-changing admin requests with a foreign Origin are rejected
  *   (defence in depth on top of SameSite=Strict).
+ *
+ * Allowed origins come from CORS_ALLOWED_ORIGINS plus the database
+ * (`tenant_domains` and `tenants.allowed_origins`). No customer domain is
+ * compiled into this file.
  */
-
-const PRODUCTION_ORIGINS = [
-  "https://www.abdisalam.space",
-  "https://abdisalam.space",
-  "https://noire.niwache12.workers.dev",
-  "https://noire-rosy.vercel.app",
-];
-
-const DEV_PORTS = new Set(["3000", "3001", "3002", "5173"]);
-const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
 const PUBLIC_PREFIXES = ["/api/v1/", "/api/webhooks", "/api/action", "/api/manage"];
 const ADMIN_PREFIX = "/api/admin";
+const PLATFORM_PREFIX = "/api/platform";
 
 const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
 const ALLOWED_HEADERS = "Content-Type, Authorization, X-Requested-With, Accept";
@@ -35,36 +31,15 @@ function isSelfAuthenticated(pathname: string): boolean {
   return SELF_AUTHENTICATED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-function configuredOrigins(): string[] {
-  return (process.env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function isLocalhostDevOrigin(origin: string): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  try {
-    const url = new URL(origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    if (!LOCALHOST_HOSTS.has(url.hostname.toLowerCase())) return false;
-    const port = url.port || (url.protocol === "https:" ? "443" : "80");
-    return DEV_PORTS.has(port);
-  } catch {
-    return false;
-  }
-}
-
-function isAllowedOrigin(origin: string, request: NextRequest): boolean {
+async function isAllowedOrigin(origin: string, request: NextRequest): Promise<boolean> {
   if (!origin || origin === "null") return false;
   try {
     if (new URL(origin).host === request.nextUrl.host) return true;
   } catch {
     // fall through
   }
-  if (PRODUCTION_ORIGINS.includes(origin)) return true;
-  if (configuredOrigins().includes(origin)) return true;
-  return isLocalhostDevOrigin(origin);
+  if (isLocalhostDevOrigin(origin)) return true;
+  return isAllowedByPolicy(origin);
 }
 
 function appendVary(response: NextResponse): void {
@@ -93,8 +68,18 @@ function setAdminCors(response: NextResponse, origin: string): void {
   response.headers.set("Access-Control-Allow-Headers", ALLOWED_HEADERS);
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  if (pathname === "/admin.html") {
+    const dest = request.nextUrl.clone();
+    dest.pathname = "/admin";
+    return NextResponse.redirect(dest, 307);
+  }
+  if (pathname === "/platform.html") {
+    const dest = request.nextUrl.clone();
+    dest.pathname = "/platform";
+    return NextResponse.redirect(dest, 307);
+  }
   const isTokenPage = pathname.startsWith("/a/") || pathname.startsWith("/m/");
 
   if (!pathname.startsWith("/api")) {
@@ -112,10 +97,10 @@ export function middleware(request: NextRequest) {
 
   if (isSelfAuthenticated(pathname)) return NextResponse.next();
 
-  const isAdmin = pathname.startsWith(ADMIN_PREFIX);
+  const isAdmin = pathname.startsWith(ADMIN_PREFIX) || pathname.startsWith(PLATFORM_PREFIX);
   const isPublic = PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const origin = request.headers.get("origin") || "";
-  const allowed = isAllowedOrigin(origin, request);
+  const allowed = await isAllowedOrigin(origin, request);
 
   // Preflight
   if (request.method === "OPTIONS") {

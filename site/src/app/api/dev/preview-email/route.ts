@@ -1,6 +1,6 @@
-import fs from "fs";
+﻿import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import { getTenantConfig } from "@/config/tenant.config";
+import { getSeedTenant } from "@/config/tenant.config";
 import { resolveBrandLogo } from "@/lib/brandAsset";
 import {
   renderOwnerAlertEmail,
@@ -12,7 +12,7 @@ import {
 export const dynamic = "force-dynamic"; // design-ok
 
 /**
- * Dev-only visual harness for the transactional email templates.
+ * Dev-only visual preview for the transactional email templates.
  *
  *   GET /api/dev/preview-email?type=owner    (default)  → "New booking received"
  *   GET /api/dev/preview-email?type=customer            → customer confirmation
@@ -21,8 +21,15 @@ export const dynamic = "force-dynamic"; // design-ok
  * Returns raw text/html so the design can be inspected directly in a browser.
  * Hard-disabled in production.
  */
+function requireSeed(slug: string) {
+  const config = getSeedTenant(slug);
+  if (!config) throw new Error(`Unknown preview tenant: ${slug}`);
+  return config;
+}
+
 function buildTenantFixture(slug: string): Tenant {
-  const config = getTenantConfig(slug);
+  const config = getSeedTenant(slug);
+  if (!config) throw new Error(`Unknown preview tenant: ${slug}`);
   const prefix =
     (config.name || "BKG")
       .replace(/[^A-Za-z]/g, "")
@@ -33,7 +40,21 @@ function buildTenantFixture(slug: string): Tenant {
     id: config.id,
     name: config.name,
     owner_email: config.contact.ownerEmail,
+    contact_email: config.contact.email,
     phone: config.contact.phone || null,
+    whatsapp: config.contact.whatsapp || null,
+    address: config.contact.address || null,
+    org_number: config.contact.orgNumber || null,
+    mva_status: config.contact.mvaStatus || null,
+    hours_text: config.contact.hours || null,
+    currency: config.rules.currency,
+    logo_url: config.theme.logoUrl || null,
+    hero_image_url: null,
+    watermark_url: config.theme.watermarkUrl || null,
+    favicon_url: null,
+    branding: {},
+    from_name: config.integrations.emailFromName || null,
+    reply_to: null,
     profile: null,
     ref_prefix: prefix,
     timezone: config.rules.timezone,
@@ -49,7 +70,7 @@ function buildTenantFixture(slug: string): Tenant {
 }
 
 function buildBookingFixture(tenant: Tenant, slug: string): BookingDetails {
-  const config = getTenantConfig(slug);
+  const config = requireSeed(slug);
   const service = config.services[0];
   const durationMin = service?.durationMin ?? 30;
   const startUtc = Math.floor(Date.now() / 1000) + 2 * 86400;
@@ -68,7 +89,7 @@ function buildBookingFixture(tenant: Tenant, slug: string): BookingDetails {
 }
 
 export async function GET(req: NextRequest) {
-  // Strict production isolation: this development-only harness must be
+  // Strict production isolation: this development-only preview must be
   // indistinguishable from a non-existent route in production.
   if (process.env.NODE_ENV === "production") {
     return new Response("Not Found", { status: 404 });
@@ -78,7 +99,10 @@ export async function GET(req: NextRequest) {
   const type = (searchParams.get("type") || "owner").toLowerCase() === "customer"
     ? "customer"
     : "owner";
-  const slug = searchParams.get("tenant") || "gangina";
+  const slug = (searchParams.get("tenant") || "").trim().toLowerCase();
+  if (!slug) {
+    return new Response("tenant query parameter required", { status: 400 });
+  }
 
   const tenant = buildTenantFixture(slug);
   const booking = buildBookingFixture(tenant, slug);
@@ -94,7 +118,7 @@ export async function GET(req: NextRequest) {
   // Browsers cannot resolve the `cid:` scheme, so the inline email logo would
   // render as a broken image in this preview. Resolve the brand logo on disk
   // and swap every `cid:studio-brand-logo` reference for an inlined data URI.
-  const config = getTenantConfig(slug);
+  const config = requireSeed(slug);
   let html = rendered.html;
   const logo = resolveBrandLogo(config.theme.logoUrl);
   if (logo && html.includes("cid:studio-brand-logo")) {
@@ -119,3 +143,5 @@ export async function GET(req: NextRequest) {
     },
   });
 }
+
+

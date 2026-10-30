@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyReviewToken } from "@/lib/tokens";
 import { generateIcsCalendar } from "@/lib/ics";
@@ -15,7 +15,7 @@ import {
   classifyEmailFailure,
 } from "@/lib/email";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /**
  * Moves a booking from the owner's review page (/a/<ref>.<token>).
@@ -212,3 +212,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "server_error", message }, { status: 500 });
   }
 }
+

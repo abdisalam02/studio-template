@@ -1,13 +1,14 @@
-import type { CSSProperties, ReactNode } from "react";
+﻿import type { CSSProperties, ReactNode } from "react";
 import { supabaseAdmin } from "@/lib/supabase";
 import { parseRefToken, verifyReviewToken } from "@/lib/tokens";
-import { getTenantConfig, type TenantColors } from "@/config/tenant.config";
+import { buildTenantConfig, resolveTenant, type TenantRow } from "@/lib/tenantResolver";
+import { NEUTRAL_COLORS, type TenantColors } from "@/config/tenant.config";
 import { resolveBrandLogo } from "@/lib/brandAsset";
 import { ActionButtons } from "./ActionButtons";
 
 // Delivery state and booking status change outside this request (webhook,
 // approve/decline, reschedule). Never serve a cached review page.
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 export const revalidate = 0;
 
 interface PageProps {
@@ -198,7 +199,7 @@ function StateScreen({
 export default async function OwnerReviewPage({ params }: PageProps) {
   const { refToken } = await params;
   const parsed = parseRefToken(refToken);
-  const defaultColors = getTenantConfig().theme.colors;
+  const defaultColors = NEUTRAL_COLORS;
 
   if (!parsed || !supabaseAdmin) {
     return (
@@ -260,7 +261,9 @@ export default async function OwnerReviewPage({ params }: PageProps) {
     duration_min: number;
   } | null;
 
-  const config = getTenantConfig(tenant?.id);
+  const config =
+    (tenant?.id ? await resolveTenant(tenant.id) : null) ??
+    buildTenantConfig(tenant as unknown as TenantRow);
   const colors = config.theme.colors;
   const studioName = tenant?.name || config.name;
 
@@ -544,3 +547,4 @@ export default async function OwnerReviewPage({ params }: PageProps) {
     </main>
   );
 }
+

@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // design-ok
 
 /** Read-only audit trail for the admin portal. */
 export async function GET(req: NextRequest) {
@@ -42,3 +42,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
+

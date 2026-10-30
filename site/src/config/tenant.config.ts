@@ -1,14 +1,9 @@
-/**
- * Central tenant configuration.
+﻿/**
+ * Tenant seed configuration.
  *
- * Single source of truth for studio identity, branding, booking rules,
- * services, integrations and auth. The booking engine, transactional emails,
- * the owner review page and the admin portal should read from here instead of
- * hardcoding studio strings, hex colors, prices or tenant slugs.
- *
- * Phase 1: `ganginaConfig` mirrors the current production defaults exactly so
- * existing behaviour (emails, review page, booking flow) is byte-for-byte
- * preserved. Additional studios are added to the `TENANTS` registry below.
+ * Development and migration seed only. Production runtime resolves tenants
+ * from Supabase through `lib/tenantResolver.ts`; an unknown slug returns null.
+ * `owner_email` is private; `contact_email` is public.
  */
 
 export type TenantSlug = string;
@@ -88,6 +83,24 @@ export interface TenantColors {
   /** Muted foreground text (alias of `label`). */
   textMuted?: string;
 }
+
+export const NEUTRAL_COLORS: TenantColors = {
+  canvas: "#FAFAF8",
+  card: "#FFFFFF",
+  band: "#F4F4F1",
+  recessed: "#FAFAFA",
+  border: "#E5E5E5",
+  borderStrong: "#D4D4D4",
+  label: "#525252",
+  soft: "#737373",
+  value: "#0A0A0A",
+  valueText: "#FFFFFF",
+  accent: "#1A1A1A",
+  watermark: "#E5E5E5",
+  green: "#16A34A",
+  red: "#DC2626",
+  warning: "#D97706",
+};
 
 export interface TenantTheme {
   colors: TenantColors;
@@ -215,7 +228,7 @@ export const ganginaConfig: TenantConfig = {
     phone: "+4740000000",
     whatsapp: "4740000000",
     email: "post@gangina.no",
-    ownerEmail: "niwache15@gmail.com",
+    ownerEmail: "owner@studio.test",
     instagram: "gangina.gems",
     address: "Bygdøy Allé, Oslo Sentrum",
     transit: "Kollektiv transport rett til døren",
@@ -325,12 +338,12 @@ export const ganginaConfig: TenantConfig = {
   integrations: {
     emailFromName: "Gangina Beauty Studio",
     emailFromAddress: "booking@agure.space",
-    replyTo: "niwache15@gmail.com",
+    replyTo: "owner@studio.test",
     supabaseAssetsBucket: "studio-assets",
     assetsPrefix: "gangina",
   },
   auth: {
-    allowedAdminEmails: ["niwache15@gmail.com"],
+    allowedAdminEmails: ["owner@studio.test"],
     masterOtpEnabled: false,
   },
 };
@@ -345,8 +358,8 @@ export const studioKloConfig: TenantConfig = {
   contact: {
     phone: "+4741122333",
     whatsapp: "4741122333",
-    email: "abdisalamadam8@gmail.com",
-    ownerEmail: "abdisalamadam8@gmail.com",
+    email: "contact@studio.test",
+    ownerEmail: "owner@studio.test",
     instagram: "studio.klo",
     address: "Frognerveien, Oslo Sentrum",
     transit: "Trikk 12 til Frogner plass",
@@ -374,8 +387,8 @@ export const studioKloConfig: TenantConfig = {
     },
     logoUrl: "/img/klø.png",
     watermarkUrl: "/img/logo-watermark.png",
-    monogram: "KLŌ",
-    watermarkText: "KLŌ",
+    monogram: "KLÅŒ",
+    watermarkText: "KLÅŒ",
   },
   rules: {
     timezone: "Europe/Oslo",
@@ -440,12 +453,12 @@ export const studioKloConfig: TenantConfig = {
   integrations: {
     emailFromName: "Studio Klō",
     emailFromAddress: "booking@agure.space",
-    replyTo: "abdisalamadam8@gmail.com",
+    replyTo: "owner@studio.test",
     supabaseAssetsBucket: "studio-assets",
     assetsPrefix: "studio-klo",
   },
   auth: {
-    allowedAdminEmails: ["abdisalamadam8@gmail.com"],
+    allowedAdminEmails: ["owner@studio.test"],
     masterOtpEnabled: false,
   },
 };
@@ -460,8 +473,8 @@ export const noireConfig: TenantConfig = {
   contact: {
     phone: "+4740000000",
     whatsapp: "4740000000",
-    email: "abdisalamadam8@gmail.com",
-    ownerEmail: "abdisalamadam8@gmail.com",
+    email: "contact@studio.test",
+    ownerEmail: "owner@studio.test",
     instagram: "atelier.noire",
     address: "Oslo Sentrum",
     transit: "Kollektiv transport rett til døren",
@@ -522,7 +535,7 @@ export const noireConfig: TenantConfig = {
       sort: 1,
       category: "Signature",
       photo: "/demo/nails/pin-biab.jpg",
-      description: "Vår signaturbehandling med grundig konsultasjon og skreddersydd finish.",
+      description: "Vår signaturbehandling med grundig konsultasjon og tilpasset finish.",
     },
     {
       id: 202,
@@ -552,11 +565,11 @@ export const noireConfig: TenantConfig = {
   integrations: {
     emailFromName: "Atelier Noire",
     emailFromAddress: "booking@agure.space",
-    replyTo: "abdisalamadam8@gmail.com",
+    replyTo: "owner@studio.test",
     refPrefix: "NOI",
   },
   auth: {
-    allowedAdminEmails: ["abdisalamadam8@gmail.com"],
+    allowedAdminEmails: ["owner@studio.test"],
     masterOtpEnabled: false,
   },
 };
@@ -572,14 +585,12 @@ export const TENANTS: Record<TenantSlug, TenantConfig> = {
 };
 
 /**
- * Resolves a tenant config by slug/id. Always returns a usable config,
- * defaulting gracefully to Gangina.
+ * Exact seed lookup. Returns null for unknown slugs; use at runtime only in
+ * development. Production tenants are resolved from Supabase.
  */
-export function getTenantConfig(slug?: string | null): TenantConfig {
-  if (slug && TENANTS[slug]) {
-    return TENANTS[slug];
-  }
-  return ganginaConfig;
+export function getSeedTenant(slug?: string | null): TenantConfig | null {
+  if (!slug) return null;
+  return TENANTS[slug] ?? null;
 }
 
 /**
@@ -603,3 +614,4 @@ export function findTenantByAdminEmail(email?: string | null): TenantConfig | nu
 export function defineTenant(config: TenantConfig): TenantConfig {
   return config;
 }
+

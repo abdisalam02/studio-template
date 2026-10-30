@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { getTenantConfig } from "@/config/tenant.config";
 import { sendTestNotificationEmail, type Tenant } from "@/lib/email";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 import { isTenantAdmin } from "@/lib/tenantAuth";
@@ -8,32 +7,6 @@ import { isTenantAdmin } from "@/lib/tenantAuth";
 export const dynamic = "force-dynamic"; // design-ok
 
 /** Builds a full Tenant row from the central config (used when DB row is missing). */
-function tenantFromConfig(tenantId?: string | null): Tenant {
-  const config = getTenantConfig(tenantId);
-  const prefix =
-    (config.name || "BKG")
-      .replace(/[^A-Za-z]/g, "")
-      .slice(0, 3)
-      .toUpperCase() || "BKG";
-
-  return {
-    id: config.id,
-    name: config.name,
-    owner_email: config.contact.ownerEmail,
-    phone: config.contact.phone || null,
-    profile: null,
-    ref_prefix: prefix,
-    timezone: config.rules.timezone,
-    allowed_origins: [],
-    buffer_min: config.rules.bufferMin,
-    slot_step_min: config.rules.slotStepMin,
-    min_notice_min: config.rules.minNoticeMin,
-    max_days_ahead: config.rules.maxDaysAhead,
-    pending_hold_min: config.rules.pendingHoldMin,
-    active: true,
-    created_at: Math.floor(Date.now() / 1000),
-  };
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,7 +25,10 @@ export async function POST(req: NextRequest) {
       recipient?: string;
     };
 
-    const tenantId = tenant_id || auth.tenantId || "gangina";
+    const tenantId = tenant_id || auth.tenantId || "";
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
     if (!allowBypass && !(await isTenantAdmin(auth.email, tenantId))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
@@ -69,7 +45,7 @@ export async function POST(req: NextRequest) {
       if (data) tenant = data as unknown as Tenant;
     }
     if (!tenant) {
-      tenant = tenantFromConfig(tenantId);
+      return NextResponse.json({ error: "tenant_not_found" }, { status: 404 });
     }
 
     // Accept `recipient`, fall back to legacy `email`, then the configured owner.

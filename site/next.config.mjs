@@ -40,6 +40,7 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   // Build output directory. Defaults to `.next`; override with
   // `NEXT_DIST_DIR` when a running dev server holds the default directory
   // (e.g. Windows file locks during a local `next build`).
@@ -58,14 +59,19 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: "/admin",
-        destination: "/admin.html",
-        permanent: true,
+        source: "/admin.html",
+        destination: "/admin",
+        permanent: false,
       },
       {
         source: "/admin/login",
-        destination: "/admin.html",
-        permanent: true,
+        destination: "/admin",
+        permanent: false,
+      },
+      {
+        source: "/platform.html",
+        destination: "/platform",
+        permanent: false,
       },
     ];
   },

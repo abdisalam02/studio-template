@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { parseRefToken, verifyManageToken } from "@/lib/tokens";
 import { CancelButton } from "./CancelButton";
-import { getTenantConfig } from "@/config/tenant.config";
+import { buildTenantConfig, resolveTenant, type TenantRow } from "@/lib/tenantResolver";
 import type { BookingStatus } from "@/types/database";
 
 interface PageProps {
@@ -136,9 +136,11 @@ export default async function CustomerManagePage({ params }: PageProps) {
     owner_email?: string;
   } | null;
 
-  const config = getTenantConfig(booking.tenant_id);
+  const config =
+    (booking.tenant_id ? await resolveTenant(booking.tenant_id) : null) ??
+    buildTenantConfig(tenant as unknown as TenantRow);
   const contactPhone = tenant?.phone || config.contact.phone || "";
-  const contactEmail = tenant?.owner_email || config.contact.ownerEmail || "";
+  const contactEmail = config.contact.email || "";
 
   const service = booking.services as unknown as {
     name: string;

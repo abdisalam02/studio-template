@@ -1,0 +1,4316 @@
+/* ==============================================================================
+   BY GANGINA — LUXURY EDITORIAL STUDIO MANAGER
+   Dual-Surface Architecture: Obsidian Canopy + Draggable Porcelain Sheet
+   Engineered with pure modern CSS variables for multi-tenant client customization.
+   ============================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. COLOR TOKENS & CLIENT PALETTES
+   -------------------------------------------------------------------------- */
+:root {
+  /* Default Palette: NOIR CHAMPAGNE (Luxury Boutique Default) */
+  --admin-canopy-bg: #121214;
+  --admin-canopy-text: #FFFFFF;
+  --admin-canopy-muted: #9CA3AF;
+  --admin-canopy-card: rgba(255, 255, 255, 0.06);
+  --admin-canopy-border: rgba(255, 255, 255, 0.1);
+
+  --admin-sheet-bg: #FAFAFA;
+  --admin-sheet-text: #111113;
+  --admin-sheet-muted: #6B7280;
+
+  --admin-accent: #C4A482; /* Warm Champagne Gold */
+  --admin-accent-hover: #B5936E;
+  --admin-accent-light: rgba(196, 164, 130, 0.16);
+  --admin-accent-text: #121214;
+
+  --admin-card-bg: #FFFFFF;
+  --admin-card-border: rgba(0, 0, 0, 0.06);
+  --admin-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+
+  --admin-input-bg: #F4F4F3;
+  --admin-input-border: transparent;
+  --admin-input-focus: #121214;
+
+  --admin-pill-dock-bg: #FFFFFF;
+  --admin-pill-dock-shadow: 0 12px 36px rgba(0, 0, 0, 0.14);
+  --admin-pill-active-bg: #121214;
+  --admin-pill-active-text: #FFFFFF;
+
+  /* Quiet Editorial Status Colors (Zero Neon / Harsh Tones) */
+  --admin-pending-bg: #FFFCF7;
+  --admin-pending-border: #F0E6D8;
+  --admin-pending-badge-bg: #F7EFE5;
+  --admin-pending-badge-text: #8A6541;
+
+  --admin-confirmed-badge-bg: #EBF3ED;
+  --admin-confirmed-badge-text: #2D5537;
+
+  --admin-declined-badge-bg: #F3F3F5;
+  --admin-declined-badge-text: #71717A;
+
+  --admin-archive-card-bg: #FAFAFA;
+  --admin-archive-card-border: rgba(0, 0, 0, 0.07);
+
+  /* Curves & Dimensions */
+  --admin-radius-sm: 8px;
+  --admin-radius-md: 14px;
+  --admin-radius-squircle: 24px;
+  --admin-radius-sheet: 32px;
+  --admin-radius-full: 9999px;
+}
+
+/* Palette 1 (Base): SANZO WADA NO. 1 KURO-KIN (黒・金茶) */
+[data-theme="wada-kurokin"],
+[data-theme="noir-champagne"] {
+  --admin-canopy-bg: #121214;
+  --admin-accent: #C4A482;
+  --admin-accent-hover: #B3916E;
+  --admin-accent-light: rgba(196, 164, 130, 0.18);
+  --admin-sheet-bg: #FAFAFA;
+  --admin-pill-active-bg: #121214;
+}
+
+/* Palette 2: SANZO WADA NO. 24 KURI-KOGE (栗焦・柿) */
+[data-theme="wada-kurikoge"],
+[data-theme="nordic-clay"] {
+  --admin-canopy-bg: #1C1917;
+  --admin-accent: #C86D51;
+  --admin-accent-hover: #B65B3F;
+  --admin-accent-light: rgba(200, 109, 81, 0.16);
+  --admin-sheet-bg: #FBF9F7;
+  --admin-pill-active-bg: #1C1917;
+}
+
+/* Palette 3: SANZO WADA NO. 168 SABI-SEIJI (錆青磁・深緑) */
+[data-theme="wada-sabiseiji"],
+[data-theme="matcha-sage"] {
+  --admin-canopy-bg: #131F17;
+  --admin-accent: #7E9F85;
+  --admin-accent-hover: #698B70;
+  --admin-accent-light: rgba(126, 159, 133, 0.18);
+  --admin-sheet-bg: #F6F8F5;
+  --admin-pill-active-bg: #131F17;
+}
+
+/* Palette 4: SANZO WADA NO. 341 EDO-MURASAKI (江戸紫・藍) */
+[data-theme="wada-edomurasaki"],
+[data-theme="dusk-lilac"] {
+  --admin-canopy-bg: #151724;
+  --admin-accent: #9285B4;
+  --admin-accent-hover: #7E70A2;
+  --admin-accent-light: rgba(146, 133, 180, 0.18);
+  --admin-sheet-bg: #F7F7FA;
+  --admin-pill-active-bg: #151724;
+}
+
+/* Palette 5: SANZO WADA NO. 114 RIKYŪ-CHA (利休茶・真鍮) */
+[data-theme="wada-rikyucha"] {
+  --admin-canopy-bg: #1A1C16;
+  --admin-accent: #A49767;
+  --admin-accent-hover: #918454;
+  --admin-accent-light: rgba(164, 151, 103, 0.18);
+  --admin-sheet-bg: #F8F7F3;
+  --admin-pill-active-bg: #1A1C16;
+}
+
+/* Palette 6: SANZO WADA NO. 52 BENI-TOBI (紅鳶・茜) */
+[data-theme="wada-benitobi"],
+[data-theme="ocean-coral"] {
+  --admin-canopy-bg: #1E1718;
+  --admin-accent: #D96B6B;
+  --admin-accent-hover: #C55656;
+  --admin-accent-light: rgba(217, 107, 107, 0.18);
+  --admin-sheet-bg: #FAF6F6;
+  --admin-pill-active-bg: #1E1718;
+}
+
+/* --------------------------------------------------------------------------
+   2. GLOBAL RESET & BASE
+   -------------------------------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--admin-canopy-bg);
+  color: var(--admin-sheet-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+   3. RESPONSIVE DUAL-SURFACE APP SHELL
+   -------------------------------------------------------------------------- */
+/* Mobile Viewport (< 960px): Vertical Dual-Surface */
+.admin-shell {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  margin: 0 auto;
+  background-color: var(--admin-canopy-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Desktop Viewport (>= 960px): Expansive Horizontal Dual-Surface */
+@media (min-width: 960px) {
+  body.admin-body {
+    background-color: #0A0A0C;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .admin-shell {
+    max-width: 1260px;
+    height: 90vh;
+    max-height: 900px;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    grid-template-rows: 1fr;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. UPPER OBSIDIAN CANOPY (#121214)
+   -------------------------------------------------------------------------- */
+.obsidian-canopy {
+  position: relative;
+  width: 100%;
+  background-color: var(--admin-canopy-bg);
+  color: var(--admin-canopy-text);
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 5;
+  transition: all 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@media (min-width: 960px) {
+  .obsidian-canopy {
+    width: 380px;
+    height: 100%;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 24px 22px;
+    overflow-y: auto;
+  }
+}
+
+/* Topbar Brand Cluster */
+.canopy-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.canopy-brand-cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Dashboard header studio logo — illuminated glass pill with a universal light
+   backing so dark/black marks stay 100% visible on the pitch-black canopy. */
+.admin-header-logo-container {
+  width: 46px;
+  height: 46px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  filter: drop-shadow(0 2px 6px rgba(255, 255, 255, 0.15));
+}
+
+.canopy-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
+/* Canopy Watermark behind Calendar Grid */
+.canopy-watermark {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  transform: translate(-50%, -50%);
+  width: 320px;
+  height: 320px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.015;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canopy-watermark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: invert(1) brightness(1.6);
+}
+
+.canopy-topbar,
+.canopy-calendar-header,
+.canopy-week-strip,
+.canopy-month-grid {
+  position: relative;
+  z-index: 2;
+}
+
+.studio-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.studio-subtext {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--admin-canopy-muted);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.canopy-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Gold Quick Action Button (+ New Booking) */
+.btn-ny-time {
+  background: var(--admin-accent);
+  color: var(--admin-accent-text);
+  border: none;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: var(--admin-radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s ease, background 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
+.btn-ny-time:hover {
+  background: var(--admin-accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-ny-time:active {
+  transform: translateY(1px);
+}
+
+.btn-canopy-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--admin-radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-canopy-icon:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Month Navigation & View Toggle */
+.canopy-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.cal-month-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-month-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.cal-nav-arrows {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.cal-arrow-btn {
+  background: transparent;
+  border: none;
+  color: var(--admin-canopy-muted);
+  width: 26px;
+  height: 26px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.cal-arrow-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cal-toggle-pill {
+  background: rgba(255, 255, 255, 0.1);
+  color: #E5E7EB;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--admin-radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.cal-toggle-pill:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+}
+
+@media (min-width: 960px) {
+  .cal-toggle-pill {
+    display: none; /* Permanent spacious grid on desktop */
+  }
+}
+
+/* --- Week Strip Mode (Default in mobile expanded sheet) --- */
+.canopy-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.week-day-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.week-day-initial {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--admin-canopy-muted);
+  text-transform: uppercase;
+}
+
+.week-day-pill {
+  width: 100%;
+  max-width: 44px;
+  height: 64px;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.week-day-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.week-day-pill .week-day-name {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.week-day-pill .week-day-num {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.week-day-pill .day-dot-indicator {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.week-day-pill.active {
+  background: var(--admin-accent, #C4A482) !important;
+  color: #121214 !important;
+  box-shadow: 0 4px 16px rgba(196, 164, 130, 0.4);
+  transform: scale(1.05);
+}
+
+.week-day-pill.active .week-day-name {
+  color: #121214 !important;
+  font-weight: 800;
+}
+
+.week-day-pill.active .week-day-num {
+  color: #121214 !important;
+  font-weight: 800;
+}
+
+.week-day-pill.active .day-dot-indicator {
+  background-color: #121214 !important;
+}
+
+/* --- Month Grid Mode: Spacious & Breathable --- */
+.canopy-month-grid {
+  display: none;
+  flex-direction: column;
+  margin-top: 14px;
+}
+
+.month-grid-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--admin-canopy-muted);
+  margin-bottom: 10px;
+}
+
+.month-grid-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px 4px; /* Generous breathing room */
+  text-align: center;
+}
+
+.month-grid-cell {
+  position: relative;
+  height: 44px; /* Spacious cell height */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #E5E7EB;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.month-grid-cell:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.month-grid-cell.outside {
+  color: rgba(255, 255, 255, 0.22);
+  cursor: default;
+}
+
+.month-grid-cell.active {
+  background: var(--admin-accent);
+  color: var(--admin-accent-text);
+  font-weight: 800;
+  box-shadow: 0 4px 14px var(--admin-accent-light);
+}
+
+.month-grid-cell .cell-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--admin-accent);
+  position: absolute;
+  bottom: 4px;
+}
+
+.month-grid-cell.active .cell-dot {
+  background: var(--admin-accent-text);
+}
+
+@media (min-width: 960px) {
+  .canopy-week-strip {
+    display: none !important;
+  }
+  .canopy-month-grid {
+    display: flex !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. LOWER DRAGGABLE PORCELAIN SHEET (#FAFAFA)
+   -------------------------------------------------------------------------- */
+.porcelain-sheet {
+  position: relative;
+  flex: 1;
+  background-color: var(--admin-sheet-bg);
+  border-radius: var(--admin-radius-sheet) var(--admin-radius-sheet) 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+/* Direct manipulation: no easing while a finger is on the sheet. */
+.porcelain-sheet.is-dragging {
+  transition: none !important;
+}
+
+body.is-sheet-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.porcelain-sheet.is-dragging .sheet-handle-pill {
+  background-color: #A1A1AA;
+}
+
+/* Mobile Collapsed State: Silky-smooth GPU transform animation design-ok */
+@media (max-width: 959px) {
+  .obsidian-canopy {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100dvh;
+    padding: 14px 18px 20px;
+    z-index: 5;
+    overflow: hidden;
+  }
+
+  .canopy-week-strip {
+    position: relative;
+    z-index: 2;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .canopy-month-grid {
+    position: absolute;
+    top: 108px;
+    left: 18px;
+    right: 18px;
+    bottom: 255px;
+    display: none;
+    flex-direction: column;
+    justify-content: space-evenly;
+    padding-top: 4px;
+    padding-bottom: 6px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    z-index: 2;
+  }
+
+  .admin-shell.canopy-expanded .canopy-week-strip {
+    display: none !important;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+  }
+
+  .admin-shell.canopy-expanded .canopy-month-grid {
+    display: flex !important;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .month-grid-weekdays {
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+  }
+
+  .month-grid-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    flex: 1;
+    align-content: space-between;
+    row-gap: 6px;
+    column-gap: 6px;
+  }
+
+  .month-grid-cell {
+    height: 46px;
+    font-size: 1.05rem;
+    border-radius: 14px;
+  }
+
+  .porcelain-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    flex: none;
+    height: auto;
+    z-index: 10;
+    border-radius: var(--admin-radius-sheet) var(--admin-radius-sheet) 0 0;
+    transform: translateY(195px);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+
+  .admin-shell.sheet-upper .porcelain-sheet {
+    transform: translateY(80px);
+    border-radius: var(--admin-radius-sheet) var(--admin-radius-sheet) 0 0;
+  }
+
+  .admin-shell.sheet-upper .canopy-week-strip,
+  .admin-shell.sheet-upper .canopy-calendar-header {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .admin-shell.canopy-expanded .porcelain-sheet {
+    transform: translateY(calc(100% - 250px));
+  }
+
+  .admin-shell.canopy-expanded .sheet-content-scroller {
+    padding-top: 4px;
+    padding-bottom: 74px;
+  }
+
+  .admin-shell.canopy-expanded .executive-pulse-banner {
+    margin-bottom: 0;
+    gap: 8px;
+  }
+
+  .admin-shell.canopy-expanded .calendar-quick-bar {
+    display: none;
+  }
+
+  .admin-shell.canopy-expanded .pulse-review-pill {
+    padding: 9px 14px;
+  }
+
+  .admin-shell.canopy-expanded .pulse-metric-chip {
+    padding: 7px 12px;
+  }
+
+  .admin-shell.canopy-expanded .metric-val {
+    font-size: 1.1rem;
+  }
+}
+
+@media (min-width: 960px) {
+  .porcelain-sheet {
+    border-radius: 0;
+    box-shadow: none;
+    transform: none !important;
+  }
+}
+
+/* Top Centered Drag Handle Pill */
+.sheet-handle-bar {
+  width: 100%;
+  padding: 16px 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  background-color: var(--admin-sheet-bg);
+  position: relative;
+  z-index: 25;
+  pointer-events: auto;
+}
+
+.sheet-handle-bar:active {
+  cursor: grabbing;
+}
+
+.sheet-handle-pill {
+  width: 38px;
+  height: 5px;
+  background-color: #D1D1D6;
+  border-radius: var(--admin-radius-full);
+  transition: background-color 0.2s;
+}
+
+.sheet-handle-bar:hover .sheet-handle-pill {
+  background-color: #A1A1AA;
+}
+
+@media (min-width: 960px) {
+  .sheet-handle-bar {
+    display: none; /* No drag handle needed on desktop workspace */
+  }
+}
+
+/* Real Gangina Calligraphy Watermark (Centered & Visibly Elegant) */
+.sheet-watermark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 360px;
+  height: 360px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.07;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheet-watermark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: grayscale(100%);
+}
+
+/* Scrollable Sheet Content */
+.sheet-content-scroller {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 16px 120px; /* 120px bottom padding for floating dock clearance */
+  z-index: 1;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+@media (min-width: 960px) {
+  .sheet-content-scroller {
+    padding: 24px 32px 96px;
+  }
+}
+
+/* Tab Panels */
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+  animation: fadeInTab 0.2s ease;
+}
+
+@keyframes fadeInTab {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------------------------------
+   6. CARD & TYPOGRAPHY SYSTEM (20px Squircle, Refined Status Styling)
+   -------------------------------------------------------------------------- */
+.squircle-card {
+  background-color: var(--admin-card-bg);
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-squircle);
+  box-shadow: var(--admin-card-shadow);
+  padding: 22px;
+  margin-bottom: 16px;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.card-title-main {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--admin-sheet-text);
+  letter-spacing: -0.01em;
+}
+
+.card-subtitle {
+  font-size: 0.76rem;
+  color: var(--admin-sheet-muted);
+  margin-top: 2px;
+}
+
+/* Pinned Sticky Dual Header (Daily Agenda & Review Banner) */
+.calendar-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: var(--admin-sheet-bg, #FAFAFA);
+  padding: 4px 0 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  margin-bottom: 14px;
+}
+
+/* Executive Daily Pulse & Review Banner */
+.executive-pulse-banner {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pulse-review-pill {
+  background: linear-gradient(135deg, #FFFDF9, #FBF4E9);
+  border: 1px solid #EFE0CB;
+  border-left: 4px solid var(--admin-accent);
+  border-radius: var(--admin-radius-squircle);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 16px rgba(196, 164, 130, 0.12);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pulse-review-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(196, 164, 130, 0.18);
+}
+
+.pulse-review-pill.is-compact {
+  padding: 8px 14px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+  box-shadow: 0 2px 8px rgba(196, 164, 130, 0.08);
+}
+
+.pulse-icon-box {
+  font-size: 1.35rem;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-text-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.pulse-title {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #784E20;
+  letter-spacing: -0.01em;
+}
+
+.pulse-sub {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #A3794E;
+  margin-top: 2px;
+}
+
+.pulse-action-btn {
+  background: #18181B;
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--admin-radius-full);
+  padding: 8px 15px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.pulse-action-btn:hover {
+  background: #27272A;
+}
+
+.pulse-metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pulse-metric-chip {
+  background: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-md);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--admin-card-shadow);
+}
+
+.metric-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--admin-sheet-muted);
+}
+
+.metric-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--admin-sheet-text);
+  letter-spacing: -0.02em;
+  margin-top: 3px;
+}
+
+/* Revenue Pill Widget (Legacy fallback support) */
+.revenue-summary-pill {
+  background-color: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-squircle);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  box-shadow: var(--admin-card-shadow);
+}
+
+.revenue-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.revenue-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--admin-sheet-muted);
+}
+
+.revenue-amount {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--admin-sheet-text);
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+}
+
+.revenue-badge {
+  background: var(--admin-input-bg);
+  padding: 6px 14px;
+  border-radius: var(--admin-radius-full);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+}
+
+/* Quick Action Bar */
+.calendar-quick-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.quick-action-btn {
+  flex: 1;
+  background: var(--admin-input-bg);
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-md);
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.quick-action-btn:hover {
+  background: #EAEAE8;
+}
+
+/* Chronological Timeline */
+.dagsagenda-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.timeline-slot-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.timeline-time-col {
+  width: 54px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.timeline-time-text {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+}
+
+.timeline-gold-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--admin-accent);
+  margin-top: 8px;
+  box-shadow: 0 0 0 3px var(--admin-accent-light);
+}
+
+.timeline-connector {
+  flex: 1;
+  width: 2px;
+  background-color: rgba(0, 0, 0, 0.06);
+  margin-top: 4px;
+}
+
+.timeline-card-content {
+  flex: 1;
+  background: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-squircle);
+  padding: 14px 16px;
+  box-shadow: var(--admin-card-shadow);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  will-change: transform;
+}
+
+.timeline-card-content:hover {
+  transform: translate(2px, -2px);
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.timeline-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline-client-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+  margin: 0;
+}
+
+.timeline-service-name {
+  font-size: 0.78rem;
+  color: var(--admin-sheet-muted);
+  margin-top: 2px;
+}
+
+.timeline-card-content.timeline-blackout {
+  background: #F9FAFB;
+  border-style: dashed;
+}
+
+/* Empty day state */
+.timeline-empty-card {
+  text-align: center;
+  padding: 40px 20px;
+  background: #FFFFFF;
+  border-radius: var(--admin-radius-squircle);
+  border: 1px dashed var(--admin-card-border);
+  color: var(--admin-sheet-muted);
+}
+
+.timeline-empty-card h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+  margin: 8px 0 4px;
+}
+
+.timeline-empty-card p {
+  font-size: 0.8rem;
+  margin: 0 0 16px;
+}
+
+.btn-jump-next {
+  background: var(--admin-sheet-text);
+  color: #FFFFFF;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--admin-radius-full);
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   7. APPOINTMENT CARDS (Status-based Appearance & Clean Date/Time Chips)
+   -------------------------------------------------------------------------- */
+.booking-item-card {
+  background: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-squircle);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--admin-card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: cardFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  will-change: transform;
+}
+
+.booking-item-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.09);
+}
+
+/* Status 1: Pending Card (Warm Ivory, Refined Amber Accent Border) */
+.booking-item-card.is-pending {
+  background-color: var(--admin-pending-bg);
+  border-color: var(--admin-pending-border);
+  border-left: 3px solid var(--admin-accent);
+}
+
+/* Status 2: Archive / Past Card (Muted Minimal) */
+.booking-item-card.is-archive {
+  background-color: var(--admin-archive-card-bg);
+  border-color: var(--admin-archive-card-border);
+  border-left: 3px solid #D4D4D8;
+  opacity: 0.88;
+}
+
+/* Status 3: Confirmed Upcoming Card (Crisp Hairline Sage Border) */
+.booking-item-card:not(.is-pending):not(.is-archive) {
+  border-left: 3px solid #2D5537;
+}
+
+/* Supporting line under the client name (treatment) */
+.client-row-service {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--admin-sheet-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Compact meta block: one strong date/time line, one muted contact line */
+.booking-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.booking-meta-primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+}
+
+.booking-meta-primary .meta-sep {
+  color: #C4C4C8;
+  font-weight: 400;
+}
+
+.booking-meta-secondary {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--admin-sheet-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.booking-meta-alert {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #9B2C2C;
+}
+
+.booking-item-card.is-pending .booking-meta-secondary {
+  color: var(--admin-pending-badge-text);
+  opacity: 0.85;
+}
+
+.booking-card-row,
+.booking-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.client-avatar-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--admin-input-bg);
+  color: var(--admin-sheet-text);
+  font-size: 0.86rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.booking-item-card.is-pending .client-avatar-circle {
+  background: var(--admin-pending-badge-bg);
+  color: var(--admin-pending-badge-text);
+}
+
+.client-meta-group,
+.client-title-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.client-row-name {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-status-col {
+  text-align: right;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.card-price-tag {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+}
+
+/* Dedicated Neat Date & Time Pill Chips */
+.datetime-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.datetime-chip {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 3px 8px;
+  border-radius: var(--admin-radius-sm);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--admin-sheet-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.client-email-chip {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status Badges (Understated Luxury Tones) */
+.status-pill-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--admin-radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.status-pill-badge.pending {
+  background: var(--admin-pending-badge-bg);
+  color: var(--admin-pending-badge-text);
+}
+
+.status-pill-badge.confirmed {
+  background: var(--admin-confirmed-badge-bg);
+  color: var(--admin-confirmed-badge-text);
+}
+
+/* Green dot pulse for confirmed bookings (scoped away from count chips). */
+.booking-item-card .status-pill-badge {
+  font-size: 0.66rem;
+  padding: 3px 9px;
+  letter-spacing: 0.035em;
+}
+
+.booking-item-card .status-pill-badge.confirmed,
+.timeline-card-content .status-pill-badge.confirmed,
+#drawer-status-badge.confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.booking-item-card .status-pill-badge.confirmed::before,
+.timeline-card-content .status-pill-badge.confirmed::before,
+#drawer-status-badge.confirmed::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--admin-confirmed-badge-text);
+  box-shadow: 0 0 0 0 rgba(45, 85, 55, 0.45);
+  animation: confirmedPulse 1.8s ease-in-out infinite;
+}
+
+.status-pill-badge.declined,
+.status-pill-badge.cancelled {
+  background: var(--admin-declined-badge-bg);
+  color: var(--admin-declined-badge-text);
+}
+
+/* Quiet Luxury Action Buttons for Pending Triage */
+.triage-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.btn-triage {
+  flex: 1;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--admin-radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: transform 0.1s, opacity 0.15s, background-color 0.15s;
+}
+
+.btn-triage:active {
+  transform: scale(0.98);
+}
+
+/* Refined Obsidian Approve Button (No Harsh Green) */
+.btn-triage-approve {
+  background: #18181B;
+  color: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.btn-triage-approve:hover {
+  background: #27272A;
+}
+
+/* Refined Stone Decline Button (No Harsh Red) */
+.btn-triage-decline {
+  background: #F4F4F5;
+  color: #52525B;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.btn-triage-decline:hover {
+  background: #E4E4E7;
+  color: #18181B;
+}
+
+.btn-triage-details {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--admin-sheet-muted);
+  border: none;
+  padding: 10px 6px;
+  font-weight: 600;
+}
+
+.btn-triage-details:hover {
+  color: var(--admin-sheet-text);
+}
+
+/* Filter Pills Row */
+.filter-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0 12px;
+  scrollbar-width: none;
+}
+
+/* Pinned search + segment filters for the appointments feed */
+.appointments-sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  margin: -8px -20px 0;
+  padding: 8px 20px 10px;
+  background: var(--admin-sheet-bg);
+  transition: box-shadow 0.18s ease;
+}
+
+.appointments-sticky-head.is-stuck {
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 10px 18px -14px rgba(0, 0, 0, 0.28);
+}
+
+/* Paint over the scroller's top padding, otherwise a sliver of the feed
+   scrolls through the gap between the handle and the pinned bar. */
+.appointments-sticky-head::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 28px;
+  background: var(--admin-card-bg);
+  pointer-events: none;
+}
+
+@media (min-width: 960px) {
+  .appointments-sticky-head {
+    margin: -24px -32px 0;
+    padding: 24px 32px 12px;
+  }
+}
+
+.filter-pills-row::-webkit-scrollbar {
+  display: none;
+}
+
+.feed-filter-pill {
+  flex-shrink: 0;
+  background: var(--admin-card-bg);
+  border: 1px solid var(--admin-card-border);
+  color: var(--admin-sheet-muted);
+  border-radius: var(--admin-radius-full);
+  padding: 6px 13px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feed-filter-pill.active {
+  background: var(--admin-canopy-bg);
+  color: #FFFFFF;
+  border-color: var(--admin-canopy-bg);
+}
+
+/* Search Bar */
+.search-filter-wrap {
+  margin-bottom: 14px;
+}
+
+.admin-search-input {
+  width: 100%;
+  background-color: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-full);
+  padding: 11px 16px 11px 40px;
+  font-family: inherit;
+  font-size: 0.84rem;
+  color: var(--admin-sheet-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.admin-search-input:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-light);
+}
+
+.search-icon-pos {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--admin-sheet-muted);
+  pointer-events: none;
+}
+
+/* Collapsible Archive Accordion */
+.archive-accordion-box {
+  background: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--admin-radius-squircle);
+  margin-top: 20px;
+  overflow: hidden;
+  box-shadow: var(--admin-card-shadow);
+}
+
+.archive-toggle-head {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.archive-toggle-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+}
+
+.archive-count-badge {
+  background: var(--admin-input-bg);
+  padding: 3px 9px;
+  border-radius: var(--admin-radius-full);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--admin-sheet-muted);
+}
+
+.archive-content-body {
+  display: none;
+  padding: 8px 16px 16px;
+  border-top: 1px solid var(--admin-card-border);
+}
+
+.archive-content-body.open {
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   8. SCHEDULE & SETTINGS CONTROLS
+   -------------------------------------------------------------------------- */
+.schedule-shift-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--admin-card-border);
+}
+
+.schedule-shift-row:last-child {
+  border-bottom: none;
+}
+
+.shift-head-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shift-day-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+}
+
+.shift-time-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shift-to-label {
+  font-size: 0.75rem;
+  color: var(--admin-sheet-muted);
+}
+
+.pill-time-input {
+  background: var(--admin-input-bg);
+  border: 1px solid transparent;
+  border-radius: var(--admin-radius-full);
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+  outline: none;
+}
+
+@media (max-width: 580px) {
+  .schedule-shift-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .shift-head-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+  .shift-time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .pill-time-input {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+  }
+}
+
+.pill-time-input:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-light);
+}
+
+/* Switch Toggle (iOS style) */
+.switch-label {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch-label input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #E5E5EA;
+  border-radius: 24px;
+  transition: 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+input:checked + .switch-slider {
+  background-color: #10B981;
+}
+
+input:checked + .switch-slider:before {
+  transform: translateX(20px);
+}
+
+/* Recessed Form Inputs */
+.recessed-input-group {
+  margin-bottom: 14px;
+}
+
+.recessed-label {
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-sheet-muted);
+  margin-bottom: 6px;
+}
+
+.recessed-input {
+  width: 100%;
+  background-color: var(--admin-input-bg);
+  border: 1px solid transparent;
+  border-radius: var(--admin-radius-md);
+  padding: 11px 14px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  color: var(--admin-sheet-text);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.recessed-input:focus {
+  background-color: #FFFFFF;
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-light), 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Palette Swatches */
+.palette-swatches-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.palette-btn {
+  background: #FFFFFF;
+  border: 1px solid var(--admin-card-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.palette-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0,0,0,0.2);
+}
+
+.palette-btn.active {
+  border-color: #111827;
+  box-shadow: 0 0 0 1.5px #111827, 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.swatch-chip {
+  width: 26px;
+  height: 34px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease;
+}
+
+.palette-btn:hover .swatch-chip {
+  transform: scale(1.05);
+}
+
+.swatch-chip-canopy {
+  flex: 1.2;
+  width: 100%;
+}
+
+.swatch-chip-accent {
+  flex: 1;
+  width: 100%;
+}
+
+.swatch-chip-custom {
+  flex: 1;
+  width: 100%;
+  background: linear-gradient(135deg, #111827, #6366F1 50%, #EC4899);
+}
+
+.swatch-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+
+.swatch-noir-champagne {
+  background: linear-gradient(135deg, #121214 45%, #C4A482 45%);
+  border: 2px solid #C4A482;
+}
+
+.swatch-nordic-clay {
+  background: linear-gradient(135deg, #1C1917 45%, #D97757 45%);
+  border: 2px solid #D97757;
+}
+
+.swatch-matcha-sage {
+  background: linear-gradient(135deg, #14221A 45%, #7A9A78 45%);
+  border: 2px solid #7A9A78;
+}
+
+.swatch-dusk-lilac {
+  background: linear-gradient(135deg, #16192E 45%, #9E86C8 45%);
+  border: 2px solid #9E86C8;
+}
+
+.swatch-ocean-coral {
+  background: linear-gradient(135deg, #0F172A 45%, #FB7185 45%);
+  border: 2px solid #FB7185;
+}
+
+.palette-btn:hover .swatch-circle {
+  transform: scale(1.1);
+}
+
+.palette-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+}
+
+/* --------------------------------------------------------------------------
+   9. ADAPTIVE FLOATING BOTTOM NAVIGATION DOCK
+   -------------------------------------------------------------------------- */
+.adaptive-pill-dock {
+  position: fixed;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  left: 18px;
+  right: 18px;
+  max-width: 400px;
+  margin: 0 auto;
+  height: 56px;
+  background-color: var(--admin-pill-dock-bg);
+  border-radius: var(--admin-radius-full);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--admin-card-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 4px;
+  z-index: 100;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+@media (min-width: 960px) {
+  .adaptive-pill-dock {
+    position: absolute;
+    max-width: 480px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.dock-slider-indicator {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  height: 48px;
+  background-color: var(--admin-pill-active-bg, #111111);
+  border-radius: var(--admin-radius-full, 9999px);
+  pointer-events: none;
+  z-index: 1;
+  transition: transform 0.32s cubic-bezier(0.34, 1.35, 0.64, 1), width 0.3s cubic-bezier(0.34, 1.35, 0.64, 1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  will-change: transform, width;
+}
+
+.dock-pill {
+  position: relative;
+  z-index: 2;
+  background: transparent !important;
+  border: none;
+  min-width: 44px;
+  height: 48px;
+  border-radius: var(--admin-radius-full);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  color: #71717A;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dock-pill:active {
+  transform: scale(0.95);
+}
+
+.dock-pill:hover {
+  color: #18181B;
+}
+
+.dock-pill svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  flex-shrink: 0;
+  transition: stroke 0.2s ease;
+}
+
+.dock-label {
+  display: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* Active Tab: Text illuminates over sliding indicator */
+.dock-pill.active {
+  color: #FFFFFF !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 16px;
+}
+
+.dock-pill.active svg {
+  stroke: #FFFFFF !important;
+}
+
+.dock-pill.active .dock-label {
+  display: inline-block;
+  margin-left: 6px;
+  color: #FFFFFF !important;
+  animation: dockLabelFadeIn 0.22s ease forwards;
+}
+
+@keyframes dockLabelFadeIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Pending dot badge: inline when active, top-pinned when inactive */
+.dock-badge {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #F59E0B;
+  box-shadow: 0 0 5px rgba(245, 158, 11, 0.7);
+  pointer-events: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.dock-pill:not(.active) .dock-badge {
+  top: 9px;
+  left: calc(50% + 4px);
+  right: auto;
+  transform: none;
+}
+
+.dock-pill.active .dock-badge {
+  position: static;
+  display: inline-block;
+  margin-left: 6px;
+  margin-right: -2px;
+  transform: none;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   10. MODALS & CLIENT DRAWER (Clean Date/Time Boxes & Quiet Luxury)
+   -------------------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-sheet {
+  width: 100%;
+  max-width: 500px;
+  background: #FFFFFF;
+  border-radius: 30px 30px 0 0;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  transform: translateY(100%);
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+  will-change: transform;
+}
+
+.modal-sheet-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-backdrop.open .modal-sheet {
+  transform: translateY(0);
+}
+
+.modal-top-handle {
+  width: 36px;
+  height: 4px;
+  background: #E4E4E7;
+  border-radius: 9999px;
+  margin: 12px auto 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.modal-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px 14px;
+  flex-shrink: 0;
+}
+
+.modal-sheet-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--admin-sheet-text);
+}
+
+.modal-sheet-close {
+  background: var(--admin-input-bg);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Distinct Date & Time Boxes in Client Drawer */
+.drawer-datetime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.datetime-tile {
+  background: var(--admin-input-bg);
+  border-radius: var(--admin-radius-md);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.datetime-tile-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--admin-sheet-muted);
+}
+
+.datetime-tile-val {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+  margin-top: 3px;
+}
+
+/* Quick Slot Pills in Reschedule Modal */
+.slot-pill {
+  background: var(--admin-input-bg, #F2F2F0);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--admin-radius-full);
+  padding: 5px 11px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--admin-sheet-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.slot-pill:hover {
+  background: #E4E4E7;
+  border-color: rgba(0, 0, 0, 0.18);
+}
+
+.slot-pill.active {
+  background: var(--admin-accent);
+  color: var(--admin-accent-text);
+  font-weight: 700;
+  border-color: var(--admin-accent);
+}
+
+/* Direct Triage Buttons on Client Card */
+.drawer-triage-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.drawer-triage-row .btn-triage {
+  flex: 1;
+  padding: 11px 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: var(--admin-radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.drawer-triage-row .btn-triage-approve {
+  background: var(--admin-canopy-bg, #18181B);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.drawer-triage-row .btn-triage-approve:hover {
+  background: #27272A;
+  transform: translateY(-1px);
+}
+
+.drawer-triage-row .btn-triage-decline {
+  background: #F4F4F5;
+  color: #71717A;
+  border: 1px solid #E4E4E7;
+}
+
+.drawer-triage-row .btn-triage-decline:hover {
+  background: #E4E4E7;
+  color: #18181B;
+}
+
+/* Compact Contact Chips (Phone and Email visible) */
+.drawer-contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 360px) {
+  .drawer-contact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.contact-card-chip {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+
+.contact-card-chip:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.contact-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.contact-card-chip.wa .contact-card-icon {
+  background: rgba(37, 211, 102, 0.12);
+  color: #128C7E;
+}
+
+.contact-card-chip.email .contact-card-icon {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4F46E5;
+}
+
+.contact-card-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.contact-card-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-sheet-muted);
+}
+
+.contact-card-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #18181B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* WhatsApp Direct Button */
+.btn-wa-direct {
+  width: 100%;
+  background: #1B7A43;
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--admin-radius-full);
+  padding: 13px 18px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 14px rgba(27, 122, 67, 0.25);
+  text-decoration: none;
+}
+
+.btn-wa-direct:hover {
+  background: #145E33;
+}
+
+/* Toast */
+.admin-toast-box {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #18181B;
+  color: #FFFFFF;
+  padding: 10px 20px;
+  border-radius: var(--admin-radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s ease;
+}
+
+.admin-toast-box.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* --------------------------------------------------------------------------
+   11. MOTION & TACTILE POLISH
+   Buttery-smooth entrances, pulsing status dots, and skeleton loading.
+   -------------------------------------------------------------------------- */
+@keyframes cardFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes confirmedPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(45, 85, 55, 0.45); }
+  70%  { box-shadow: 0 0 0 5px rgba(45, 85, 55, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(45, 85, 55, 0); }
+}
+
+@keyframes pendingPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.5); }
+  70%  { box-shadow: 0 0 0 5px rgba(217, 119, 6, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+}
+
+/* Gentle staggered entrance so freshly synced feeds settle instead of jumping. */
+#bookings-active-feed .booking-item-card:nth-child(1) { animation-delay: 0ms; }
+#bookings-active-feed .booking-item-card:nth-child(2) { animation-delay: 40ms; }
+#bookings-active-feed .booking-item-card:nth-child(3) { animation-delay: 80ms; }
+#bookings-active-feed .booking-item-card:nth-child(4) { animation-delay: 120ms; }
+#bookings-active-feed .booking-item-card:nth-child(5) { animation-delay: 160ms; }
+#bookings-active-feed .booking-item-card:nth-child(n+6) { animation-delay: 200ms; }
+
+.dagsagenda-timeline .timeline-slot-row:nth-child(1) .timeline-card-content { animation-delay: 0ms; }
+.dagsagenda-timeline .timeline-slot-row:nth-child(2) .timeline-card-content { animation-delay: 40ms; }
+.dagsagenda-timeline .timeline-slot-row:nth-child(3) .timeline-card-content { animation-delay: 80ms; }
+.dagsagenda-timeline .timeline-slot-row:nth-child(n+4) .timeline-card-content { animation-delay: 120ms; }
+
+/* Skeleton shimmer for async data placeholders. */
+.skeleton-block,
+.skeleton-line {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #EDEDED 25%, #F7F7F7 37%, #EDEDED 63%);
+  background-size: 400% 100%;
+  animation: skeletonShimmer 1.4s ease infinite;
+  border-radius: var(--admin-radius-sm);
+}
+
+.skeleton-line { height: 12px; margin-bottom: 8px; }
+.skeleton-line.short { width: 40%; }
+.skeleton-line.medium { width: 70%; }
+
+@keyframes skeletonShimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   12. FROSTED GLASS LOGIN GATE (eased veil over the locked dashboard)
+   -------------------------------------------------------------------------- */
+
+/* Eased frosted veil: floating above a softly receded dashboard while locked. */
+.login-gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  background-color: rgba(10, 10, 12, 0.42);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: backdrop-filter 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              -webkit-backdrop-filter 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.75s ease,
+              opacity 0.5s ease;
+}
+
+/* Cinematic dissolve: the veil clears and the floating stack recedes. */
+.login-gate-overlay.unlocking {
+  background-color: rgba(10, 10, 12, 0);
+  backdrop-filter: blur(0px) saturate(100%);
+  -webkit-backdrop-filter: blur(0px) saturate(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Architectural typography watermark — Swiss-poster depth behind the inputs. */
+.login-arch-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(90px, 18vw, 150px);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.05);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Zero-card floating form stack — no matte container, elements float free. */
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 360px;
+  margin: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-align: center;
+  animation: loginCardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.4s ease, opacity 0.35s ease;
+}
+
+/* Cinematic unlock: the stack lifts and dissolves as the dashboard focuses. */
+.login-gate-overlay.unlocking .login-card {
+  transform: scale(1.02);
+  opacity: 0;
+}
+
+/* 82px pearl frosted squircle: editorial "A.G" cross-fades to the studio mark. */
+.login-brand-badge {
+  position: relative;
+  margin: 0 auto 22px;
+  width: 82px;
+  height: 82px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 24px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+/* Universal logo backing: dark/black studio marks need a light plate to stay
+   100% legible, so the pearl surface brightens once a real logo is shown. */
+.login-brand-badge.is-resolved {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.95);
+}
+
+.login-brand-badge-mark,
+.login-brand-badge-logo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+
+.login-brand-badge-mark {
+  opacity: 1;
+}
+
+.login-brand-badge-logo {
+  opacity: 0;
+  overflow: hidden;
+}
+
+.login-brand-badge-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Zoom past the source logo's transparent margins so the mark fills the badge. */
+  transform: scale(var(--login-badge-logo-scale, 1.3));
+}
+
+.login-brand-badge.is-resolved .login-brand-badge-mark {
+  opacity: 0;
+}
+
+.login-brand-badge.is-resolved .login-brand-badge-logo {
+  opacity: 1;
+}
+
+/* Editorial "A.G" monogram — ultra-bold Syne. */
+.login-brand-badge-mark span {
+  font-family: 'Syne', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  color: #FFFFFF;
+  line-height: 1;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.login-card-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #FAFAFA;
+  margin: 0 0 8px;
+}
+
+.login-card-subtitle {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #A1A1AA;
+  margin: 0 auto 28px;
+  max-width: 280px;
+}
+
+/* Step 1 / Step 2 progressive disclosure */
+.login-step {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-step[hidden] {
+  display: none;
+}
+
+.login-step form {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-step.login-step-in {
+  animation: loginStepIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dark glass recessed capsule inputs. */
+.login-gate-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+  padding: 16px 22px;
+  font-family: inherit;
+  font-size: 15px;
+  color: #FAFAFA;
+  text-align: center;
+  outline: none;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.login-gate-input::placeholder {
+  color: #71717A;
+}
+
+.login-gate-input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
+}
+
+.login-gate-pin {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.login-gate-error {
+  color: #F87171;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* Crisp high-contrast primary pill. */
+.login-gate-submit {
+  width: 100%;
+  border: none;
+  border-radius: 99px;
+  padding: 16px;
+  margin-top: 14px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #0A0A0A;
+  background: #FAFAFA;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition: transform 0.15s, opacity 0.2s, background-color 0.15s;
+}
+
+.login-gate-submit:hover {
+  transform: translateY(-1px);
+  background: #FFFFFF;
+}
+
+.login-gate-submit:active {
+  transform: translateY(0);
+}
+
+.login-gate-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+/* Luxury micro-spinner (champagne highlight) while a request is in flight. */
+.login-gate-submit.is-loading,
+.login-gate-submit.is-loading:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.login-gate-submit.is-loading::before {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 12, 0.18);
+  border-top-color: #C9A876;
+  animation: loginSpin 0.7s linear infinite;
+}
+
+.login-gate-otp {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #A1A1AA;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.login-gate-otp:hover {
+  color: #FAFAFA;
+}
+
+.login-gate-otp:disabled {
+  opacity: 0.45;
+  cursor: default;
+  color: #71717A;
+}
+
+/* Single clean OTP status line with inline "Change" link (no duplicate toasts). */
+.login-code-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  text-align: center;
+  padding: 0;
+  margin: 0 auto 18px;
+  background: transparent;
+  border: none;
+  color: #A1A1AA;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-code-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-code-chip-text strong {
+  color: #FAFAFA;
+  font-weight: 600;
+}
+
+.login-code-chip-change {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #FAFAFA;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.2s ease;
+}
+
+.login-code-chip-change:hover {
+  opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   LOCKED DASHBOARD — softly blurred silhouette + subtle recession behind veil
+   -------------------------------------------------------------------------- */
+.admin-shell {
+  filter: blur(0px);
+  transform: scale(1);
+  transition: filter 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.is-locked .admin-shell {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: blur(6px);
+  transform: scale(0.985);
+  transform-origin: 50% 42%;
+}
+
+body.is-unlocked .admin-shell {
+  pointer-events: auto;
+  filter: blur(0px);
+  transform: scale(1);
+}
+
+/* --------------------------------------------------------------------------
+   MOBILE PERFORMANCE & KEYBOARD
+   A full-viewport backdrop-filter is expensive on phones: the browser must
+   re-composite the whole screen on every keyboard/scroll frame. On small
+   screens we trade the blur for a denser veil, drop the dashboard blur, and
+   keep inputs at 16px so iOS never auto-zooms on focus (the source of the
+   "laggy scroll up").
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .login-gate-overlay {
+    /* Anchor the stack to the top so the focused field clears the keyboard
+       without the browser scrolling the whole veil. */
+    align-items: flex-start;
+    padding-top: max(48px, 12vh);
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+    background-color: rgba(10, 10, 12, 0.5);
+    /* One lighter blur pass keeps the frosted look; the dashboard's own blur
+       is skipped below so we never composite two full-screen blurs. */
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+    overscroll-behavior: contain;
+  }
+
+  .login-card {
+    margin: 0 auto;
+  }
+
+  .login-brand-badge {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* 16px prevents iOS Safari's focus auto-zoom. */
+  .login-gate-input {
+    font-size: 16px;
+    scroll-margin-bottom: 28vh;
+  }
+
+  .login-gate-pin {
+    font-size: 20px;
+  }
+
+  /* The veil's blur already frosts the dashboard; skip the second blur layer. */
+  body.is-locked .admin-shell {
+    filter: none;
+  }
+}
+
+@keyframes loginStepIn {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes loginCardIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes loginSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* --------------------------------------------------------------------------
+   13. CUSTOM THEME SLIDING SHEET & CIRCULAR SWATCHES
+   -------------------------------------------------------------------------- */
+.palette-btn-custom .swatch-custom {
+  background: conic-gradient(from 210deg, #C9A876 0deg, #A3B18A 90deg, #3B82F6 180deg, #E0A899 270deg, #C9A876 360deg);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.palette-swatches-grid .palette-btn.active {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 2px var(--admin-accent);
+}
+
+/* Drawer shell — reuses the client-detail-drawer physics, clean white surface */
+#custom-theme-sheet.modal-backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#custom-theme-sheet .theme-sheet {
+  background: #FFFFFF !important;
+  color: #0A0A0A !important;
+  border-radius: 32px 32px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  max-height: 92dvh;
+  padding: 14px 22px calc(26px + env(safe-area-inset-bottom, 0px));
+}
+
+#custom-theme-sheet .modal-top-handle {
+  background: #E4E4E7;
+}
+
+.theme-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.theme-sheet-title {
+  font-size: 1.18rem;
+  color: #0A0A0A !important;
+  margin: 0 0 4px;
+}
+
+.theme-sheet-subtitle {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: #71717A !important;
+  margin: 0;
+}
+
+.theme-sheet-close {
+  background: #F4F4F5;
+  color: #18181B;
+  border: 1px solid #E4E4E7;
+  flex-shrink: 0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.theme-sheet-close:hover {
+  background: #E4E4E7;
+  color: #0A0A0A;
+}
+
+.theme-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.theme-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.theme-section-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0A0A0A !important;
+}
+
+.theme-section-hint {
+  font-size: 0.68rem;
+  color: #71717A !important;
+  text-align: right;
+}
+
+.theme-dot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.theme-dot {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #E4E4E7;
+  background: var(--dot-color, #C9A876);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.theme-dot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease;
+  pointer-events: none;
+}
+
+.theme-dot:hover {
+  transform: scale(1.08);
+  border-color: #A1A1AA;
+}
+
+.theme-dot.active {
+  border-color: #0A0A0A;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
+}
+
+.theme-dot.active::after {
+  border-color: #0A0A0A;
+}
+
+.theme-dot-surface {
+  background: linear-gradient(
+    135deg,
+    var(--dot-card, #18181B) 0 50%,
+    var(--dot-canvas, #0A0A0A) 50% 100%
+  );
+}
+
+.theme-dot-wheel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: conic-gradient(#E0A899, #C9A876, #A3B18A, #3B82F6, #9D8DF1, #C86D51, #E0A899);
+}
+
+.theme-dot-wheel input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Mini live preview */
+.theme-preview {
+  --preview-accent: #C9A876;
+  --preview-accent-text: #0A0A0A;
+  --preview-card: #18181B;
+  --preview-card-text: #FAFAFA;
+  --preview-card-muted: rgba(250, 250, 250, 0.62);
+  --preview-canvas: #0A0A0A;
+  border-radius: 20px;
+  padding: 16px;
+  background: var(--preview-canvas);
+  border: 1px solid #E4E4E7;
+}
+
+.theme-preview-card {
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--preview-card);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--preview-card-text, #0A0A0A);
+}
+
+.theme-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.theme-preview-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04)); /* design-ok */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.theme-preview-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.theme-preview-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--preview-card-text, #0A0A0A);
+}
+
+.theme-preview-meta {
+  font-size: 0.68rem;
+  color: var(--preview-card-muted, #52525B);
+}
+
+.theme-preview-badge {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 9999px;
+  color: var(--preview-accent-text);
+  background: var(--preview-accent);
+}
+
+.theme-preview-button {
+  width: 100%;
+  border: none;
+  border-radius: 9999px;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--preview-accent-text);
+  background: var(--preview-accent);
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.theme-preview-button:hover {
+  transform: translateY(-1px);
+}
+
+/* Actions */
+.theme-sheet-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.theme-sheet-cancel {
+  flex: 1;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  color: #18181B;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 12px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-sheet-cancel:hover {
+  background: #F4F4F5;
+  border-color: #D4D4D8;
+}
+
+.theme-sheet-apply {
+  flex: 1.4;
+  border: none;
+  border-radius: 9999px;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #FFFFFF;
+  background: #111111;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.theme-sheet-apply:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.26);
+}
+
+.theme-sheet-apply:active {
+  transform: translateY(1px);
+}
+
+/* --------------------------------------------------------------------------
+   14. PROTECTED SURFACES & CONTRAST LOCK
+   Themes may ONLY touch the accent family. The white sheets, drawers, dock and
+   all copy are hardcoded and locked, so no theme can ever produce white text on
+   a white background or dark text on a dark surface.
+   -------------------------------------------------------------------------- */
+
+/* --- Collapsible sheets, drawers & modals: pure white, dark copy ---------- */
+.modal-sheet {
+  --admin-sheet-bg: #FFFFFF;
+  --admin-sheet-text: #0A0A0A;
+  --admin-sheet-muted: #52525B;
+  --admin-card-bg: #FFFFFF;
+  --admin-card-border: #E4E4E7;
+  --admin-input-bg: #F4F4F5;
+  --admin-pending-bg: #FFFCF7;
+  --admin-pending-border: #F0E6D8;
+  --admin-pending-badge-bg: #FFF8E1;
+  --admin-pending-badge-text: #B45309;
+  --admin-confirmed-badge-bg: #E8F5E9;
+  --admin-confirmed-badge-text: #2E7D32;
+  --admin-declined-badge-bg: #F3F3F5;
+  --admin-declined-badge-text: #71717A;
+  --admin-archive-card-bg: #FAFAFA;
+  --admin-archive-card-border: #E4E4E7;
+  background: #FFFFFF !important;
+  color: #0A0A0A !important;
+}
+
+/* Customer names, headings & price values */
+.modal-sheet .modal-sheet-title,
+.modal-sheet #drawer-client-name,
+.modal-sheet .client-row-name,
+.modal-sheet strong,
+.modal-sheet .card-price-tag,
+.modal-sheet #drawer-price-nok,
+.modal-sheet #drawer-service-name,
+.modal-sheet .datetime-tile-val,
+.modal-sheet .contact-card-val,
+.modal-sheet #drawer-date-display,
+.modal-sheet #drawer-time-display {
+  color: #0A0A0A !important;
+  font-weight: 700;
+}
+
+/* Subtitles, labels & secondary copy */
+.modal-sheet .card-subtitle,
+.modal-sheet .recessed-label,
+.modal-sheet .datetime-tile-label,
+.modal-sheet .contact-card-label,
+.modal-sheet #drawer-ref-pill,
+.modal-sheet .theme-section-hint,
+.modal-sheet .modal-sheet-subtitle {
+  color: #52525B !important;
+}
+
+/* Metadata pills: date / time / email / phone */
+.modal-sheet .datetime-chip,
+.modal-sheet .client-email-chip,
+.modal-sheet .datetime-tile,
+.modal-sheet #drawer-date-display,
+.modal-sheet #drawer-time-display {
+  background: #F4F4F5 !important;
+  border: 1px solid #E4E4E7 !important;
+  color: #18181B !important;
+}
+
+/* Pill icons / inline SVGs */
+.modal-sheet .datetime-chip svg,
+.modal-sheet .datetime-tile svg,
+.modal-sheet .contact-card-info svg {
+  color: #71717A !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* Status badge — CONFIRMED */
+.modal-sheet .status-pill-badge.confirmed,
+.modal-sheet #drawer-status-badge.confirmed {
+  background: #E8F5E9 !important;
+  color: #2E7D32 !important;
+  border: 1px solid #C8E6C9 !important;
+}
+
+.modal-sheet .status-pill-badge.confirmed::before,
+.modal-sheet #drawer-status-badge.confirmed::before {
+  background: #2E7D32 !important;
+}
+
+/* Status badge — PENDING */
+.modal-sheet .status-pill-badge.pending,
+.modal-sheet #drawer-status-badge.pending {
+  background: #FFF8E1 !important;
+  color: #B45309 !important;
+  border: 1px solid #FDE68A !important;
+}
+
+/* Recessed inputs inside sheets stay light with dark copy */
+.modal-sheet .recessed-input {
+  background: #F4F4F5 !important;
+  color: #0A0A0A !important;
+  border: 1px solid #E4E4E7 !important;
+}
+
+.modal-sheet .recessed-input:focus {
+  background: #FFFFFF !important;
+  border-color: #111111 !important;
+}
+
+/* --- Main porcelain sheet: pure white, dark copy ------------------------- */
+.porcelain-sheet {
+  --admin-sheet-bg: #FFFFFF;
+  --admin-sheet-text: #0A0A0A;
+  --admin-sheet-muted: #52525B;
+  --admin-card-bg: #FFFFFF;
+  --admin-card-border: #E4E4E7;
+  --admin-input-bg: #F4F4F5;
+  --admin-pending-bg: #FFFCF7;
+  --admin-pending-border: #F0E6D8;
+  --admin-pending-badge-bg: #FFF8E1;
+  --admin-pending-badge-text: #B45309;
+  --admin-confirmed-badge-bg: #E8F5E9;
+  --admin-confirmed-badge-text: #2E7D32;
+  --admin-declined-badge-bg: #F3F3F5;
+  --admin-declined-badge-text: #71717A;
+  --admin-archive-card-bg: #FAFAFA;
+  --admin-archive-card-border: #E4E4E7;
+  background-color: #FFFFFF !important;
+  color: #0A0A0A !important;
+}
+
+.sheet-handle-bar {
+  background-color: #FFFFFF !important;
+}
+
+/* --- Bottom navigation dock: clean white, black active pill -------------- */
+.adaptive-pill-dock {
+  --admin-pill-dock-bg: #FFFFFF;
+  --admin-pill-active-bg: #111111;
+  --admin-pill-active-text: #FFFFFF;
+  background: #FFFFFF !important;
+  border: 1px solid #E4E4E7 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+}
+
+.adaptive-pill-dock .dock-pill {
+  color: #71717A !important;
+}
+
+.adaptive-pill-dock .dock-pill:hover {
+  color: #111111 !important;
+}
+
+.adaptive-pill-dock .dock-pill.active {
+  background: transparent !important;
+  color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+.adaptive-pill-dock .dock-pill.active .dock-label {
+  color: #FFFFFF !important;
+}
+
+.adaptive-pill-dock .dock-pill svg {
+  color: currentColor;
+  stroke: currentColor;
+  fill: none;
+}
+
+/* --- Error copy inside protected white surfaces -------------------------- */
+.login-gate-error,
+.modal-sheet .login-gate-error {
+  color: #DC2626 !important;
+}
+
+/* --------------------------------------------------------------------------
+   15. STREAMLINED MODALS, DRAWER & AIRY FORM SYSTEM
+   Pure white sheets, dark typography, pill inputs, black primary actions.
+   -------------------------------------------------------------------------- */
+.modal-sheet-head {
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-sheet-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111111 !important;
+}
+
+.modal-sheet-subtitle {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #71717A !important;
+  margin-top: 3px;
+}
+
+.modal-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.modal-identity-text {
+  min-width: 0;
+}
+
+.modal-eyebrow {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #A1A1AA !important;
+}
+
+.modal-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #A1A1AA !important;
+  margin: 22px 0 10px;
+}
+
+.modal-section-title:first-child {
+  margin-top: 0;
+}
+
+.modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Refined pill inputs inside popups */
+.modal-sheet .recessed-input {
+  background: #F6F6F9 !important;
+  border: 1px solid #EAEAEA !important;
+  border-radius: 16px !important;
+  padding: 14px 16px !important;
+  font-size: 15px !important;
+  color: #111111 !important;
+}
+
+.modal-sheet .recessed-input:focus {
+  background: #FFFFFF !important;
+  border-color: #111111 !important;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+.modal-sheet .recessed-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #52525B !important;
+  margin-bottom: 6px;
+}
+
+.modal-sheet .recessed-input-group {
+  margin-bottom: 14px;
+}
+
+/* Primary / ghost action pills */
+.modal-submit-btn {
+  border: none;
+  background: #111111;
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 16px;
+  padding: 16px 22px;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, opacity 0.2s ease;
+}
+
+.modal-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+.modal-submit-btn:active {
+  transform: translateY(0);
+}
+
+.modal-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.modal-submit-block {
+  display: block;
+  width: 100%;
+  margin-top: 22px;
+}
+
+.modal-ghost-btn {
+  background: #FFFFFF;
+  border: 1px solid #EAEAEA;
+  color: #111111;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  border-radius: 16px;
+  padding: 15px 18px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.modal-ghost-btn:hover {
+  background: #F6F6F9;
+  border-color: #D4D4D8;
+}
+
+.modal-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.modal-actions-row .modal-submit-btn,
+.modal-actions-row .modal-ghost-btn {
+  padding: 15px 18px;
+}
+
+/* Clean quick-action rows (Block Time) */
+.modal-quick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-sheet .quick-action-btn {
+  background: #FFFFFF !important;
+  border: 1px solid #EAEAEA !important;
+  border-radius: 16px !important;
+  color: #111111 !important;
+}
+
+.modal-sheet .quick-action-btn:hover {
+  background: #F6F6F9 !important;
+  border-color: #D4D4D8 !important;
+}
+
+.modal-quick-row {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 18px !important;
+  text-align: left;
+}
+
+.modal-quick-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #111111;
+}
+
+.modal-quick-arrow {
+  color: #A1A1AA;
+  font-weight: 700;
+}
+
+/* Detail list (drawer) */
+.modal-detail-list {
+  background: #F6F6F9;
+  border: 1px solid #EAEAEA;
+  border-radius: 16px;
+  padding: 2px 16px;
+}
+
+.modal-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #EAEAEA;
+  font-size: 0.88rem;
+}
+
+.modal-detail-row:last-child {
+  border-bottom: none;
+}
+
+.modal-detail-label {
+  color: #52525B;
+  font-weight: 600;
+}
+
+.modal-detail-row strong {
+  color: #111111 !important;
+  font-weight: 700;
+}
+
+/* Notes */
+.modal-note {
+  background: #F6F6F9;
+  border: 1px solid #EAEAEA;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #3F3F46 !important;
+  margin-bottom: 10px;
+}
+
+/* Contact chips unified to a neutral tone */
+.modal-sheet .contact-card-chip {
+  background: #F6F6F9 !important;
+  border: 1px solid #EAEAEA !important;
+  box-shadow: none !important;
+}
+
+.modal-sheet .contact-card-chip:hover {
+  background: #FFFFFF !important;
+  border-color: #D4D4D8 !important;
+  transform: translateY(-1px);
+}
+
+.modal-sheet .contact-card-chip.wa .contact-card-icon,
+.modal-sheet .contact-card-chip.email .contact-card-icon {
+  background: #F1F1F4 !important;
+  color: #71717A !important;
+}
+
+.modal-sheet .contact-card-icon svg {
+  color: #71717A !important;
+  fill: currentColor;
+}
+
+/* Reschedule slots */
+.modal-slots {
+  margin-top: 16px;
+}
+
+.modal-slots-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 2px 0;
+  margin-top: 8px;
+}
+
+.modal-sheet .slot-pill {
+  background: #F6F6F9;
+  border: 1px solid #EAEAEA;
+  border-radius: 9999px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #3F3F46;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.modal-sheet .slot-pill:hover {
+  background: #ECECEF;
+  border-color: #D4D4D8;
+}
+
+.modal-sheet .slot-pill.active {
+  background: #111111;
+  border-color: #111111;
+  color: #FFFFFF;
+}
+
+/* Triage pills tuned for the streamlined drawer */
+.modal-sheet .drawer-triage-row .btn-triage {
+  border-radius: 14px;
+}
+
+.modal-sheet .drawer-triage-row .btn-triage-approve {
+  background: #111111;
+  color: #FFFFFF;
+}
+
+.modal-sheet .drawer-triage-row .btn-triage-approve:hover {
+  background: #27272A;
+}
+
+.modal-sheet .drawer-triage-row .btn-triage-decline {
+  background: #F6F6F9;
+  color: #52525B;
+  border: 1px solid #EAEAEA;
+}
+
+.modal-sheet .drawer-triage-row .btn-triage-decline:hover {
+  background: #ECECEF;
+  color: #111111;
+}
+
+/* Single column on very narrow screens */
+@media (max-width: 380px) {
+  .modal-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   CUSTOMER EMAIL DELIVERY
+   Mirrors the state shown in the /a/<ref> review portal so the owner sees the
+   same signal in either place.
+   ========================================================================== */
+.drawer-email-panel {
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid #EAE6E1;
+  border-radius: 14px;
+  background: #FAF8F5;
+}
+
+.drawer-email-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.drawer-email-status {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #3F6B45;
+}
+
+.drawer-email-status.is-failed {
+  color: #9B2C2C;
+}
+
+.drawer-email-hint {
+  font-size: 10px;
+  color: #8A8A8A;
+}
+
+.drawer-email-error {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #9B2C2C;
+  overflow-wrap: anywhere;
+}
+
+.drawer-email-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.drawer-email-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid #E3DED8;
+  border-radius: 10px;
+  background: #FFFFFF;
+  font-size: 12px;
+  color: #111113;
+}
+
+.drawer-email-input:focus {
+  outline: none;
+  border-color: #111113;
+}
+
+.drawer-email-btn {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #111113;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.drawer-email-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.drawer-email-msg {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8A8A8A;
+}
+
+.email-failed-chip {
+  border-color: rgba(155, 44, 44, 0.35) !important;
+  background: rgba(155, 44, 44, 0.06) !important;
+  color: #9B2C2C !important;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+   Activity log (admin audit trail)
+   --------------------------------------------------------------------------- */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--admin-input-bg);
+  border: 1px solid var(--admin-card-border);
+}
+
+.activity-action {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+  letter-spacing: 0.01em;
+}
+
+.activity-time {
+  font-size: 10.5px;
+  color: var(--admin-sheet-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-meta {
+  grid-column: 1 / -1;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--admin-sheet-muted);
+  word-break: break-word;
+}
+
+.activity-ref {
+  font-weight: 700;
+  color: var(--admin-sheet-text);
+}
+
+.activity-empty {
+  margin: 0;
+  padding: 14px 4px;
+  font-size: 11.5px;
+  color: var(--admin-sheet-muted);
+}
+
+
+/* --------------------------------------------------------------------------
+   NEXT.JS & FONT SYSTEM INTEGRATION OVERRIDES
+   -------------------------------------------------------------------------- */
+:root {
+  --font-display: var(--font-cinzel, 'Cinzel', serif);
+  --font-body: var(--font-montserrat, 'Montserrat', sans-serif);
+  --font-accent: var(--font-syne, 'Syne', sans-serif);
+}
+
+html, body, .admin-app-root {
+  font-family: var(--font-body), 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* UI-01 FIX: Truncate header tenant switcher cleanly on mobile without colliding */
+#header-tenant-switcher {
+  max-width: 150px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  #header-tenant-switcher {
+    max-width: 105px;
+    font-size: 0.72rem;
+    padding: 6px 8px;
+  }
+}
+
+/* UI-03 FIX: Optical baseline alignment for calendar arrow navigation */
+.cal-arrow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+/* Modal and drawer transitions with React & Framer Motion */
+.modal-backdrop.open,
+.modal-backdrop.react-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-backdrop.open .modal-sheet,
+.modal-backdrop.react-open .modal-sheet {
+  transform: translateY(0);
+}
+
+
+/* ==========================================================================
+   MOBILE COLLISION & 60FPS BOOST OVERRIDES (Phase 1 & Phase 2)
+   ========================================================================== */
+
+/* 1. Header Studio Title Truncation on Mobile */
+.admin-header-title, .studio-title {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-header-subtitle, .studio-subtext {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 2. Ghost Monogram Watermark (Zero Visual Collision with Date Numbers) */
+.canopy-watermark {
+  opacity: 0.015 !important;
+}
+
+/* 3. Collision-Proof Mobile Month Grid */
+@media (max-width: 959px) {
+  .canopy-month-grid {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 2 !important;
+  }
+
+  .month-grid-weekdays {
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
+    text-align: center !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #9CA3AF !important;
+    margin-bottom: 6px !important;
+  }
+
+  .month-grid-days {
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+}
+
+/* Editorial Floating Number Calendar (No Boxy Outlines) */
+.month-grid-cell,
+.month-day-cell {
+  position: relative !important;
+  height: 40px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9999px !important;
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  color: #FFFFFF !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.month-grid-cell:hover,
+.month-day-cell:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.month-grid-cell.active,
+.month-day-cell.active {
+  background: var(--admin-accent, #C4A482) !important;
+  color: #121214 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 12px rgba(196, 164, 130, 0.4) !important;
+}
+
+.canopy-watermark {
+  opacity: 0.04 !important;
+  pointer-events: none !important;
+}
+
+/* 5. 60fps Hardware Accelerated Compositing for Porcelain Sheet */
+.porcelain-sheet {
+  will-change: transform;
+  touch-action: pan-y;
+}
+
+.porcelain-sheet.is-dragging {
+  transition: none !important;
+  will-change: transform;
+}
+
+.sheet-handle-bar {
+  touch-action: none;
+}
+
+/* 6. Admin Toast Notification: elevated above bottom dock */
+.admin-toast {
+  position: fixed;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #121214;
+  color: #FFFFFF;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 150;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* 7. Streamlined Modal Client Drawer Details (Inspo 1:1) */
+.drawer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-ref-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #71717A;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.detail-box {
+  background: #F4F4F5;
+  border: 1px solid #E4E4E7;
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.detail-box.contact-box {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-box-icon {
+  font-size: 1.1rem;
+}
+
+.detail-box-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #71717A;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.detail-box-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0A0A0A;
+}
+
+.drawer-service-card {
+  background: #FAFAFA;
+  border: 1px solid #E4E4E7;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.service-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.service-row-label {
+  font-size: 0.8rem;
+  color: #71717A;
+  font-weight: 500;
+}
+
+.service-row-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0A0A0A;
+}
+
+.drawer-notes-box {
+  background: #F9F9FB;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  color: #3F3F46;
+  line-height: 1.45;
+}
+
+/* Email failure alert container inside drawer */
+.drawer-email-failed-card {
+  margin-top: 14px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.failed-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.failed-card-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #DC2626;
+  letter-spacing: 0.04em;
+}
+
+.failed-card-sub {
+  font-size: 0.7rem;
+  color: #7F1D1D;
+}
+
+.failed-card-desc {
+  font-size: 0.76rem;
+  color: #991B1B;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.drawer-email-input.full-width {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #F87171;
+  background: #FFFFFF;
+  font-size: 0.82rem;
+  color: #0A0A0A;
+}
+
+/* Modal Bottom Dock Actions (Statically Pinned Above Safe Area) */
+.modal-sheet-dock {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 12px 24px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #F4F4F5;
+  background: #FFFFFF;
+}
+
+.modal-sheet-dock .drawer-triage-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn-triage-dock {
+  height: 38px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  border: none;
+  padding: 0 16px;
+}
+
+.btn-triage-dock.btn-triage-approve {
+  background: #111111;
+  color: #FFFFFF;
+}
+
+.btn-triage-dock.btn-triage-approve:hover {
+  background: #27272A;
+}
+
+.btn-triage-dock.btn-triage-decline {
+  background: #F4F4F5;
+  color: #52525B;
+  border: 1px solid #E4E4E7;
+}
+
+.btn-triage-dock.btn-triage-decline:hover {
+  background: #E4E4E7;
+  color: #111111;
+}
+
+.btn-triage-dock.btn-triage-reschedule {
+  background: #111111;
+  color: #FFFFFF;
+}
+
+.btn-triage-dock.btn-triage-cancel {
+  background: #18181B;
+  color: #FFFFFF;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+}
+
+.btn-triage-dock.btn-triage-cancel:hover {
+  background: #DC2626;
+  color: #FFFFFF;
+  border-color: #DC2626;
+}
+
+/* Canopy Action Button (+ New Booking) */
+.canopy-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.canopy-new-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Action Bar for Schedule Tab (Solid card footer, zero mid-air floating) */
+.sticky-tab-action-bar {
+  position: static;
+  background: transparent;
+  padding: 0;
+  border-top: none;
+  margin: 18px 0 0;
+}
+
+/* Appointment card meta elements */
+.booking-card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  color: #71717A;
+  flex-wrap: wrap;
+}
+
+.meta-datetime {
+  font-weight: 600;
+}
+
+.meta-email {
+  color: #52525B;
+}
+
+.meta-delivery-failed {
+  color: #DC2626;
+  font-weight: 700;
+  background: #FEF2F2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.client-price-tag {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #18181B;
+  text-align: right;
+  margin-top: 3px;
+  display: block;
+}

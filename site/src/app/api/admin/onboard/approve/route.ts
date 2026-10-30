@@ -170,9 +170,17 @@ export async function GET(req: NextRequest) {
       identity.name
     ) || "Studio";
   const ownerEmail =
-    firstText(contact.email, contact.ownerEmail, identity.email, identity.ownerEmail) ||
-    "booking@agure.space";
+    firstText(contact.ownerEmail, contact.email, identity.ownerEmail, identity.email) ||
+    process.env.ONBOARDING_REVIEW_EMAIL ||
+    "hello@agure.space";
+  const contactEmail =
+    firstText(contact.email, contact.ownerEmail, identity.email) || ownerEmail;
   const phone = firstText(contact.phone, contact.whatsapp, contact.whatsApp) || null;
+  const whatsapp = firstText(contact.whatsapp, contact.whatsApp, contact.phone) || null;
+  const address = firstText(location.address, location.fullAddress, location.street, location.city) || null;
+  const orgNumber = firstText(identity.orgNumber, identity.organizationNumber) || null;
+  const mvaStatus = firstText(identity.mvaStatus, identity.vatStatus) || null;
+  const hoursText = firstText(location.hours, location.openingHours) || null;
   const refPrefix =
     firstText(identity.monogram, identity.refPrefix) || buildRefPrefix(brandName);
 
@@ -183,14 +191,20 @@ export async function GET(req: NextRequest) {
         )
       : asNumber(policies.minNoticeMin, 120);
 
-  const row: TenantInsert = {
+  const payload = {
     id: slug,
     name: brandName,
     owner_email: ownerEmail,
+    contact_email: contactEmail,
     phone,
+    whatsapp,
+    address,
+    org_number: orgNumber,
+    mva_status: mvaStatus,
+    hours_text: hoursText,
     // The full rich onboarding submission (identity, location, contact,
     // social, policies, submittedAt) is preserved verbatim in `profile`.
-    profile: data as unknown as Json,
+    profile: data,
     ref_prefix: refPrefix,
     timezone: firstText(policies.timezone, identity.timezone) || "Europe/Oslo",
     allowed_origins: [],
@@ -199,11 +213,13 @@ export async function GET(req: NextRequest) {
     min_notice_min: Math.max(0, Math.round(minNoticeMin)),
     max_days_ahead: Math.max(1, Math.round(asNumber(policies.maxDaysAhead, 60))),
     pending_hold_min: Math.max(1, Math.round(asNumber(policies.pendingHoldMin, 1440))),
-    active: true,
-    updated_at: new Date().toISOString(),
+    services: Array.isArray(data.services) ? data.services : [],
+    hours: Array.isArray(data.hours) ? data.hours : [],
   };
 
-  const { error } = await upsertTenantRow(supabaseAdmin, row);
+  const { error } = await supabaseAdmin.rpc("provision_tenant", {
+    payload: payload as unknown as Json,
+  });
 
   if (error) {
     console.error("ONBOARD APPROVE ERROR:", error);
@@ -214,7 +230,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const address = firstText(location.address, location.fullAddress, location.street, location.city);
   const detail = `${brandName} · ${refPrefix}${address ? ` · ${address}` : ""}`;
   return htmlPage(
     200,

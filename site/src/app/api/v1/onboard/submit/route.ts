@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createApprovalToken } from "@/lib/onboarding-token";
+import { isAllowedOrigin } from "@/lib/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // design-ok
@@ -9,34 +10,11 @@ export const dynamic = "force-dynamic"; // design-ok
 /*  CORS                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** The Noire intake front-end running on Cloudflare Workers. */
-const STATIC_ALLOWED_ORIGINS = ["https://noire.niwache12.workers.dev"];
-
-/** Local development ports used by the intake front-end. */
-const DEV_PORTS = new Set(["3000", "3001", "3002", "5173"]);
-const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
-
-/** Resolves the request Origin to an allowed value, or null when rejected. */
-function resolveAllowedOrigin(req: NextRequest): string | null {
+/** Resolves the request Origin against env and database tenant domains. */
+async function resolveAllowedOrigin(req: NextRequest): Promise<string | null> {
   const origin = req.headers.get("origin");
   if (!origin) return null;
-
-  if (STATIC_ALLOWED_ORIGINS.includes(origin)) return origin;
-
-  const extra = (process.env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  if (extra.includes(origin)) return origin;
-
-  try {
-    const url = new URL(origin);
-    if (!LOCALHOST_HOSTS.has(url.hostname.toLowerCase())) return null;
-    const port = url.port || (url.protocol === "https:" ? "443" : "80");
-    return DEV_PORTS.has(port) ? origin : null;
-  } catch {
-    return null;
-  }
+  return (await isAllowedOrigin(origin)) ? origin : null;
 }
 
 /** Builds the CORS response headers for an allowed origin. */
@@ -57,7 +35,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
 export async function OPTIONS(req: NextRequest) {
   return new NextResponse(null, {
     status: 204,
-    headers: corsHeaders(resolveAllowedOrigin(req)),
+    headers: corsHeaders(await resolveAllowedOrigin(req)),
   });
 }
 
@@ -111,25 +89,23 @@ function escapeHtml(value: string): string {
 /*  Review email                                                              */
 /* -------------------------------------------------------------------------- */
 
-const REVIEW_RECIPIENT = "niwache15@gmail.com";
-const REVIEW_FROM = "Studio Intake <booking@agure.space>";
+const REVIEW_RECIPIENT = process.env.ONBOARDING_REVIEW_EMAIL || "hello@agure.space";
+const REVIEW_FROM =
+  process.env.ONBOARDING_FROM ||
+  `Studio Intake <${process.env.EMAIL_FROM_ADDRESS || "booking@agure.space"}>`;
 
 /**
  * Canonical, non-redirecting base for emailed approval links.
  *
- * Always `https://www.abdisalam.space`: the apex domain issues a Vercel
- * redirect, and a redirect on an emailed GET can drop the `?token=` query
- * string. Only an explicit localhost URL (local development) overrides it so
- * the round-trip remains testable on the dev machine.
+ * NEXT_PUBLIC_SITE_URL is the only production source. VERCEL_URL and the
+ * request origin cover previews and local development.
  */
-const CANONICAL_BASE_URL = "https://www.abdisalam.space";
-
-function resolveCanonicalBaseUrl(): string {
+function resolveCanonicalBaseUrl(req: NextRequest): string {
   const configured = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "");
-  if (configured && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(configured)) {
-    return configured;
-  }
-  return CANONICAL_BASE_URL;
+  if (configured) return configured;
+  const vercel = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
+  if (vercel) return vercel;
+  return new URL(req.url).origin;
 }
 
 interface SubmissionSummary {
@@ -364,7 +340,7 @@ function buildReviewEmail(summary: SubmissionSummary, reviewLink: string): strin
 /* -------------------------------------------------------------------------- */
 
 export async function POST(req: NextRequest) {
-  const origin = resolveAllowedOrigin(req);
+  const origin = await resolveAllowedOrigin(req);
   const headers = corsHeaders(origin);
 
   let rawBody: unknown;
@@ -487,7 +463,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const reviewLink = `${resolveCanonicalBaseUrl()}/api/admin/onboard/approve?token=${encodeURIComponent(
+  const reviewLink = `${resolveCanonicalBaseUrl(req)}/api/admin/onboard/approve?token=${encodeURIComponent(
     token
   )}`;
 

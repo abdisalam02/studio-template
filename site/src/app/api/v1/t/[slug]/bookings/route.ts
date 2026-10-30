@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+﻿import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
   generateBookingRef,
@@ -14,7 +14,7 @@ import {
   type Tenant,
 } from "@/lib/email";
 import { getEngineBaseUrl } from "@/lib/url";
-import { getTenantConfig } from "@/config/tenant.config";
+import { getSeedTenant } from "@/config/tenant.config";
 import { validateSlot, slotErrorMessage, zonedParts } from "@/lib/bookingRules";
 import { consumeRateLimit, getClientIp, hashIp } from "@/lib/rateLimit";
 
@@ -121,8 +121,8 @@ function normalizePhone(rawPhone: unknown): string {
 async function provisionDevTenant(slug: string): Promise<Tenant | null> {
   if (process.env.NODE_ENV === "production" || !supabaseAdmin) return null;
 
-  const config = getTenantConfig(slug);
-  if (config.id !== slug) return null; // unknown slug -> genuine 404
+  const config = getSeedTenant(slug);
+  if (!config || config.id !== slug) return null; // unknown slug -> genuine 404
 
   // Prefer an explicitly configured booking reference prefix (e.g. "NOI").
   // Tenants that do not set one keep the historical name-derived prefix, so
@@ -386,17 +386,21 @@ export async function POST(
       resolvedServiceIds.length > 0 &&
       resolvedServiceIds.some((id) => !tenantServices.some((s) => s.id === id))
     ) {
-      const config = getTenantConfig(slug);
-      const idByName = new Map(tenantServices.map((s) => [s.name, s.id] as const));
-      const remapped = resolvedServiceIds
-        .map((id) => {
-          const configService = config.services.find((s) => Number(s.id) === id);
-          return configService ? idByName.get(configService.name) ?? null : null;
-        })
-        .filter((id): id is number => id !== null);
+      const config = getSeedTenant(slug);
+      if (!config) {
+        // Unknown seed: the DB service ids are already canonical.
+      } else {
+        const idByName = new Map(tenantServices.map((s) => [s.name, s.id] as const));
+        const remapped = resolvedServiceIds
+          .map((id) => {
+            const configService = config.services.find((s) => Number(s.id) === id);
+            return configService ? idByName.get(configService.name) ?? null : null;
+          })
+          .filter((id): id is number => id !== null);
 
-      if (remapped.length > 0) {
-        resolvedServiceIds = remapped;
+        if (remapped.length > 0) {
+          resolvedServiceIds = remapped;
+        }
       }
     }
 
@@ -455,7 +459,7 @@ export async function POST(
     }
 
     // 2.5. Strict server-side validation: mirror every rule the availability
-    // endpoint applies, so a crafted request cannot book a slot the calendar
+    // endpoint applies, so a forged request cannot book a slot the calendar
     // would never offer.
     const tenantTz = tenant.timezone || "Europe/Oslo";
     const bookingTotalDuration = services.reduce((acc, s) => acc + s.duration_min, 0);
@@ -694,3 +698,4 @@ export async function POST(
     return NextResponse.json({ error: "server_error", message }, { status: 500, headers: CORS_HEADERS });
   }
 }
+

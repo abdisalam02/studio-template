@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { generateIcsCalendar } from "@/lib/ics";
 import {
   sendCustomerConfirmation,
@@ -164,11 +164,21 @@ export async function POST(req: NextRequest) {
       detail: { email_status: emailStatus },
     });
 
+    const responseBooking = updatedBooking
+      ? {
+          ...updatedBooking,
+          email_status:
+            (updatedBooking as Record<string, unknown>).customer_email_status ?? null,
+          email_error:
+            (updatedBooking as Record<string, unknown>).customer_email_error ?? null,
+        }
+      : booking;
+
     return NextResponse.json(
       {
         success: true,
         status: newStatus,
-        booking: updatedBooking || booking,
+        booking: responseBooking,
         email: emailStatus ? { status: emailStatus, error: emailError } : null,
       },
       { status: 200 }

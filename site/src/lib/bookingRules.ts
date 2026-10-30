@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Shared booking rules.
  *
  * The availability endpoint and the booking endpoints must agree on what a
- * valid slot is; otherwise a crafted request can book a time the calendar
+ * valid slot is; otherwise a forged request can book a time the calendar
  * would never show (past, too soon, too far ahead, off the slot grid).
  */
 
@@ -179,3 +179,4 @@ export function slotErrorMessage(error: SlotRuleError, rules: SlotRules): string
       return "That time is not available.";
   }
 }
+
