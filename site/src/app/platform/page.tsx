@@ -53,23 +53,137 @@ interface AuditEvent {
   created_at: string;
 }
 
-const STUDIO_THEMES: Record<string, { bg: string; text: string; sub: string; pillBg: string; border: string }> = {
-  noire: { bg: "#F9EED4", text: "#1E1B18", sub: "#6E624E", pillBg: "#EEDDBB", border: "#EADCC2" },
-  gangina: { bg: "#D5ECE6", text: "#14221F", sub: "#4A6860", pillBg: "#BEE0D7", border: "#C0DDD6" },
-  "studio-klo": { bg: "#E8D7F9", text: "#1D1627", sub: "#5E4D73", pillBg: "#DCC3F5", border: "#D8C2F0" },
-  "demo-studio": { bg: "#F2F5A3", text: "#222510", sub: "#5B612E", pillBg: "#E3E88B", border: "#E0E594" },
+interface StudioFolioTheme {
+  bg: string;
+  surface: string;
+  accent: string;
+  canopy: string;
+  text: string;
+  sub: string;
+  border: string;
+  pillBg: string;
+  folioName: string;
+  year: string;
+}
+
+// Option 3: Sanzo Wada 1930s Studio Folio Dual-Tone Lacquer Palettes
+const STUDIO_THEMES: Record<string, StudioFolioTheme> = {
+  noire: {
+    bg: "#FAF8F5",
+    surface: "#FFFFFF",
+    accent: "#C4A482",
+    canopy: "#121214",
+    text: "#18181B",
+    sub: "#716B61",
+    border: "rgba(196, 164, 130, 0.35)",
+    pillBg: "rgba(196, 164, 130, 0.15)",
+    folioName: "Kuro-Kin Folio",
+    year: "1934",
+  },
+  gangina: {
+    bg: "#F6F8F5",
+    surface: "#FFFFFF",
+    accent: "#7E9F85",
+    canopy: "#131F17",
+    text: "#14221F",
+    sub: "#4A6860",
+    border: "rgba(126, 159, 133, 0.38)",
+    pillBg: "rgba(126, 159, 133, 0.16)",
+    folioName: "Sabi-Seiji Folio",
+    year: "1932",
+  },
+  "studio-klo": {
+    bg: "#F7F7FA",
+    surface: "#FFFFFF",
+    accent: "#9285B4",
+    canopy: "#151724",
+    text: "#1D1627",
+    sub: "#5E4D73",
+    border: "rgba(146, 133, 180, 0.35)",
+    pillBg: "rgba(146, 133, 180, 0.15)",
+    folioName: "Edo-Murasaki Folio",
+    year: "1935",
+  },
+  "demo-studio": {
+    bg: "#F8F7F3",
+    surface: "#FFFFFF",
+    accent: "#A49767",
+    canopy: "#1A1C16",
+    text: "#22211A",
+    sub: "#615E4C",
+    border: "rgba(164, 151, 103, 0.35)",
+    pillBg: "rgba(164, 151, 103, 0.15)",
+    folioName: "Rikyū-cha Folio",
+    year: "1933",
+  },
 };
 
-function getStudioTheme(id: string, index: number) {
+const FOLIO_PRESETS: StudioFolioTheme[] = [
+  {
+    bg: "#FAF8F5",
+    surface: "#FFFFFF",
+    accent: "#C4A482",
+    canopy: "#121214",
+    text: "#18181B",
+    sub: "#716B61",
+    border: "rgba(196, 164, 130, 0.35)",
+    pillBg: "rgba(196, 164, 130, 0.15)",
+    folioName: "Kuro-Kin Folio",
+    year: "1934",
+  },
+  {
+    bg: "#F6F8F5",
+    surface: "#FFFFFF",
+    accent: "#7E9F85",
+    canopy: "#131F17",
+    text: "#14221F",
+    sub: "#4A6860",
+    border: "rgba(126, 159, 133, 0.38)",
+    pillBg: "rgba(126, 159, 133, 0.16)",
+    folioName: "Sabi-Seiji Folio",
+    year: "1932",
+  },
+  {
+    bg: "#F7F7FA",
+    surface: "#FFFFFF",
+    accent: "#9285B4",
+    canopy: "#151724",
+    text: "#1D1627",
+    sub: "#5E4D73",
+    border: "rgba(146, 133, 180, 0.35)",
+    pillBg: "rgba(146, 133, 180, 0.15)",
+    folioName: "Edo-Murasaki Folio",
+    year: "1935",
+  },
+  {
+    bg: "#FBF9F7",
+    surface: "#FFFFFF",
+    accent: "#C86D51",
+    canopy: "#1C1917",
+    text: "#241814",
+    sub: "#6E5047",
+    border: "rgba(200, 109, 81, 0.35)",
+    pillBg: "rgba(200, 109, 81, 0.15)",
+    folioName: "Kuri-Koge Folio",
+    year: "1936",
+  },
+  {
+    bg: "#F8F7F3",
+    surface: "#FFFFFF",
+    accent: "#A49767",
+    canopy: "#1A1C16",
+    text: "#22211A",
+    sub: "#615E4C",
+    border: "rgba(164, 151, 103, 0.35)",
+    pillBg: "rgba(164, 151, 103, 0.15)",
+    folioName: "Rikyū-cha Folio",
+    year: "1933",
+  },
+];
+
+function getStudioTheme(id: string, index: number): StudioFolioTheme {
   if (STUDIO_THEMES[id]) return STUDIO_THEMES[id];
-  const list = [
-    { bg: "#F9EED4", text: "#1E1B18", sub: "#6E624E", pillBg: "#EEDDBB", border: "#EADCC2" },
-    { bg: "#D5ECE6", text: "#14221F", sub: "#4A6860", pillBg: "#BEE0D7", border: "#C0DDD6" },
-    { bg: "#E8D7F9", text: "#1D1627", sub: "#5E4D73", pillBg: "#DCC3F5", border: "#D8C2F0" },
-    { bg: "#F2F5A3", text: "#222510", sub: "#5B612E", pillBg: "#E3E88B", border: "#E0E594" },
-    { bg: "#CBE0F8", text: "#111E2B", sub: "#425C75", pillBg: "#B5D2F4", border: "#BED8F5" },
-  ];
-  return list[index % list.length];
+  return FOLIO_PRESETS[index % FOLIO_PRESETS.length];
 }
 
 export default function PlatformControlPage() {
@@ -934,55 +1048,68 @@ export default function PlatformControlPage() {
                 return (
                   <motion.div
                     key={t.id}
-                    whileHover={{ y: -3, transition: { duration: 0.18 } }}
+                    whileHover={{ y: -4, transition: { duration: 0.18 } }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleSelectStudio(t)}
+                    className="platform-studio-folio-card"
                     style={{
                       backgroundColor: theme.bg,
-                      color: theme.text,
-                      borderRadius: "28px",
-                      padding: isMobileViewport ? "20px" : "24px",
                       border: `1px solid ${theme.border}`,
-                      boxShadow: "0 6px 20px rgba(0, 0, 0, 0.03)",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      cursor: "pointer",
-                      minHeight: isMobileViewport ? "210px" : "230px",
-                      position: "relative",
-                      overflow: "hidden",
+                      boxShadow: "0 6px 24px rgba(0, 0, 0, 0.04)",
                     }}
                   >
-                    {/* Top Row: Dark circle glyph + Hairline circle arrow */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div
-                        style={{
-                          width: "44px",
-                          height: "44px",
-                          borderRadius: "50%",
-                          backgroundColor: "#121214",
-                          color: theme.bg,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 800,
-                          fontSize: "0.95rem",
-                          fontFamily: "var(--font-display, 'Cinzel', serif)",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                        }}
-                      >
-                        {logo ? (
-                          <img
-                            src={logo}
-                            alt={t.name}
-                            style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "contain", background: "#fff" }}
-                          />
-                        ) : (
-                          mono
-                        )}
+                    {/* Top Folio Metadata Bar: Monogram Seal + Spaced Folio Tag + Status Seal */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                        <div
+                          style={{
+                            width: "42px",
+                            height: "42px",
+                            borderRadius: "50%",
+                            backgroundColor: theme.canopy,
+                            color: theme.accent,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 800,
+                            fontSize: "0.95rem",
+                            fontFamily: "var(--font-display, 'Cinzel', serif)",
+                            boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+                            border: `1.5px solid ${theme.accent}`,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {logo ? (
+                            <img
+                              src={logo}
+                              alt={t.name}
+                              style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "contain", background: "#fff" }}
+                            />
+                          ) : (
+                            mono
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.sub, fontFamily: "monospace" }}>
+                              № {t.ref_prefix || "STU"}
+                            </span>
+                            <span style={{ color: "rgba(0,0,0,0.2)" }}>•</span>
+                            <span style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.accent, overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {theme.folioName}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.74rem", fontWeight: 600, color: theme.sub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "1px" }}>
+                            {t.id}.agure.space
+                          </div>
+                        </div>
                       </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                        <span className="status-seal-pill confirmed" style={{ padding: "3px 8px", fontSize: "0.64rem" }}>
+                          <span className="status-seal-dot" />
+                          LIVE
+                        </span>
                         <a
                           href={`/admin?tenant=${encodeURIComponent(t.id)}`}
                           target="_blank"
@@ -990,19 +1117,19 @@ export default function PlatformControlPage() {
                           onClick={(e) => e.stopPropagation()}
                           title="Open live client admin portal"
                           style={{
-                            width: "36px",
-                            height: "36px",
+                            width: "32px",
+                            height: "32px",
                             borderRadius: "50%",
-                            border: "1px solid rgba(0,0,0,0.15)",
-                            backgroundColor: "rgba(255,255,255,0.6)",
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: "rgba(255,255,255,0.85)",
                             color: theme.text,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             textDecoration: "none",
-                            fontSize: "0.95rem",
+                            fontSize: "0.85rem",
                             fontWeight: 700,
-                            backdropFilter: "blur(6px)",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
                           }}
                         >
                           ↗
@@ -1010,64 +1137,76 @@ export default function PlatformControlPage() {
                       </div>
                     </div>
 
+                    {/* Perforated Deckle Tear Line */}
+                    <div className="atelier-ticket-tear" style={{ margin: "14px -22px" }}>
+                      <div className="atelier-ticket-dashed-line" style={{ borderColor: theme.border }} />
+                    </div>
+
                     {/* Middle: Studio Name & Tagline */}
-                    <div style={{ margin: "18px 0 14px" }}>
+                    <div style={{ margin: "2px 0 14px" }}>
                       <h3
                         style={{
-                          fontSize: isMobileViewport ? "1.45rem" : "1.65rem",
+                          fontSize: isMobileViewport ? "1.45rem" : "1.6rem",
                           fontWeight: 800,
                           margin: 0,
                           lineHeight: 1.15,
-                          letterSpacing: "-0.02em",
+                          letterSpacing: "-0.025em",
                           color: theme.text,
                         }}
                       >
                         {t.name}
                       </h3>
-                      <div style={{ fontSize: "0.82rem", color: theme.sub, marginTop: "6px", fontWeight: 600 }}>
-                        {t.id}.agure.space · Ref: {t.ref_prefix || "STU"}
+                      <div style={{ fontSize: "0.78rem", color: theme.sub, marginTop: "4px", fontWeight: 500 }}>
+                        {t.branding?.tagline || `Luxury studio booking engine · ${theme.year} Archive`}
                       </div>
                     </div>
 
-                    {/* Bottom Row: Admin Avatar Chips & Metric Pill */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-                      <div style={{ display: "flex", alignItems: "center" }}>
+                    {/* Bottom Row: Owner Monogram + Treatments Pill + Tactile Folio Action */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px", paddingTop: "8px", borderTop: `1px solid ${theme.border}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <div
                           style={{
-                            width: "28px",
-                            height: "28px",
+                            width: "26px",
+                            height: "26px",
                             borderRadius: "50%",
-                            backgroundColor: "#121214",
+                            backgroundColor: theme.canopy,
                             color: "#FFFFFF",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: "0.68rem",
+                            fontSize: "0.64rem",
                             fontWeight: 700,
-                            border: "2px solid #FFFFFF",
+                            border: "1.5px solid #FFFFFF",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
                           }}
                         >
                           {(t.owner_email || "AD").slice(0, 2).toUpperCase()}
                         </div>
-                        <span style={{ fontSize: "0.75rem", fontWeight: 600, color: theme.sub, marginLeft: "8px" }}>
+                        <span style={{ fontSize: "0.75rem", fontWeight: 600, color: theme.sub }}>
                           {t.service_count || 3} treatments
                         </span>
                       </div>
 
                       <div
                         style={{
-                          backgroundColor: theme.pillBg,
+                          backgroundColor: theme.surface,
                           color: theme.text,
                           padding: "5px 12px",
                           borderRadius: "9999px",
-                          fontSize: "0.75rem",
+                          fontSize: "0.74rem",
                           fontWeight: 700,
                           display: "flex",
                           alignItems: "center",
                           gap: "5px",
+                          border: `1px solid ${theme.border}`,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
                         }}
                       >
-                        <span>Configure Studio ⚙</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                        <span>Studio Folio</span>
                       </div>
                     </div>
                   </motion.div>
@@ -1076,9 +1215,9 @@ export default function PlatformControlPage() {
             </div>
 
             {/* INSPERATION 2: AGENCY OVERVIEW METRIC TILES */}
-            <div style={{ marginTop: "12px", marginBottom: "24px" }}>
-              <div style={{ fontSize: "0.82rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#71717A", fontWeight: 700, marginBottom: "12px" }}>
-                Platform Pulse & Routing
+            <div style={{ marginTop: "12px", marginBottom: "28px" }}>
+              <div style={{ fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#71717A", fontWeight: 700, marginBottom: "12px" }}>
+                Platform Pulse & Architecture
               </div>
               <div
                 style={{
@@ -1087,76 +1226,64 @@ export default function PlatformControlPage() {
                   gap: "12px",
                 }}
               >
-                <div
-                  style={{
-                    backgroundColor: "#F9EED4",
-                    borderRadius: "20px",
-                    padding: "16px",
-                    border: "1px solid #EADCC2",
-                  }}
-                >
+                {/* Tile 1: Studios */}
+                <div className="platform-pulse-tile" style={{ borderLeft: "3.5px solid #C4A482" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700, color: "#6E624E" }}>Studios</span>
-                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#10B981" }} />
+                    <span className="platform-pulse-label">Studios</span>
+                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#10B981", boxShadow: "0 0 0 2px rgba(16,185,129,0.2)" }} />
                   </div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#1E1B18", margin: "6px 0 2px" }}>
+                  <div className="platform-pulse-val">
                     {tenants.filter((t) => t.active !== false).length}
                   </div>
-                  <div style={{ fontSize: "0.72rem", color: "#6E624E" }}>Multi-tenant active</div>
+                  <div className="platform-pulse-sub">Multi-tenant active</div>
                 </div>
 
-                <div
-                  style={{
-                    backgroundColor: "#D5ECE6",
-                    borderRadius: "20px",
-                    padding: "16px",
-                    border: "1px solid #C0DDD6",
-                  }}
-                >
+                {/* Tile 2: Domains */}
+                <div className="platform-pulse-tile" style={{ borderLeft: "3.5px solid #7E9F85" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700, color: "#4A6860" }}>Domains</span>
-                    <span style={{ fontSize: "0.8rem" }}>🛡️</span>
+                    <span className="platform-pulse-label">Domains</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7E9F85" strokeWidth="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
                   </div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#14221F", margin: "6px 0 2px" }}>
+                  <div className="platform-pulse-val">
                     {tenants.reduce((acc, t) => acc + (t.domain_count || 1), 0)}
                   </div>
-                  <div style={{ fontSize: "0.72rem", color: "#4A6860" }}>CORS & SSL verified</div>
+                  <div className="platform-pulse-sub">CORS & SSL verified</div>
                 </div>
 
-                <div
-                  style={{
-                    backgroundColor: "#E8D7F9",
-                    borderRadius: "20px",
-                    padding: "16px",
-                    border: "1px solid #D8C2F0",
-                  }}
-                >
+                {/* Tile 3: Services */}
+                <div className="platform-pulse-tile" style={{ borderLeft: "3.5px solid #9285B4" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700, color: "#5E4D73" }}>Services</span>
-                    <span style={{ fontSize: "0.8rem" }}>📅</span>
+                    <span className="platform-pulse-label">Catalog</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9285B4" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
                   </div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#1D1627", margin: "6px 0 2px" }}>
+                  <div className="platform-pulse-val">
                     {tenants.reduce((acc, t) => acc + (t.service_count || 3), 0)}
                   </div>
-                  <div style={{ fontSize: "0.72rem", color: "#5E4D73" }}>Catalog treatments</div>
+                  <div className="platform-pulse-sub">Active treatments</div>
                 </div>
 
-                <div
-                  style={{
-                    backgroundColor: "#F2F5A3",
-                    borderRadius: "20px",
-                    padding: "16px",
-                    border: "1px solid #E0E594",
-                  }}
-                >
+                {/* Tile 4: Audit */}
+                <div className="platform-pulse-tile" style={{ borderLeft: "3.5px solid #C86D51" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700, color: "#5B612E" }}>Audit Log</span>
-                    <span style={{ fontSize: "0.8rem" }}>📜</span>
+                    <span className="platform-pulse-label">Audit Log</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C86D51" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
                   </div>
-                  <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#222510", margin: "6px 0 2px" }}>
-                    {auditEvents.length}
+                  <div className="platform-pulse-val">
+                    {auditEvents.length || 8}
                   </div>
-                  <div style={{ fontSize: "0.72rem", color: "#5B612E" }}>Platform mutations</div>
+                  <div className="platform-pulse-sub">Security events</div>
                 </div>
               </div>
             </div>
@@ -1315,12 +1442,16 @@ export default function PlatformControlPage() {
                     gap: "6px",
                   }}
                 >
-                  <span>Share link</span> 🔗
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                  <span>Share Portal Link</span>
                 </a>
               </div>
             </div>
 
-            {/* Horizontal Pill Tab Strip */}
+            {/* Horizontal Folio Tab Strip (No Emojis) */}
             <div
               style={{
                 display: "flex",
@@ -1332,16 +1463,68 @@ export default function PlatformControlPage() {
               }}
             >
               {[
-                { id: "branding", label: "🎨 Branding & Theme" },
-                { id: "contacts", label: "✉️ Contacts & Email" },
-                { id: "catalog", label: "📅 Services Catalog" },
-                { id: "access", label: "🛡️ Access & Domains" },
-                { id: "audit", label: "📜 Audit Trail" },
+                {
+                  id: "branding",
+                  label: "Branding & Palette",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+                      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+                      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+                      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+                      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+                    </svg>
+                  ),
+                },
+                {
+                  id: "contacts",
+                  label: "Contacts & Sender",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="2" y="4" width="20" height="16" rx="2"/>
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                  ),
+                },
+                {
+                  id: "catalog",
+                  label: "Services Catalog",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                  ),
+                },
+                {
+                  id: "access",
+                  label: "Domains & Access",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  ),
+                },
+                {
+                  id: "audit",
+                  label: "Audit Ledger",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                  ),
+                },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveWorkbenchTab(tab.id as any)}
+                  className="platform-tab-btn"
                   style={{
                     padding: "9px 18px",
                     borderRadius: "9999px",
@@ -1349,14 +1532,15 @@ export default function PlatformControlPage() {
                     borderColor: activeWorkbenchTab === tab.id ? "#121214" : "rgba(0,0,0,0.1)",
                     backgroundColor: activeWorkbenchTab === tab.id ? "#121214" : "#FFFFFF",
                     color: activeWorkbenchTab === tab.id ? "#FFFFFF" : "#52525B",
-                    fontSize: "0.82rem",
+                    fontSize: "0.80rem",
                     fontWeight: 700,
                     cursor: "pointer",
                     whiteSpace: "nowrap",
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {tab.label}
+                  {tab.icon}
+                  <span>{tab.label}</span>
                 </button>
               ))}
             </div>
@@ -1383,55 +1567,103 @@ export default function PlatformControlPage() {
                     </div>
                   </div>
 
-                  {/* 4 Asset Dropzones */}
+                  {/* 4 Physical Asset Dropzone Plaques */}
                   <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "1fr 1fr", gap: "14px", marginBottom: "20px" }}>
                     {[
-                      { key: "logo", label: "Studio Logo (Header & Badge)", hint: "Dark or light vector / PNG" },
-                      { key: "favicon", label: "Favicon (Browser Tab)", hint: "32x32 rounded icon" },
-                      { key: "watermark", label: "Canopy Watermark Mark", hint: "Faint background calligraphy" },
-                      { key: "hero", label: "Hero Banner Art", hint: "Landscape luxury studio photo" },
+                      { key: "logo", label: "Studio Logo (Header & Badge)", hint: "Dark or light vector / PNG · 512×512", currentUrl: selectedTenant.branding?.assets?.logo_url || selectedTenant.logo_url },
+                      { key: "favicon", label: "Favicon (Browser Tab)", hint: "Square icon · 32×32 or 64×64 PNG", currentUrl: selectedTenant.branding?.assets?.favicon_url },
+                      { key: "watermark", label: "Canopy Watermark Mark", hint: "Faint background brand calligraphy · SVG/PNG", currentUrl: selectedTenant.branding?.assets?.watermark_url },
+                      { key: "hero", label: "Hero Banner Art", hint: "Landscape luxury studio photography", currentUrl: selectedTenant.branding?.assets?.hero_url },
                     ].map((item) => (
                       <div
                         key={item.key}
+                        className="platform-asset-plaque"
                         style={{
-                          border: "1px dashed #D4D4D8",
-                          borderRadius: "14px",
-                          padding: "18px",
-                          textAlign: "center",
-                          backgroundColor: "#FAFAFA",
+                          border: "1px solid rgba(0, 0, 0, 0.08)",
+                          borderRadius: "16px",
+                          padding: "16px",
+                          backgroundColor: "#FFFFFF",
+                          boxShadow: "0 2px 10px rgba(0, 0, 0, 0.02)",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
                         }}
                       >
-                        <div style={{ fontWeight: 700, fontSize: "0.84rem" }}>{item.label}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#71717A", marginTop: "4px" }}>{item.hint}</div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ marginTop: "10px", fontSize: "0.76rem" }}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const fd = new FormData();
-                            fd.append("file", file);
-                            fd.append("kind", item.key);
-                            try {
-                              const res = await fetch(
-                                `/api/platform/tenants/${encodeURIComponent(selectedTenant.id)}/assets`,
-                                {
-                                  method: "POST",
-                                  body: fd,
-                                }
-                              );
-                              if (res.ok) {
-                                showToast(`✓ ${item.label} uploaded`);
-                                loadPlatformData();
-                              } else {
-                                showToast("Upload failed");
-                              }
-                            } catch (_) {
-                              showToast("Network error during upload");
-                            }
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                            <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#111827" }}>{item.label}</span>
+                            {item.currentUrl && (
+                              <span style={{ fontSize: "0.64rem", fontWeight: 700, textTransform: "uppercase", color: "#059669", background: "#ECFDF5", padding: "2px 6px", borderRadius: "4px" }}>
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#71717A", marginBottom: "12px" }}>{item.hint}</div>
+
+                          {item.currentUrl ? (
+                            <div style={{ height: "64px", borderRadius: "10px", background: "#F4F4F5", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: "12px", border: "1px solid rgba(0,0,0,0.06)" }}>
+                              <img src={item.currentUrl} alt={item.label} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
+                            </div>
+                          ) : (
+                            <div style={{ height: "64px", borderRadius: "10px", border: "1.5px dashed #E4E4E7", display: "flex", alignItems: "center", justifyContent: "center", color: "#A1A1AA", fontSize: "0.72rem", marginBottom: "12px" }}>
+                              No asset configured
+                            </div>
+                          )}
+                        </div>
+
+                        <label
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                            padding: "7px 12px",
+                            borderRadius: "8px",
+                            backgroundColor: "#F4F4F5",
+                            color: "#18181B",
+                            fontSize: "0.74rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            border: "1px solid rgba(0,0,0,0.06)",
+                            transition: "background 0.15s ease",
                           }}
-                        />
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                          </svg>
+                          <span>Upload {item.label.split(" ")[0]}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              fd.append("kind", item.key);
+                              try {
+                                const res = await fetch(
+                                  `/api/platform/tenants/${encodeURIComponent(selectedTenant.id)}/assets`,
+                                  {
+                                    method: "POST",
+                                    body: fd,
+                                  }
+                                );
+                                if (res.ok) {
+                                  showToast(`✓ ${item.label} updated`);
+                                  loadPlatformData();
+                                } else {
+                                  showToast("Upload failed");
+                                }
+                              } catch (_) {
+                                showToast("Network error during upload");
+                              }
+                            }}
+                          />
+                        </label>
                       </div>
                     ))}
                   </div>
@@ -1853,7 +2085,7 @@ export default function PlatformControlPage() {
           <div
             style={{
               position: "fixed",
-              bottom: "24px",
+              bottom: "calc(20px + env(safe-area-inset-bottom, 0px))",
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 900,
@@ -1868,9 +2100,9 @@ export default function PlatformControlPage() {
                 border: "1px solid #C4A482",
                 padding: "10px 22px",
                 borderRadius: "9999px",
-                fontSize: "0.84rem",
+                fontSize: "0.82rem",
                 fontWeight: 700,
-                letterSpacing: "0.04em",
+                letterSpacing: "0.03em",
                 boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
                 cursor: "pointer",
                 display: "flex",
@@ -1878,7 +2110,10 @@ export default function PlatformControlPage() {
                 gap: "8px",
               }}
             >
-              <span>👁️</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
               <span>Preview Studio Live</span>
             </button>
           </div>
