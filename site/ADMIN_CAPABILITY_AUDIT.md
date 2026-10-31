@@ -5,17 +5,17 @@
 **Target:** `studio-template/site` — admin portal, scheduling engine, platform console
 **Status:** Corrected audit, re-verified against the code, the live database and the regression suites
 
-> The 2026-10-02 draft described a 648-line `page.tsx`, six components that do not exist, Norwegian UI labels that are no longer rendered, and several flows that are only toast stubs. This revision re-checks every claim against the current tree (commit `83605c0`) and the live Supabase project.
+> The 2026-10-02 draft described a 648-line `page.tsx`, six components that do not exist, Norwegian UI labels that are no longer rendered, and several flows that are only toast stubs. This revision re-checks every claim against the current tree (commit `2201f2a`) and the live Supabase project.
 
 ---
 
 ## 0. Verification Basis
 
-- `site/src/app/admin/page.tsx` — **4,330 lines**. All admin UI lives in this single file. There is no `src/components/admin/` directory and no `/admin/login` route.
+- `site/src/app/admin/page.tsx` — **4,494 lines**. All admin UI lives in this single file. There is no `src/components/admin/` directory and no `/admin/login` route.
 - `site/src/app/admin/admin-system.css` — 4,993 lines.
 - API routes under `site/src/app/api/admin/**`, `site/src/app/api/platform/**`, `site/src/app/api/cron/**`.
 - Live schema read through the Supabase REST API on 2026-10-31: `bookings`, `tenants`, `hours`, `blackouts`, `services`. **No `operating_hours` table exists.**
-- Regression suites: `scripts/verify-admin-login-flow.mjs` (21 checks), `scripts/verify-owner-transfer.mjs` (8), `scripts/verify-session-manual-contract.mjs` (18), plus `npm run verify`.
+- Regression suites: `scripts/verify-admin-login-flow.mjs` (21 checks), `scripts/verify-owner-transfer.mjs` (8), `scripts/verify-session-manual-contract.mjs` (18), `scripts/test-blackouts-flow.mjs` (create / list / delete), plus `npm run verify`.
 
 ---
 
@@ -83,6 +83,8 @@
 - **Approve** / **Decline** triage buttons on cards.
 - **Archive** section expand / collapse.
 
+**Known defect:** `normalizeBooking` converts `start_utc` to a UTC ISO string and the UI slices the clock time out of it, so live bookings render in UTC instead of `tenants.timezone` (verified: a 17:30 Oslo booking displays as 16:30).
+
 ### 2.5 Client Drawer
 - **Call**, **WhatsApp**, **Email**.
 - **Resend email** (shown when delivery failed or bounced).
@@ -99,16 +101,21 @@
 - Date + start time, **Confirm Reschedule** → `POST /api/admin/bookings/reschedule`.
 
 ### 2.8 Block Time Modal
-- **30 min break** → `POST /api/admin/blackouts` (30 min window from current time).
-- **Close the rest of the day** → `POST /api/admin/blackouts` (until 23:59:59 local).
+- **30 min break** → `POST /api/admin/blackouts` (30 min window from the browser's current time).
+- **Close the rest of the day** → `POST /api/admin/blackouts` (until 23:59:59 in the browser's timezone).
 - Date + start time + end time + reason + **Save block** → `POST /api/admin/blackouts`.
 - **Active Blackouts List** → renders `start_utc`/`end_utc` formatted date/times with individual Delete control calling `DELETE /api/admin/blackouts?id=...`.
+
+**Known defects (verified 2026-10-31 against `2201f2a`):**
+- The date field defaults to *today* and is never seeded from `selectedDate`. Opening Block Time from a calendar day other than today still pre-fills today's date.
+- All three write paths build timestamps in the **browser's** timezone and the list formats in the browser's timezone, while the availability engine uses `tenants.timezone` (`Europe/Oslo`). Verified with a browser set to `America/New_York`: a 13:00 block is stored as 19:00 Oslo time and then listed back as 13:00, so the row covers the wrong window for the studio.
+- The list returns every `blackouts` row, including past ones.
 
 ### 2.9 Opening Hours
 - Weekly open/closed toggles, start/end time pickers.
 - Appointment slot duration select.
 - **Plan Ahead & Custom Dates**: month navigation, bulk selection, open/closed switch, custom shifts.
-- **+ Block Time** → same stub modal.
+- **+ Block Time** → opens the persistent Block Time modal (same modal as §2.8).
 - **Save Operating Hours** → `POST /api/admin/hours` with `shifts`, `interval_min` and `date_overrides`.
 
 ### 2.10 Settings
@@ -183,7 +190,7 @@
 |---|---|---|---|
 | **Rescheduling UX** | Visual slot picker showing free times | Date + time picker; the server validates hours, notice, horizon, step, overlaps and blackouts, but the modal does not display free slots. | High |
 | **Customer Re-confirmation on Reschedule** | Customer must accept the new time | Time changes immediately; the customer receives an informational update with `.ics`. | Medium |
-| **Time Blocking (Pause / Holiday)** | Drag-to-block on the calendar, labelled lunch/vacation | Backend, availability engine, and admin Block Time modal are fully connected with quick break, close rest of day, custom time ranges and delete control. | High |
+| **Time Blocking (Pause / Holiday)** | Drag-to-block on the calendar, labelled lunch/vacation | Backend, availability engine and Block Time modal are connected: quick 30-min break, close rest of day, custom date/time range with reason, formatted list and delete. Remaining gap: no drag-to-block on the calendar surface. | Medium |
 | **Walk-in / Fast Booking** | 10-second modal with client auto-suggest by phone | Manual booking modal exists with tenant catalog, date/time and contact fields; no client autocomplete. | Medium |
 | **Customer Contact Quick Actions** | Integrated SMS gateway, call, WhatsApp | Call, WhatsApp and Email are implemented. No SMS gateway. | Low |
 | **Financial / Revenue Summary** | "Today's revenue" completed vs pending | No revenue or payment reporting. | High |
@@ -275,14 +282,14 @@ export interface DayStripItem {
 ## Appendix: Corrections vs the 2026-10-02 Draft
 
 1. **Non-existent files removed:** `src/components/admin/ClientDrawer.tsx`, `RescheduleModal.tsx`, `ManualBookingModal.tsx`, `app/admin/BlackoutsManager.tsx`, `app/admin/BookingsManager.tsx`, `app/admin/login/page.tsx`. The login gate is in-page.
-2. **`page.tsx` size:** 648 lines → **4,330 lines**.
+2. **`page.tsx` size:** 648 lines → **4,494 lines**.
 3. **`hours.weekday`:** "0 = Sunday" → **0 = Monday … 6 = Sunday**.
 4. **`bookings.custom_fields`:** listed as missing → **exists** (jsonb, `20261028120000_booking_integrity.sql`) and is written by the public widget.
 5. **`tenants.currency`:** listed as missing → **exists**. `vat_number` is the only genuinely missing invoice field; `org_number` and `mva_status` exist.
 6. **Omitted `bookings` columns added:** `service_ids`, `service_summary`, `resend_email_id`, `customer_email_status`, `customer_email_status_at`, `customer_email_error`, `reminder_24h_sent_at`, `reminder_2h_sent_at`.
 7. **`operating_hours`:** no such table. Only `hours` exists; the bookings route keeps a dead fallback query.
 8. **UI language:** all admin copy is English (`Approve`, `Decline`, `Save Operating Hours`, `New Booking`). The Norwegian labels (`Godkjenn`, `Avlys`, `Bekreftet`, `Venter`, `Passerte`, `Synkroniser`, `Lagre …`) are gone.
-9. **Quick-break handlers:** `handleCloseRestOfToday` / `handleInsertLunchPause` no longer exist. The Block Time modal's quick rows are toast stubs.
+9. **Quick-break handlers:** `handleCloseRestOfToday` / `handleInsertLunchPause` no longer exist. The Block Time modal's quick rows now persist real `blackouts` rows through `POST /api/admin/blackouts` (fixed in `2201f2a`).
 10. **Week-strip easing:** `cubic-bezier(0.34, 1.35, 0.64, 1)`, not `(0.34, 1.56, 0.64, 1)`.
 11. **Intake inspector:** parses `[placement]` out of `notes`; it does not render arbitrary `custom_fields` JSON.
 12. **Dev bypass:** `POST /api/admin/dev-login` with `{ email }`, development-only (403 in production). Some admin routes also honour `?dev_bypass=true` in development.
