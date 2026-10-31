@@ -5,17 +5,17 @@
 **Target:** `studio-template/site` — admin portal, scheduling engine, platform console
 **Status:** Corrected audit, re-verified against the code, the live database and the regression suites
 
-> The 2026-10-02 draft described a 648-line `page.tsx`, six components that do not exist, Norwegian UI labels that are no longer rendered, and several flows that are only toast stubs. This revision re-checks every claim against the current tree (commit `2201f2a`) and the live Supabase project.
+> The 2026-10-02 draft described a 648-line `page.tsx`, six components that do not exist, Norwegian UI labels that are no longer rendered, and several flows that are only toast stubs. This revision re-checks every claim against the current tree (commit `e2d8eee`) and the live Supabase project.
 
 ---
 
 ## 0. Verification Basis
 
-- `site/src/app/admin/page.tsx` — **4,494 lines**. All admin UI lives in this single file. There is no `src/components/admin/` directory and no `/admin/login` route.
+- `site/src/app/admin/page.tsx` — **4,541 lines**. All admin UI lives in this single file. There is no `src/components/admin/` directory and no `/admin/login` route.
 - `site/src/app/admin/admin-system.css` — 4,993 lines.
 - API routes under `site/src/app/api/admin/**`, `site/src/app/api/platform/**`, `site/src/app/api/cron/**`.
 - Live schema read through the Supabase REST API on 2026-10-31: `bookings`, `tenants`, `hours`, `blackouts`, `services`. **No `operating_hours` table exists.**
-- Regression suites: `scripts/verify-admin-login-flow.mjs` (21 checks), `scripts/verify-owner-transfer.mjs` (8), `scripts/verify-session-manual-contract.mjs` (18), `scripts/test-blackouts-flow.mjs` (create / list / delete), plus `npm run verify`.
+- Regression suites: `scripts/verify-admin-login-flow.mjs` (21 checks), `scripts/verify-owner-transfer.mjs` (8), `scripts/verify-session-manual-contract.mjs` (18), `scripts/test-blackouts-flow.mjs` (18 assertions: date seeding, studio-timezone write/read, delete, quick break, close-rest-of-day), plus `npm run verify`.
 
 ---
 
@@ -39,7 +39,7 @@
 | **Slot Step Interval** | **Yes** | `POST /api/admin/hours`, `tenants.slot_step_min` | Admin select for 15 / 30 / 45 / 60 minutes; clamped to 1–240 server-side. |
 | **Plan Ahead / Date Overrides** | **Yes** | `POST /api/admin/hours`, `tenants.profile.date_overrides` | Month multi-select with "entire month", "weekends only", "weekdays only". Per-date open/closed state and optional custom shifts. Persisted in the tenant profile and honoured by the availability engine. |
 | **Blackout API** | **Yes** | `GET/POST/DELETE /api/admin/blackouts` | `start_utc`, `end_utc`, optional `reason`. The availability engine excludes overlapping slots. |
-| **Blackout Admin UI** | **Yes** | In-page Block Time modal, `GET/POST/DELETE /api/admin/blackouts` | Quick 30-min break, Close Rest of Day, and custom date/time range with optional reason. Persists `start_utc`/`end_utc` to `blackouts`, displays formatted intervals, and provides deletion control. |
+| **Blackout Admin UI** | **Yes** | In-page Block Time modal, `GET/POST/DELETE /api/admin/blackouts` | Quick 30-min break, Close Rest of Day, and custom date/time range with optional reason. Seeded from the selected calendar day; writes and renders in `tenants.timezone`; persists `start_utc`/`end_utc` to `blackouts`; provides deletion control. |
 | **Studio Settings** | **Yes** | `POST /api/admin/settings`, `POST /api/admin/settings/test-email` | Theme presets + custom HEX, studio name, org number, address, WhatsApp, public client email, private owner email, activity log, and a "Send Test Ping" button. The API accepts 10 string fields, 4 numeric fields and `owner_email`. |
 | **Owner Transfer** | **Yes** | `POST /api/admin/settings` | Changing `owner_email` deactivates the displaced owner, revokes their sessions, returns `owner_changed` / `reauthentication_required`, and the portal locks itself so the new owner signs in. Exactly one active owner per tenant. |
 | **Activity Log** | **Yes** | `GET /api/admin/audit`, `admin_events` | Settings tab lists who approved, moved or emailed a booking, with a Refresh button. |
@@ -73,8 +73,9 @@
 
 ### 2.3 Calendar
 - **Week / Month toggle**, previous / next month, **Today**, day pills, month cells.
+- Opens on the studio's current day (`tenants.timezone`), not a hardcoded date.
 - **Sheet handle** → cycles the bottom sheet detent (peek / mid / upper).
-- **Block Time** → opens the Block Time modal.
+- **Block Time** → opens the Block Time modal for the selected day.
 - **Sync Calendar** → toast only; it does not refetch.
 
 ### 2.4 Appointments
@@ -101,15 +102,14 @@
 - Date + start time, **Confirm Reschedule** → `POST /api/admin/bookings/reschedule`.
 
 ### 2.8 Block Time Modal
-- **30 min break** → `POST /api/admin/blackouts` (30 min window from the browser's current time).
-- **Close the rest of the day** → `POST /api/admin/blackouts` (until 23:59:59 in the browser's timezone).
-- Date + start time + end time + reason + **Save block** → `POST /api/admin/blackouts`.
-- **Active Blackouts List** → renders `start_utc`/`end_utc` formatted date/times with individual Delete control calling `DELETE /api/admin/blackouts?id=...`.
+- Opens pre-filled with the calendar's **selected day**, not a stale "today".
+- **30 min break** → `POST /api/admin/blackouts` (30 min from now).
+- **Close the rest of the day** → `POST /api/admin/blackouts` (until 23:59:59 in `tenants.timezone`).
+- Date + start time + end time + reason + **Save block** → `POST /api/admin/blackouts`. The picker is interpreted as studio wall-clock time via `zonedDateTimeToEpochSeconds`, never browser-local time.
+- **Active Blackouts List** → renders `start_utc`/`end_utc` in `tenants.timezone`, sorted by start, with a Delete control calling `DELETE /api/admin/blackouts?id=...`.
+- The modal and the list header both state the studio timezone, so a remote admin can see which clock the times refer to.
 
-**Known defects (verified 2026-10-31 against `2201f2a`):**
-- The date field defaults to *today* and is never seeded from `selectedDate`. Opening Block Time from a calendar day other than today still pre-fills today's date.
-- All three write paths build timestamps in the **browser's** timezone and the list formats in the browser's timezone, while the availability engine uses `tenants.timezone` (`Europe/Oslo`). Verified with a browser set to `America/New_York`: a 13:00 block is stored as 19:00 Oslo time and then listed back as 13:00, so the row covers the wrong window for the studio.
-- The list returns every `blackouts` row, including past ones.
+**Known limitation:** the list returns every `blackouts` row, including past ones.
 
 ### 2.9 Opening Hours
 - Weekly open/closed toggles, start/end time pickers.
@@ -282,7 +282,7 @@ export interface DayStripItem {
 ## Appendix: Corrections vs the 2026-10-02 Draft
 
 1. **Non-existent files removed:** `src/components/admin/ClientDrawer.tsx`, `RescheduleModal.tsx`, `ManualBookingModal.tsx`, `app/admin/BlackoutsManager.tsx`, `app/admin/BookingsManager.tsx`, `app/admin/login/page.tsx`. The login gate is in-page.
-2. **`page.tsx` size:** 648 lines → **4,494 lines**.
+2. **`page.tsx` size:** 648 lines → **4,541 lines**.
 3. **`hours.weekday`:** "0 = Sunday" → **0 = Monday … 6 = Sunday**.
 4. **`bookings.custom_fields`:** listed as missing → **exists** (jsonb, `20261028120000_booking_integrity.sql`) and is written by the public widget.
 5. **`tenants.currency`:** listed as missing → **exists**. `vat_number` is the only genuinely missing invoice field; `org_number` and `mva_status` exist.
