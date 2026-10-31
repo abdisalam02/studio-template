@@ -407,7 +407,10 @@ function AdminPortalContent() {
   const [planIsClosed, setPlanIsClosed] = useState(false);
   const [isCustomizingDates, setIsCustomizingDates] = useState(false);
   const [perDateCustomTimes, setPerDateCustomTimes] = useState<Record<string, { open: boolean; start: string; end: string }>>({});
+  const [blockDate, setBlockDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [blockStartTime, setBlockStartTime] = useState("13:00");
+  const [blockEndTime, setBlockEndTime] = useState("13:30");
+  const [blockReason, setBlockReason] = useState("");
 
   // New Booking Form State
   const [servicesList, setServicesList] = useState<{ id: number | string; name: string; price_nok: number; duration_min: number }[]>([]);
@@ -1349,6 +1352,139 @@ function AdminPortalContent() {
       showToast("Network error rescheduling appointment");
     } finally {
       setIsSubmittingReschedule(false);
+    }
+  }
+
+  // Blackout & Time Block Operations
+  async function handleQuickBreak(minutes: number = 30) {
+    setIsSubmittingBlock(true);
+    try {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const endSec = nowSec + minutes * 60;
+      const res = await fetch("/api/admin/blackouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: activeTenant || session?.tenant_id || "gangina",
+          start_utc: nowSec,
+          end_utc: endSec,
+          reason: `${minutes} min pause`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.blackout) {
+          setBlackouts((prev) => [...prev, data.blackout]);
+        }
+        showToast(`✓ ${minutes} min break added`);
+        setShowBlockTimeModal(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || "Could not add break");
+      }
+    } catch {
+      showToast("Could not add break");
+    } finally {
+      setIsSubmittingBlock(false);
+    }
+  }
+
+  async function handleCloseRestOfDay() {
+    setIsSubmittingBlock(true);
+    try {
+      const now = new Date();
+      const nowSec = Math.floor(now.getTime() / 1000);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      const endSec = Math.floor(endOfDay.getTime() / 1000);
+      const res = await fetch("/api/admin/blackouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: activeTenant || session?.tenant_id || "gangina",
+          start_utc: nowSec,
+          end_utc: endSec,
+          reason: "Day closed",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.blackout) {
+          setBlackouts((prev) => [...prev, data.blackout]);
+        }
+        showToast("✓ Studio closed for the rest of today");
+        setShowBlockTimeModal(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || "Could not close today");
+      }
+    } catch {
+      showToast("Could not close today");
+    } finally {
+      setIsSubmittingBlock(false);
+    }
+  }
+
+  async function handleCreateCustomBlock(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setIsSubmittingBlock(true);
+    try {
+      const targetDate = blockDate || selectedDate || new Date().toISOString().split("T")[0];
+      const sDateTime = new Date(`${targetDate}T${blockStartTime}:00`);
+      const eDateTime = new Date(`${targetDate}T${blockEndTime}:00`);
+      const startSec = Math.floor(sDateTime.getTime() / 1000);
+      const endSec = Math.floor(eDateTime.getTime() / 1000);
+
+      if (isNaN(startSec) || isNaN(endSec)) {
+        showToast("Invalid date or time");
+        return;
+      }
+      if (endSec <= startSec) {
+        showToast("End time must be after start time");
+        return;
+      }
+
+      const res = await fetch("/api/admin/blackouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: activeTenant || session?.tenant_id || "gangina",
+          start_utc: startSec,
+          end_utc: endSec,
+          reason: blockReason.trim() || "Studio Pause",
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.blackout) {
+          setBlackouts((prev) => [...prev, data.blackout]);
+        }
+        showToast("✓ Custom block saved");
+        setShowBlockTimeModal(false);
+        setBlockReason("");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || "Could not save custom block");
+      }
+    } catch {
+      showToast("Could not save custom block");
+    } finally {
+      setIsSubmittingBlock(false);
+    }
+  }
+
+  async function handleDeleteBlackout(id: number) {
+    try {
+      const res = await fetch(`/api/admin/blackouts?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setBlackouts((prev) => prev.filter((b) => b.id !== id));
+        showToast("✓ Time block removed");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || "Could not remove time block");
+      }
+    } catch {
+      showToast("Could not remove time block");
     }
   }
 
@@ -3206,27 +3342,49 @@ function AdminPortalContent() {
                     </button>
                   </div>
 
-                  <div id="blocked-intervals-list" style={{ marginTop: "10px" }}>
+                  <div id="blocked-intervals-list" style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                     {blackouts.length === 0 ? (
                       <p style={{ fontSize: "0.8rem", color: "var(--admin-sheet-muted)", margin: "8px 0" }}>
                         No upcoming blackout periods configured.
                       </p>
                     ) : (
-                      blackouts.map((b, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            padding: "8px 0",
-                            borderBottom: "1px solid #f0f0f0",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          <span>{b.reason || "Studio Pause"}</span>
-                          <strong>{b.starts_at?.split("T")[0]}</strong>
-                        </div>
-                      ))
+                      blackouts.map((b) => {
+                        const s = new Date(b.start_utc * 1000);
+                        const e = new Date(b.end_utc * 1000);
+                        const dateLabel = s.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        const timeRange = `${s.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} – ${e.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+                        return (
+                          <div
+                            key={b.id}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "8px 12px",
+                              background: "#FFFFFF",
+                              border: "1px solid rgba(0,0,0,0.06)",
+                              borderRadius: "10px",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 600, color: "#111827" }}>{b.reason || "Studio Pause"}</div>
+                              <div style={{ fontSize: "0.72rem", color: "var(--admin-sheet-muted)", marginTop: "2px" }}>
+                                {dateLabel} · {timeRange}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="quick-action-btn"
+                              style={{ padding: "4px 8px", fontSize: "0.72rem", color: "#DC2626" }}
+                              onClick={() => handleDeleteBlackout(b.id)}
+                              aria-label="Delete block"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -4183,10 +4341,8 @@ function AdminPortalContent() {
                 <button
                   type="button"
                   className="quick-action-btn modal-quick-row"
-                  onClick={() => {
-                    showToast("✓ 30 min break added");
-                    setShowBlockTimeModal(false);
-                  }}
+                  disabled={isSubmittingBlock}
+                  onClick={() => handleQuickBreak(30)}
                 >
                   <span className="modal-quick-title">30 min break</span>
                   <span className="modal-quick-arrow">→</span>
@@ -4194,10 +4350,8 @@ function AdminPortalContent() {
                 <button
                   type="button"
                   className="quick-action-btn modal-quick-row"
-                  onClick={() => {
-                    showToast("✓ Day closed for bookings");
-                    setShowBlockTimeModal(false);
-                  }}
+                  disabled={isSubmittingBlock}
+                  onClick={() => handleCloseRestOfDay()}
                 >
                   <span className="modal-quick-title">Close the rest of the day</span>
                   <span className="modal-quick-arrow">→</span>
@@ -4205,46 +4359,64 @@ function AdminPortalContent() {
               </div>
 
               <div className="modal-section-title">Custom break</div>
-              <div className="modal-grid-2">
-                <div className="recessed-input-group">
-                  <label className="recessed-label">Date</label>
-                  <input type="date" className="recessed-input" defaultValue={selectedDate} />
+              <form onSubmit={handleCreateCustomBlock}>
+                <div className="modal-grid-2">
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Date</label>
+                    <input
+                      type="date"
+                      className="recessed-input"
+                      value={blockDate}
+                      onChange={(e) => setBlockDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Reason (optional)</label>
+                    <input
+                      type="text"
+                      className="recessed-input"
+                      placeholder="e.g. Lunch pause"
+                      value={blockReason}
+                      onChange={(e) => setBlockReason(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="recessed-input-group">
-                  <label className="recessed-label">Start time</label>
-                  <EditorialTimePicker
-                    value={blockStartTime}
-                    onChange={setBlockStartTime}
-                  />
-                </div>
-              </div>
 
-              <button
-                type="button"
-                id="save-blackout-btn"
-                className="modal-submit-btn modal-submit-block"
-                disabled={isSubmittingBlock}
-                style={{ opacity: isSubmittingBlock ? 0.7 : 1 }}
-                onClick={async () => {
-                  setIsSubmittingBlock(true);
-                  try {
-                    await new Promise((r) => setTimeout(r, 400));
-                    showToast("✓ Custom block saved");
-                    setShowBlockTimeModal(false);
-                  } finally {
-                    setIsSubmittingBlock(false);
-                  }
-                }}
-              >
-                {isSubmittingBlock ? (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
-                    <span className="save-spinner" aria-hidden="true" />
-                    Saving block…
-                  </span>
-                ) : (
-                  "Save block"
-                )}
-              </button>
+                <div className="modal-grid-2" style={{ marginTop: "10px", marginBottom: "16px" }}>
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">Start time</label>
+                    <EditorialTimePicker
+                      value={blockStartTime}
+                      onChange={setBlockStartTime}
+                    />
+                  </div>
+                  <div className="recessed-input-group">
+                    <label className="recessed-label">End time</label>
+                    <EditorialTimePicker
+                      value={blockEndTime}
+                      onChange={setBlockEndTime}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  id="save-blackout-btn"
+                  className="modal-submit-btn modal-submit-block"
+                  disabled={isSubmittingBlock}
+                  style={{ opacity: isSubmittingBlock ? 0.7 : 1 }}
+                >
+                  {isSubmittingBlock ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+                      <span className="save-spinner" aria-hidden="true" />
+                      Saving block…
+                    </span>
+                  ) : (
+                    "Save block"
+                  )}
+                </button>
+              </form>
             </motion.div>
           </div>
         )}
