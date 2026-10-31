@@ -110,6 +110,39 @@ function getLocalDateString(epochSeconds: number, timeZone: string): string {
 }
 
 /**
+ * Converts a tenant wall-clock date and time ("YYYY-MM-DD" + "HH:mm[:ss]") into epoch seconds.
+ * Used by the admin UI so blackout writes use the studio's timezone, not the browser's.
+ */
+export function zonedDateTimeToEpochSeconds(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string
+): number {
+  const [year, month, day] = parseDateParts(dateStr);
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes)
+  ) {
+    return NaN;
+  }
+  const base = localDateTimeToUtc(year, month, day, hours * 60 + minutes, timeZone);
+  return base + (Number.isFinite(seconds) ? seconds : 0);
+}
+
+/**
+ * Returns "YYYY-MM-DD" for the given moment in the tenant's timezone.
+ */
+export function zonedDateString(date: Date | number, timeZone: string): string {
+  const epochSeconds =
+    typeof date === "number" ? date : Math.floor(date.getTime() / 1000);
+  return getLocalDateString(epochSeconds, timeZone);
+}
+
+/**
  * Computes Monday=0, ..., Sunday=6 for a given YYYY-MM-DD in tenant timezone.
  */
 function getWeekdayMondayZero(year: number, month: number, day: number): number {

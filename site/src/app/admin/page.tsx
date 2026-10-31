@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
+import { zonedDateTimeToEpochSeconds, zonedDateString } from "@/lib/availability";
 import "./admin-system.css";
 
 // Sanzo Wada 1930s 'A Dictionary of Color Combinations' Presets
@@ -237,6 +238,8 @@ function AdminPortalContent() {
     onConfirm: () => void;
   } | null>(null);
   const lookupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Snap the calendar to the studio's "today" once, after the tenant timezone is known.
+  const initialViewAppliedRef = useRef(false);
 
   // Tenant & Branding
   const [activeTenant, setActiveTenant] = useState<string>(tenantParam);
@@ -407,10 +410,12 @@ function AdminPortalContent() {
   const [planIsClosed, setPlanIsClosed] = useState(false);
   const [isCustomizingDates, setIsCustomizingDates] = useState(false);
   const [perDateCustomTimes, setPerDateCustomTimes] = useState<Record<string, { open: boolean; start: string; end: string }>>({});
-  const [blockDate, setBlockDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [blockDate, setBlockDate] = useState("");
   const [blockStartTime, setBlockStartTime] = useState("13:00");
   const [blockEndTime, setBlockEndTime] = useState("13:30");
   const [blockReason, setBlockReason] = useState("");
+  // Studio timezone from `tenants.timezone`; blackouts must never use the browser's timezone.
+  const [tenantTimezone, setTenantTimezone] = useState("Europe/Oslo");
 
   // New Booking Form State
   const [servicesList, setServicesList] = useState<{ id: number | string; name: string; price_nok: number; duration_min: number }[]>([]);
@@ -1021,6 +1026,18 @@ function AdminPortalContent() {
         if (profRes.ok) {
           const pData = await profRes.json();
           if (pData.tenant) {
+            const studioTimezone =
+              typeof pData.tenant.timezone === "string" && pData.tenant.timezone.trim()
+                ? pData.tenant.timezone.trim()
+                : "Europe/Oslo";
+            setTenantTimezone(studioTimezone);
+            if (!initialViewAppliedRef.current) {
+              initialViewAppliedRef.current = true;
+              const studioToday = zonedDateString(new Date(), studioTimezone);
+              setSelectedDate(studioToday);
+              setViewYear(Number(studioToday.slice(0, 4)));
+              setViewMonth(Number(studioToday.slice(5, 7)) - 1);
+            }
             setTenantProfile({
               id: activeTenant,
               name: pData.tenant.name || activeTenant,
@@ -1356,7 +1373,25 @@ function AdminPortalContent() {
   }
 
   // Blackout & Time Block Operations
+  // The session tenant is authoritative: never fall back to a hardcoded slug.
+  function resolveWriteTenant(): string | null {
+    const id = (activeTenant || session?.tenant_id || "").trim();
+    if (!id) {
+      showToast("No studio selected");
+      return null;
+    }
+    return id;
+  }
+
+  // Always seed the block date from the day the admin is looking at, not from "today".
+  function openBlockTimeModal() {
+    setBlockDate(selectedDate || zonedDateString(new Date(), tenantTimezone));
+    setShowBlockTimeModal(true);
+  }
+
   async function handleQuickBreak(minutes: number = 30) {
+    const tenantId = resolveWriteTenant();
+    if (!tenantId) return;
     setIsSubmittingBlock(true);
     try {
       const nowSec = Math.floor(Date.now() / 1000);
@@ -1365,10 +1400,10 @@ function AdminPortalContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenant_id: activeTenant || session?.tenant_id || "gangina",
+          tenant_id: tenantId,
           start_utc: nowSec,
           end_utc: endSec,
-          reason: `${minutes} min pause`,
+          reason: `${minutes} min break`,
         }),
       });
       if (res.ok) {
@@ -1390,17 +1425,22 @@ function AdminPortalContent() {
   }
 
   async function handleCloseRestOfDay() {
+    const tenantId = resolveWriteTenant();
+    if (!tenantId) return;
     setIsSubmittingBlock(true);
     try {
-      const now = new Date();
-      const nowSec = Math.floor(now.getTime() / 1000);
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-      const endSec = Math.floor(endOfDay.getTime() / 1000);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const todayInStudio = zonedDateString(new Date(), tenantTimezone);
+      const endSec = zonedDateTimeToEpochSeconds(todayInStudio, "23:59:59", tenantTimezone);
+      if (!Number.isFinite(endSec) || endSec <= nowSec) {
+        showToast("Today has already ended in studio time");
+        return;
+      }
       const res = await fetch("/api/admin/blackouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenant_id: activeTenant || session?.tenant_id || "gangina",
+          tenant_id: tenantId,
           start_utc: nowSec,
           end_utc: endSec,
           reason: "Day closed",
@@ -1426,15 +1466,16 @@ function AdminPortalContent() {
 
   async function handleCreateCustomBlock(e?: React.FormEvent) {
     if (e) e.preventDefault();
+    const tenantId = resolveWriteTenant();
+    if (!tenantId) return;
     setIsSubmittingBlock(true);
     try {
-      const targetDate = blockDate || selectedDate || new Date().toISOString().split("T")[0];
-      const sDateTime = new Date(`${targetDate}T${blockStartTime}:00`);
-      const eDateTime = new Date(`${targetDate}T${blockEndTime}:00`);
-      const startSec = Math.floor(sDateTime.getTime() / 1000);
-      const endSec = Math.floor(eDateTime.getTime() / 1000);
+      const targetDate = blockDate || selectedDate || zonedDateString(new Date(), tenantTimezone);
+      // Interpret the picked date/time as studio wall-clock time, not browser-local time.
+      const startSec = zonedDateTimeToEpochSeconds(targetDate, blockStartTime, tenantTimezone);
+      const endSec = zonedDateTimeToEpochSeconds(targetDate, blockEndTime, tenantTimezone);
 
-      if (isNaN(startSec) || isNaN(endSec)) {
+      if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) {
         showToast("Invalid date or time");
         return;
       }
@@ -1447,7 +1488,7 @@ function AdminPortalContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenant_id: activeTenant || session?.tenant_id || "gangina",
+          tenant_id: tenantId,
           start_utc: startSec,
           end_utc: endSec,
           reason: blockReason.trim() || "Studio Pause",
@@ -1515,6 +1556,7 @@ function AdminPortalContent() {
   });
 
   const monogram = tenantProfile.monogram || activeTenant.slice(0, 2).toUpperCase();
+  const tenantTodayIso = zonedDateString(new Date(), tenantTimezone);
 
   if (authStatus === "checking") {
     return (
@@ -1978,8 +2020,7 @@ function AdminPortalContent() {
             </div>
 
             {(() => {
-              const now = new Date();
-              const todayIso = now.toISOString().split("T")[0];
+              const todayIso = tenantTodayIso;
               const isToday = selectedDate === todayIso;
 
               return (
@@ -1988,11 +2029,9 @@ function AdminPortalContent() {
                   className={`cal-today-btn ${!isToday ? "is-jump" : ""}`}
                   id="cal-today-btn"
                   onClick={() => {
-                    const todayDate = new Date();
-                    const nowIso = todayDate.toISOString().split("T")[0];
-                    setSelectedDate(nowIso);
-                    setViewYear(todayDate.getUTCFullYear());
-                    setViewMonth(todayDate.getUTCMonth());
+                    setSelectedDate(tenantTodayIso);
+                    setViewYear(Number(tenantTodayIso.slice(0, 4)));
+                    setViewMonth(Number(tenantTodayIso.slice(5, 7)) - 1);
                     setCalendarMode("week");
                     setSheetDetent("mid");
                   }}
@@ -2002,7 +2041,7 @@ function AdminPortalContent() {
                   <span>
                     {isToday
                       ? "Today"
-                      : `Today · ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                      : `Today · ${new Date(`${tenantTodayIso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
                   </span>
                 </button>
               );
@@ -2013,7 +2052,7 @@ function AdminPortalContent() {
           <div className="canopy-week-strip" id="canopy-week-strip">
             {getWeekDaysForDate(selectedDate).map((day) => {
               const isSelected = day.iso === selectedDate;
-              const isToday = day.iso === new Date().toISOString().split("T")[0];
+              const isToday = day.iso === tenantTodayIso;
               const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(day.iso));
 
               return (
@@ -2049,13 +2088,14 @@ function AdminPortalContent() {
             <div className="month-grid-days" id="month-grid-days">
               {getMonthGridDays(viewYear, viewMonth).map((cell, idx) => {
                 const isSelected = cell.iso === selectedDate;
-                const isToday = cell.iso === new Date().toISOString().split("T")[0];
+                const isToday = cell.iso === tenantTodayIso;
                 const hasBookings = bookings.some((b) => b.scheduled_at?.startsWith(cell.iso));
 
                 return (
                   <button
                     key={`${cell.iso}-${idx}`}
                     type="button"
+                    data-date={cell.iso}
                     className={`month-grid-cell month-day-cell ${isSelected ? "active" : ""} ${isToday ? "is-today" : ""}`}
                     style={{ opacity: cell.isCurrentMonth ? 1 : 0.35 }}
                     onClick={() => {
@@ -2151,7 +2191,7 @@ function AdminPortalContent() {
                     type="button"
                     className="quick-action-btn"
                     id="btn-quick-block-time"
-                    onClick={() => setShowBlockTimeModal(true)}
+                    onClick={openBlockTimeModal}
                   >
                     Block Time
                   </button>
@@ -2186,7 +2226,7 @@ function AdminPortalContent() {
                     </div>
                   ) : bookings.filter((b) => b.scheduled_at?.startsWith(selectedDate)).length === 0 ? (
                     (() => {
-                      const todayIso = new Date().toISOString().split("T")[0];
+                      const todayIso = tenantTodayIso;
                       const isToday = selectedDate === todayIso;
 
                       if (isToday) {
@@ -3062,7 +3102,7 @@ function AdminPortalContent() {
                       {getMonthGridDays(planAheadYear, planAheadMonth).map((cell, idx) => {
                         const isSelected = selectedPlanDates.includes(cell.iso);
                         const override = dateOverrides[cell.iso];
-                        const isToday = cell.iso === new Date().toISOString().split("T")[0];
+                        const isToday = cell.iso === tenantTodayIso;
                         const weekdayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(cell.iso + "T00:00:00Z").getUTCDay()];
                         const standardClosed = shifts[weekdayName]?.open === false;
                         const isOverrideClosed = override?.open === false;
@@ -3329,14 +3369,14 @@ function AdminPortalContent() {
                   <div className="card-section-head">
                     <div>
                       <h3 className="card-title-main">Active Blackouts & Breaks</h3>
-                      <span className="card-subtitle">Personal leaves, lunch breaks, and holidays</span>
+                      <span className="card-subtitle">Personal leaves, lunch breaks, and holidays · {tenantTimezone.replace(/_/g, " ")}</span>
                     </div>
                     <button
                       type="button"
                       className="quick-action-btn"
                       id="btn-add-blackout-tab"
                       style={{ padding: "6px 12px" }}
-                      onClick={() => setShowBlockTimeModal(true)}
+                      onClick={openBlockTimeModal}
                     >
                       + Block Time
                     </button>
@@ -3348,11 +3388,14 @@ function AdminPortalContent() {
                         No upcoming blackout periods configured.
                       </p>
                     ) : (
-                      blackouts.map((b) => {
+                      [...blackouts]
+                        .sort((a, b) => a.start_utc - b.start_utc)
+                        .map((b) => {
                         const s = new Date(b.start_utc * 1000);
                         const e = new Date(b.end_utc * 1000);
-                        const dateLabel = s.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                        const timeRange = `${s.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} – ${e.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+                        // Render in studio time so a remote admin never sees a shifted block.
+                        const dateLabel = s.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tenantTimezone });
+                        const timeRange = `${s.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tenantTimezone })} – ${e.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tenantTimezone })}`;
                         return (
                           <div
                             key={b.id}
@@ -4359,6 +4402,12 @@ function AdminPortalContent() {
               </div>
 
               <div className="modal-section-title">Custom break</div>
+              <p
+                id="block-timezone-hint"
+                style={{ fontSize: "0.72rem", color: "#8A8A93", margin: "-4px 0 12px" }}
+              >
+                Times are in studio time ({tenantTimezone.replace(/_/g, " ")})
+              </p>
               <form onSubmit={handleCreateCustomBlock}>
                 <div className="modal-grid-2">
                   <div className="recessed-input-group">
